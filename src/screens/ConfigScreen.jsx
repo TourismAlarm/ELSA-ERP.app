@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
 import { supabase } from "../supabase";
 import { Btn, Field, Input, ListManager } from "../components/ui";
-
-const DEFAULT_VEHICLES   = ["Camión 1", "Camión 2", "Grúa 3", "Cesta", "Operario externo"];
-const DEFAULT_WORK_TYPES = ["Maquinaria", "Barcos", "Cesta", "Servicios", "Otro"];
+import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../lib/constants";
 
 const downloadBackup = async () => {
   const [{ data: sols }, { data: cfg }] = await Promise.all([

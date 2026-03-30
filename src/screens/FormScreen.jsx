@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Btn, Field, Input, Select, Textarea } from "../components/ui";
-
-const DEFAULT_VEHICLES   = ["Camión 1", "Camión 2", "Grúa 3", "Cesta", "Operario externo"];
-const DEFAULT_WORK_TYPES = ["Maquinaria", "Barcos", "Cesta", "Servicios", "Otro"];
+import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../lib/constants";
 
 const FormScreen = ({ initial, config, onSave, onCancel, saving }) => {
   const [form, setForm] = useState(
