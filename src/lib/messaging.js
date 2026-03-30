@@ -1,4 +1,5 @@
 import { ADMIN_WHATSAPP, ADMIN_EMAIL } from "./constants";
+import { dbAddNota } from "./db";
 
 export const buildMessage = (s, config) => {
   const carga = [
@@ -28,11 +29,19 @@ export const buildMessage = (s, config) => {
   ].filter((l) => l !== null).join("\n");
 };
 
-export const sendWhatsApp = (s, config) =>
+export const sendWhatsApp = async (s, config) => {
   window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(buildMessage(s, config))}`, "_blank");
+  if (s.id) {
+    await dbAddNota(s.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: "Enviado por WhatsApp" });
+  }
+};
 
-export const sendEmail = (s, config) =>
+export const sendEmail = async (s, config) => {
   window.open(
     `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`Solicitud ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildMessage(s, config))}`,
     "_blank"
   );
+  if (s.id) {
+    await dbAddNota(s.id, { tipo: "email", fecha: new Date().toISOString(), texto: "Enviado por email" });
+  }
+};

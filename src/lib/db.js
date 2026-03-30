@@ -15,7 +15,34 @@ export const dbLoadSolicitudes = async () => {
 };
 
 export const dbSaveSolicitud = async (solicitud) => {
-  const { error } = await supabase.from("solicitudes").insert([sanitize(solicitud)]);
+  const { id, ...rest } = sanitize(solicitud);
+  const toInsert = {
+    ...rest,
+    estado: solicitud.estado || "pendiente",
+    fecha_ultimo_contacto: new Date().toISOString(),
+    notas_seguimiento: solicitud.notas_seguimiento || [],
+    avisos_activos: solicitud.avisos_activos !== undefined ? solicitud.avisos_activos : true,
+  };
+  const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
+  if (error) { console.error(error); return null; }
+  return data;
+};
+
+export const dbAddNota = async (id, nota) => {
+  const { data: current, error: fetchError } = await supabase
+    .from("solicitudes").select("notas_seguimiento").eq("id", id).single();
+  if (fetchError) { console.error(fetchError); return; }
+  const notas = [...(current.notas_seguimiento || []), nota];
+  const { error } = await supabase.from("solicitudes")
+    .update({ notas_seguimiento: notas, fecha_ultimo_contacto: new Date().toISOString() })
+    .eq("id", id);
+  if (error) console.error(error);
+};
+
+export const dbCambiarEstado = async (id, estado) => {
+  const { error } = await supabase.from("solicitudes")
+    .update({ estado, fecha_ultimo_contacto: new Date().toISOString() })
+    .eq("id", id);
   if (error) console.error(error);
 };
 

@@ -52,9 +52,9 @@ export default function App() {
       await dbUpdateSolicitud(updated);
       setSolicitudes((prev) => prev.map((b) => b.id === editing.id ? updated : b));
     } else {
-      const nueva = { ...form, id: Date.now(), numero: nextNum(), fecha: today() };
-      await dbSaveSolicitud(nueva);
-      setSolicitudes((prev) => [nueva, ...prev]);
+      const nueva = { ...form, numero: nextNum(), fecha: today() };
+      const saved = await dbSaveSolicitud(nueva);
+      if (saved) setSolicitudes((prev) => [saved, ...prev]);
     }
     setSaving(false);
     setScreen("dashboard");
