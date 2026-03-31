@@ -24,7 +24,7 @@ export const dbSaveSolicitud = async (solicitud) => {
     avisos_activos: solicitud.avisos_activos !== undefined ? solicitud.avisos_activos : true,
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
-  if (error) { console.error("ERROR SUPABASE:", error); alert("Error al guardar: " + error.message + "\nCódigo: " + error.code); return null; }
+  if (error) { console.error(error); return null; }
   return data;
 };
 
