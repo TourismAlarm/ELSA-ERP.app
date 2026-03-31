@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen } from "./screens";
-import { isAuthenticated, AUTH_KEY } from "./screens/LoginScreen";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
 import { today, nextNum } from "./lib/utils";
 
 export default function App() {
-  const [authed, setAuthed]           = useState(isAuthenticated);
+  const [session, setSession]         = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [screen, setScreen]           = useState("dashboard");
@@ -17,7 +18,18 @@ export default function App() {
   const [saving, setSaving]           = useState(false);
 
   useEffect(() => {
-    if (!authed) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
     (async () => {
       setLoadingData(true);
       const [cfg, sols] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes()]);
@@ -26,11 +38,14 @@ export default function App() {
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
     })();
-  }, [authed]);
+  }, [session]);
 
-  const handleLogout = () => {
-    localStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setConfig(null);
+    setSolicitudes([]);
+    setScreen("dashboard");
   };
 
   const handleConfigSave = (cfg) => { setConfig(cfg); setScreen("dashboard"); };
@@ -83,7 +98,18 @@ export default function App() {
     setEditing(null);
   };
 
-  if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />;
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <div className="text-center">
+          <div className="text-5xl mb-3">🏗️</div>
+          <p className="text-zinc-400 font-semibold">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) return <LoginScreen onLogin={(s) => setSession(s)} />;
 
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
