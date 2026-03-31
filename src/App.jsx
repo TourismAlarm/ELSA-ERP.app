@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
-import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen } from "./screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente } from "./lib/db";
+import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen, ClientesScreen } from "./screens";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
 import { today, nextNum } from "./lib/utils";
@@ -80,6 +80,17 @@ export default function App() {
     return saved;
   };
 
+  const handleEditCliente = async (id, datos) => {
+    await dbUpdateCliente({ id, ...datos });
+    setClientes((prev) => prev.map((c) => c.id === id ? { ...c, ...datos } : c));
+  };
+
+  const handleDeleteCliente = async (id) => {
+    if (!confirm("¿Eliminar este cliente?")) return;
+    await dbDeleteCliente(id);
+    setClientes((prev) => prev.filter((c) => c.id !== id));
+  };
+
   const handleToggleAvisos = async (id, valor) => {
     await dbToggleAvisos(id, valor);
     setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, avisos_activos: valor } : b));
@@ -130,7 +141,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
-      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} />}
+      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
+      {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
       {screen === "dashboard" && (
         <DashboardScreen
           solicitudes={solicitudes}

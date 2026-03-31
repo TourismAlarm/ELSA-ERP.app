@@ -74,6 +74,16 @@ export const dbSaveConfig = async (cfg) => {
   if (error) console.error(error);
 };
 
+export const dbUpdateCliente = async (cliente) => {
+  const { error } = await supabase.from("clientes").update({ nombre: cliente.nombre, tel: cliente.tel, email: cliente.email }).eq("id", cliente.id);
+  if (error) console.error(error);
+};
+
+export const dbDeleteCliente = async (id) => {
+  const { error } = await supabase.from("clientes").delete().eq("id", id);
+  if (error) console.error(error);
+};
+
 export const dbLoadClientes = async () => {
   const { data, error } = await supabase.from("clientes").select("*").order("nombre");
   if (error) { console.error(error); return []; }

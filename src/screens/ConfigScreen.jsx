@@ -23,7 +23,7 @@ const dbSaveConfig = async (cfg) => {
   if (error) console.error(error);
 };
 
-const ConfigScreen = ({ onSave, initial, onLogout }) => {
+const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     vehicles: DEFAULT_VEHICLES, workTypes: DEFAULT_WORK_TYPES,
@@ -90,6 +90,9 @@ const ConfigScreen = ({ onSave, initial, onLogout }) => {
 
       <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving}>
         {saving ? "Guardando..." : "💾 Guardar configuración"}
+      </Btn>
+      <Btn size="md" variant="secondary" className="w-full" onClick={onClientes}>
+        👥 Gestionar clientes
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={downloadBackup}>
         📥 Descargar copia de seguridad
