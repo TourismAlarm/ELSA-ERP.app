@@ -28,8 +28,10 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const sessionUserId = session?.user?.id;
+
   useEffect(() => {
-    if (!session) return;
+    if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
       const [cfg, sols] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes()]);
@@ -38,7 +40,7 @@ export default function App() {
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
     })();
-  }, [session]);
+  }, [sessionUserId]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
