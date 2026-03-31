@@ -90,14 +90,21 @@ export default function App() {
       const updated = { ...editing, ...form };
       await dbUpdateSolicitud(updated);
       setSolicitudes((prev) => prev.map((b) => b.id === editing.id ? updated : b));
+      setSaving(false);
+      setEditing(null);
+      handleView(updated);
     } else {
       const nueva = { ...form, numero: nextNum(), fecha: today() };
       const saved = await dbSaveSolicitud(nueva);
-      if (saved) setSolicitudes((prev) => [saved, ...prev]);
+      setSaving(false);
+      setEditing(null);
+      if (saved) {
+        setSolicitudes((prev) => [saved, ...prev]);
+        handleView(saved);
+      } else {
+        setScreen("dashboard");
+      }
     }
-    setSaving(false);
-    setScreen("dashboard");
-    setEditing(null);
   };
 
   if (loadingAuth) {
