@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen } from "./screens";
 import { isAuthenticated, AUTH_KEY } from "./screens/LoginScreen";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig } from "./lib/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
 import { today, nextNum } from "./lib/utils";
@@ -37,6 +37,16 @@ export default function App() {
   const handleNew        = () => { setEditing(null); setScreen("form"); };
   const handleEdit       = (b) => { setEditing(b); setScreen("form"); };
   const handleView       = (b) => { setViewing(b); setScreen("view"); };
+
+  const handleCambiarEstado = async (id, nuevoEstado) => {
+    await dbCambiarEstado(id, nuevoEstado);
+    setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: new Date().toISOString() } : b));
+  };
+
+  const handleToggleAvisos = async (id, valor) => {
+    await dbToggleAvisos(id, valor);
+    setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, avisos_activos: valor } : b));
+  };
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar esta solicitud?")) return;
@@ -75,6 +85,8 @@ export default function App() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onConfig={() => setScreen("config")}
+          onCambiarEstado={handleCambiarEstado}
+          onToggleAvisos={handleToggleAvisos}
         />
       )}
       {screen === "form" && (

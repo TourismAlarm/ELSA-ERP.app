@@ -46,6 +46,11 @@ export const dbCambiarEstado = async (id, estado) => {
   if (error) console.error(error);
 };
 
+export const dbToggleAvisos = async (id, valor) => {
+  const { error } = await supabase.from("solicitudes").update({ avisos_activos: valor }).eq("id", id);
+  if (error) console.error(error);
+};
+
 export const dbUpdateSolicitud = async (solicitud) => {
   const { error } = await supabase.from("solicitudes").update(sanitize(solicitud)).eq("id", solicitud.id);
   if (error) console.error(error);
