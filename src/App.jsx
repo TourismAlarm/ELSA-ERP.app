@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen } from "./screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota } from "./lib/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
 import { today, nextNum } from "./lib/utils";
@@ -11,6 +11,7 @@ export default function App() {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
+  const [clientes, setClientes]       = useState([]);
   const [screen, setScreen]           = useState("dashboard");
   const [editing, setEditing]         = useState(null);
   const [viewing, setViewing]         = useState(null);
@@ -34,9 +35,10 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes()]);
+      const [cfg, sols, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
+      setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
     })();
@@ -70,6 +72,12 @@ export default function App() {
       setViewing((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
     }
     return updated;
+  };
+
+  const handleSaveCliente = async (cliente) => {
+    const saved = await dbSaveCliente(cliente);
+    if (saved) setClientes((prev) => [...prev, saved].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    return saved;
   };
 
   const handleToggleAvisos = async (id, valor) => {
@@ -137,7 +145,7 @@ export default function App() {
         />
       )}
       {screen === "form" && (
-        <FormScreen initial={editing} config={config} onSave={handleFormSave} onCancel={() => setScreen("dashboard")} saving={saving} />
+        <FormScreen initial={editing} config={config} clientes={clientes} onSave={handleFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("dashboard")} saving={saving} />
       )}
       {screen === "view" && viewing && (
         <ViewScreen

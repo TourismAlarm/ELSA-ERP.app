@@ -97,6 +97,7 @@ const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsAp
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
             <p className="font-black text-zinc-900 text-xl">{sol.cliente}</p>
             {sol.telCliente && <p className="text-zinc-500 text-sm mt-1">📞 {sol.telCliente}</p>}
+            {sol.emailCliente && <p className="text-zinc-500 text-sm mt-0.5">✉️ {sol.emailCliente}</p>}
           </div>
 
           {(sol.vehiculo || sol.tipoTrabajo || sol.tipo) && (

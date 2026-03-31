@@ -73,3 +73,15 @@ export const dbSaveConfig = async (cfg) => {
   const { error } = await supabase.from("config").upsert({ id: 1, ...cfg });
   if (error) console.error(error);
 };
+
+export const dbLoadClientes = async () => {
+  const { data, error } = await supabase.from("clientes").select("*").order("nombre");
+  if (error) { console.error(error); return []; }
+  return data;
+};
+
+export const dbSaveCliente = async (cliente) => {
+  const { data, error } = await supabase.from("clientes").insert([cliente]).select().single();
+  if (error) { console.error(error); return null; }
+  return data;
+};

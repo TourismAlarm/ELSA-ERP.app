@@ -1,14 +1,50 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Select, Textarea } from "../components/ui";
 import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../lib/constants";
 
-const FormScreen = ({ initial, config, onSave, onCancel, saving }) => {
+const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const [form, setForm] = useState(
-    initial || { cliente: "", telCliente: "", vehiculo: "", tipoTrabajo: "", origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
+    initial || { cliente: "", telCliente: "", emailCliente: "", vehiculo: "", tipoTrabajo: "", origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
   );
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [savingCliente, setSavingCliente] = useState(false);
+  const clienteRef = useRef(null);
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const vehicles  = config?.vehicles  ?? DEFAULT_VEHICLES;
   const workTypes = config?.workTypes ?? DEFAULT_WORK_TYPES;
+
+  // Cerrar sugerencias al pulsar fuera
+  useEffect(() => {
+    const handler = (e) => {
+      if (clienteRef.current && !clienteRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const suggestions = clientes.filter((c) =>
+    form.cliente.trim().length >= 1 &&
+    c.nombre.toLowerCase().includes(form.cliente.toLowerCase())
+  ).slice(0, 6);
+
+  const clienteExacto = clientes.some(
+    (c) => c.nombre.toLowerCase() === form.cliente.trim().toLowerCase()
+  );
+
+  const selectCliente = (c) => {
+    setForm((f) => ({ ...f, cliente: c.nombre, telCliente: c.tel || f.telCliente, emailCliente: c.email || f.emailCliente }));
+    setShowSuggestions(false);
+  };
+
+  const handleGuardarCliente = async () => {
+    if (!form.cliente.trim()) return;
+    setSavingCliente(true);
+    await onSaveCliente({ nombre: form.cliente.trim(), tel: form.telCliente, email: form.emailCliente });
+    setSavingCliente(false);
+  };
 
   const handleSave = () => {
     if (!form.cliente.trim()) { alert("El nombre del cliente es obligatorio."); return; }
@@ -26,8 +62,53 @@ const FormScreen = ({ initial, config, onSave, onCancel, saving }) => {
       </div>
 
       <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm">
-        <Field label="Nombre del cliente *"><Input value={form.cliente} onChange={set("cliente")} placeholder="Juan García" /></Field>
-        <Field label="Teléfono del cliente"><Input value={form.telCliente} onChange={set("telCliente")} placeholder="600 000 000" /></Field>
+
+        {/* Nombre del cliente con autocompletado */}
+        <Field label="Nombre del cliente *">
+          <div ref={clienteRef} className="relative">
+            <Input
+              value={form.cliente}
+              onChange={(e) => { set("cliente")(e); setShowSuggestions(true); }}
+              onFocus={() => form.cliente.trim().length >= 1 && setShowSuggestions(true)}
+              placeholder="Juan García"
+            />
+            {/* Dropdown sugerencias */}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-20 w-full bg-white border-2 border-zinc-200 rounded-xl mt-1 shadow-xl overflow-hidden">
+                {suggestions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onMouseDown={() => selectCliente(c)}
+                    className="w-full text-left px-4 py-3 hover:bg-zinc-50 border-b border-zinc-100 last:border-0 transition-colors"
+                  >
+                    <p className="font-bold text-zinc-900">{c.nombre}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{[c.tel, c.email].filter(Boolean).join(" · ") || "Sin contacto guardado"}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* Botón guardar cliente nuevo */}
+            {form.cliente.trim() && !clienteExacto && (
+              <button
+                type="button"
+                onClick={handleGuardarCliente}
+                disabled={savingCliente}
+                className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-50"
+              >
+                {savingCliente ? "Guardando..." : `💾 Guardar "${form.cliente.trim()}" como nuevo cliente`}
+              </button>
+            )}
+          </div>
+        </Field>
+
+        <Field label="Teléfono del cliente">
+          <Input value={form.telCliente} onChange={set("telCliente")} placeholder="600 000 000" />
+        </Field>
+
+        <Field label="Email del cliente">
+          <Input type="email" value={form.emailCliente} onChange={set("emailCliente")} placeholder="cliente@email.com" />
+        </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Vehículo / Equipo">
