@@ -31,12 +31,14 @@ export const dbSaveSolicitud = async (solicitud) => {
 export const dbAddNota = async (id, nota) => {
   const { data: current, error: fetchError } = await supabase
     .from("solicitudes").select("notas_seguimiento").eq("id", id).single();
-  if (fetchError) { console.error(fetchError); return; }
+  if (fetchError) { console.error(fetchError); return null; }
   const notas = [...(current.notas_seguimiento || []), nota];
+  const now = new Date().toISOString();
   const { error } = await supabase.from("solicitudes")
-    .update({ notas_seguimiento: notas, fecha_ultimo_contacto: new Date().toISOString() })
+    .update({ notas_seguimiento: notas, fecha_ultimo_contacto: now })
     .eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); return null; }
+  return { notas_seguimiento: notas, fecha_ultimo_contacto: now };
 };
 
 export const dbCambiarEstado = async (id, estado) => {

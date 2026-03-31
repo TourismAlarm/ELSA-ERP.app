@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen } from "./screens";
 import { isAuthenticated, AUTH_KEY } from "./screens/LoginScreen";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos } from "./lib/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
 import { today, nextNum } from "./lib/utils";
@@ -40,7 +40,19 @@ export default function App() {
 
   const handleCambiarEstado = async (id, nuevoEstado) => {
     await dbCambiarEstado(id, nuevoEstado);
-    setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: new Date().toISOString() } : b));
+    const now = new Date().toISOString();
+    setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: now } : b));
+    setViewing((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado, fecha_ultimo_contacto: now } : prev);
+  };
+
+  const handleAddNota = async (id, texto) => {
+    const nota = { tipo: "manual", fecha: new Date().toISOString(), texto };
+    const updated = await dbAddNota(id, nota);
+    if (updated) {
+      setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, ...updated } : b));
+      setViewing((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
+    }
+    return updated;
   };
 
   const handleToggleAvisos = async (id, valor) => {
@@ -102,6 +114,8 @@ export default function App() {
           onSendWhatsApp={(s) => sendWhatsApp(s, config)}
           onSendEmail={(s) => sendEmail(s, config)}
           onGeneratePDF={(s) => generatePDF(s, config)}
+          onCambiarEstado={handleCambiarEstado}
+          onAddNota={handleAddNota}
         />
       )}
     </div>
