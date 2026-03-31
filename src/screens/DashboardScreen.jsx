@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, Input } from "../components/ui";
+import { Btn } from "../components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700",    summary: "bg-amber-50 border-amber-200 text-amber-700" },
@@ -16,12 +16,17 @@ const diasDesde = (fechaISO) => {
 const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado, onToggleAvisos }) => {
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const filtered = solicitudes.filter((b) => {
-    const matchText = [b.cliente, b.descripcion, b.numero, b.tipo, b.tipoTrabajo, b.vehiculo, b.direccion, b.origen, b.destino]
-      .join(" ").toLowerCase().includes(q.toLowerCase());
     const matchEstado = filtroEstado === "todos" || (b.estado || "pendiente") === filtroEstado;
-    return matchText && matchEstado;
+    return matchEstado;
+  });
+
+  const searchResults = q.trim() === "" ? [] : solicitudes.filter((b) => {
+    const notasText = (b.notas_seguimiento || []).map((n) => n.texto).join(" ");
+    return [b.cliente, b.descripcion, b.numero, b.tipo, b.tipoTrabajo, b.vehiculo, b.direccion, b.origen, b.destino, b.estado, notasText]
+      .join(" ").toLowerCase().includes(q.toLowerCase());
   });
 
   const conteo = Object.fromEntries(
@@ -83,13 +88,6 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Búsqueda */}
-      {solicitudes.length > 0 && (
-        <div className="mb-4">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍  Buscar por cliente, origen, tipo, vehículo..." />
         </div>
       )}
 
@@ -188,6 +186,66 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Botón flotante de búsqueda */}
+      {!searchOpen && (
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="fixed bottom-6 right-6 w-16 h-16 bg-zinc-900 hover:bg-zinc-700 text-white rounded-full shadow-lg flex items-center justify-center text-2xl transition-all z-50"
+        >
+          🔍
+        </button>
+      )}
+
+      {/* Overlay de búsqueda */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setSearchOpen(false); setQ(""); }} />
+          <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-zinc-900">Buscar solicitud</h2>
+              <button onClick={() => { setSearchOpen(false); setQ(""); }} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
+            </div>
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cliente, dirección, tipo, vehículo..."
+              className="w-full border-2 border-zinc-200 rounded-xl px-4 py-3.5 text-base text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-900 transition-colors mb-4"
+            />
+            <div className="overflow-y-auto flex-1">
+              {q.trim() === "" && (
+                <p className="text-center text-zinc-400 py-8">Escribe para buscar...</p>
+              )}
+              {q.trim() !== "" && searchResults.length === 0 && (
+                <p className="text-center text-zinc-400 py-8">Sin resultados para "{q}"</p>
+              )}
+              {searchResults.map((b) => {
+                const estadoCfg = ESTADOS[b.estado || "pendiente"] || ESTADOS.pendiente;
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => { setSearchOpen(false); setQ(""); onView(b); }}
+                    className="w-full text-left p-4 border-b border-zinc-100 hover:bg-zinc-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-xs font-bold text-zinc-400">{b.numero}</span>
+                      <span className="text-xs text-zinc-300">·</span>
+                      <span className="text-xs text-zinc-400">{b.fecha}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded ${estadoCfg.badge}`}>{estadoCfg.emoji} {estadoCfg.label}</span>
+                    </div>
+                    <p className="font-bold text-zinc-900">{b.cliente || "Sin nombre"}</p>
+                    {b.origen
+                      ? <p className="text-xs text-zinc-500">📍 {b.origen}{b.destino ? ` → ${b.destino}` : ""}</p>
+                      : b.direccion && <p className="text-xs text-zinc-500">📍 {b.direccion}</p>}
+                    {b.descripcion && <p className="text-sm text-zinc-500 line-clamp-1 mt-0.5">{b.descripcion}</p>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
