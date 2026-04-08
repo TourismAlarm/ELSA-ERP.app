@@ -4,7 +4,7 @@ import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen, Cli
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./lib/db";
 import { sendWhatsApp, sendEmail } from "./lib/messaging";
 import { generatePDF } from "./lib/pdf";
-import { today, nextNum } from "./lib/utils";
+import { today } from "./lib/utils";
 
 export default function App() {
   const [session, setSession]         = useState(null);
@@ -113,7 +113,7 @@ export default function App() {
       setEditing(null);
       handleView(updated);
     } else {
-      const nueva = { ...form, numero: nextNum(), fecha: today() };
+      const nueva = { ...form, fecha: today() };
       const saved = await dbSaveSolicitud(nueva);
       setSaving(false);
       setEditing(null);

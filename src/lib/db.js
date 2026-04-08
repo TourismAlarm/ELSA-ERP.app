@@ -15,9 +15,13 @@ export const dbLoadSolicitudes = async () => {
 };
 
 export const dbSaveSolicitud = async (solicitud) => {
+  const { data: numero, error: rpcError } = await supabase.rpc("next_solicitud_numero");
+  if (rpcError) { console.error(rpcError); return null; }
+
   const { id, ...rest } = sanitize(solicitud);
   const toInsert = {
     ...rest,
+    numero,
     estado: solicitud.estado || "pendiente",
     fecha_ultimo_contacto: new Date().toISOString(),
     notas_seguimiento: solicitud.notas_seguimiento || [],
@@ -83,6 +87,7 @@ export const dbDeleteCliente = async (id) => {
   const { error } = await supabase.from("clientes").delete().eq("id", id);
   if (error) console.error(error);
 };
+
 
 export const dbLoadClientes = async () => {
   const { data, error } = await supabase.from("clientes").select("*").order("nombre");
