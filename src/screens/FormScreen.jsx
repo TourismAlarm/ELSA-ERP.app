@@ -44,14 +44,21 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   );
 
   const selectCliente = (c) => {
-    setForm((f) => ({ ...f, cliente: c.nombre, telCliente: c.tel || f.telCliente, emailCliente: c.email || f.emailCliente }));
+    setForm((f) => ({
+      ...f,
+      cliente: c.nombre,
+      nifCif: c.nifCif || f.nifCif,
+      dirFact: c.dirFact || f.dirFact,
+      telCliente: c.tel || f.telCliente,
+      emailCliente: c.email || f.emailCliente,
+    }));
     setShowSuggestions(false);
   };
 
   const handleGuardarCliente = async () => {
     if (!form.cliente.trim()) return;
     setSavingCliente(true);
-    await onSaveCliente({ nombre: form.cliente.trim(), tel: form.telCliente, email: form.emailCliente });
+    await onSaveCliente({ nombre: form.cliente.trim(), nifCif: form.nifCif || "", dirFact: form.dirFact || "", tel: form.telCliente, email: form.emailCliente });
     setSavingCliente(false);
   };
 

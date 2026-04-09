@@ -4,6 +4,8 @@ import { Btn, Field, Input } from "../components/ui";
 const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
   const [form, setForm] = useState({
     nombre: inicial.nombre || "",
+    nifCif: inicial.nifCif || "",
+    dirFact: inicial.dirFact || "",
     tel: inicial.tel || "",
     email: inicial.email || "",
   });
@@ -19,6 +21,14 @@ const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
       <Field label="Nombre *">
         <Input value={form.nombre} onChange={set("nombre")} placeholder="Juan García" autoFocus />
       </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="NIF / CIF">
+          <Input value={form.nifCif} onChange={set("nifCif")} placeholder="B12345678" />
+        </Field>
+        <Field label="Dirección de facturación">
+          <Input value={form.dirFact} onChange={set("dirFact")} placeholder="Calle Mayor 1, 08001 Barcelona" />
+        </Field>
+      </div>
       <Field label="Teléfono">
         <Input value={form.tel} onChange={set("tel")} placeholder="600 000 000" />
       </Field>
@@ -98,6 +108,8 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
               ) : (
                 <div className="p-5">
                   <p className="font-black text-zinc-900 text-lg">{c.nombre}</p>
+                  {c.nifCif && <p className="text-sm text-zinc-500 mt-0.5">🪪 {c.nifCif}</p>}
+                  {c.dirFact && <p className="text-sm text-zinc-500 mt-0.5">🏢 {c.dirFact}</p>}
                   {c.tel && <p className="text-sm text-zinc-500 mt-0.5">📞 {c.tel}</p>}
                   {c.email && <p className="text-sm text-zinc-500 mt-0.5">✉️ {c.email}</p>}
                   <div className="flex gap-2 mt-3">

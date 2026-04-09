@@ -79,7 +79,9 @@ export const dbSaveConfig = async (cfg) => {
 };
 
 export const dbUpdateCliente = async (cliente) => {
-  const { error } = await supabase.from("clientes").update({ nombre: cliente.nombre, tel: cliente.tel, email: cliente.email }).eq("id", cliente.id);
+  const { error } = await supabase.from("clientes")
+    .update({ nombre: cliente.nombre, nifCif: cliente.nifCif || "", dirFact: cliente.dirFact || "", tel: cliente.tel, email: cliente.email })
+    .eq("id", cliente.id);
   if (error) console.error(error);
 };
 
