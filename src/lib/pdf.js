@@ -36,14 +36,18 @@ export const generatePDF = (s, config) => {
   doc.line(margin, y, W - margin, y);
   y += 10;
 
-  const clienteH = s.telCliente ? 32 : 26;
+  const clienteLines = [s.nifCif, s.dirFact, s.telCliente].filter(Boolean).length;
+  const clienteH = 20 + clienteLines * 7;
   doc.setFillColor(245,245,245);
   doc.roundedRect(margin, y, W - margin * 2, clienteH, 2, 2, "F");
   doc.setTextColor(100,100,100); doc.setFontSize(7); doc.setFont("helvetica","bold");
   doc.text("DATOS DEL CLIENTE", margin + 5, y + 7);
   doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(20,20,20);
   doc.text(s.cliente || "—", margin + 5, y + 15);
-  if (s.telCliente) { doc.setFontSize(9); doc.setTextColor(80,80,80); doc.text(`Tel: ${s.telCliente}`, margin + 5, y + 22); }
+  let cy = y + 15;
+  if (s.nifCif)    { cy += 7; doc.setFontSize(9); doc.setTextColor(80,80,80); doc.text(`NIF/CIF: ${s.nifCif}`, margin + 5, cy); }
+  if (s.dirFact)   { cy += 7; doc.setFontSize(9); doc.setTextColor(80,80,80); doc.text(`Dir. fact.: ${s.dirFact}`, margin + 5, cy); }
+  if (s.telCliente){ cy += 7; doc.setFontSize(9); doc.setTextColor(80,80,80); doc.text(`Tel: ${s.telCliente}`, margin + 5, cy); }
   y += clienteH + 10;
 
   if (s.origen || s.destino) {

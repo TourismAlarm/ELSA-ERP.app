@@ -7,7 +7,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo) }
-      : { cliente: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -110,6 +110,15 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
             )}
           </div>
         </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="NIF / CIF">
+            <Input value={form.nifCif} onChange={set("nifCif")} placeholder="B12345678" />
+          </Field>
+          <Field label="Dirección de facturación">
+            <Input value={form.dirFact} onChange={set("dirFact")} placeholder="Calle Mayor 1, 08001 Barcelona" />
+          </Field>
+        </div>
 
         <Field label="Teléfono del cliente">
           <Input value={form.telCliente} onChange={set("telCliente")} placeholder="600 000 000" />

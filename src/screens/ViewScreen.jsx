@@ -96,6 +96,8 @@ const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsAp
           <div className="bg-zinc-50 rounded-lg p-4">
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
             <p className="font-black text-zinc-900 text-xl">{sol.cliente}</p>
+            {sol.nifCif && <p className="text-zinc-500 text-sm mt-1">🪪 {sol.nifCif}</p>}
+            {sol.dirFact && <p className="text-zinc-500 text-sm mt-0.5">🏢 {sol.dirFact}</p>}
             {sol.telCliente && <p className="text-zinc-500 text-sm mt-1">📞 {sol.telCliente}</p>}
             {sol.emailCliente && <p className="text-zinc-500 text-sm mt-0.5">✉️ {sol.emailCliente}</p>}
           </div>
