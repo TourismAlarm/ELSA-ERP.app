@@ -1,18 +1,27 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, Field, Input, Select, Textarea } from "../components/ui";
-import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../lib/constants";
+import { Btn, Field, Input, Textarea } from "../components/ui";
+import { DEFAULT_VEHICLES } from "../lib/constants";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
+  const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [form, setForm] = useState(
-    initial || { cliente: "", telCliente: "", emailCliente: "", vehiculo: "", tipoTrabajo: "", origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
+    initial
+      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo) }
+      : { cliente: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const vehicles  = config?.vehicles  ?? DEFAULT_VEHICLES;
-  const workTypes = config?.workTypes ?? DEFAULT_WORK_TYPES;
+  const vehicles = config?.vehicles ?? DEFAULT_VEHICLES;
+
+  const toggleVehiculo = (v) => {
+    setForm((f) => {
+      const arr = Array.isArray(f.vehiculo) ? f.vehiculo : (f.vehiculo ? [f.vehiculo] : []);
+      return { ...f, vehiculo: arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v] };
+    });
+  };
 
   // Cerrar sugerencias al pulsar fuera
   useEffect(() => {
@@ -110,20 +119,27 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
           <Input type="email" value={form.emailCliente} onChange={set("emailCliente")} placeholder="cliente@email.com" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Vehículo / Equipo">
-            <Select value={form.vehiculo} onChange={set("vehiculo")}>
-              <option value="">— Seleccionar —</option>
-              {vehicles.map((v) => <option key={v} value={v}>{v}</option>)}
-            </Select>
-          </Field>
-          <Field label="Tipo de trabajo">
-            <Select value={form.tipoTrabajo} onChange={set("tipoTrabajo")}>
-              <option value="">— Seleccionar —</option>
-              {workTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </Field>
-        </div>
+        <Field label="Vehículo / Equipo">
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            {vehicles.map((v) => {
+              const selected = form.vehiculo.includes(v);
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => toggleVehiculo(v)}
+                  className={`text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-colors ${
+                    selected
+                      ? "bg-zinc-900 text-white border-zinc-900"
+                      : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+                  }`}
+                >
+                  {v}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Origen (Punto A)"><Input value={form.origen} onChange={set("origen")} placeholder="Puerto de Barcelona" /></Field>

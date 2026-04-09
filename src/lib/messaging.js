@@ -8,14 +8,15 @@ export const buildMessage = (s, config) => {
     s.bultos ? `${s.bultos} bultos` : null,
   ].filter(Boolean).join(" · ");
 
+  const vehiculos = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
+
   return [
     `🔧 NUEVA SOLICITUD DE SERVICIO`,
     `Nº ${s.numero}  ·  Fecha: ${s.fecha}`,
     ``,
     `👤 Cliente: ${s.cliente || "—"}`,
-    s.telCliente              ? `📞 Tel: ${s.telCliente}` : null,
-    s.vehiculo                ? `🚛 Vehículo/Equipo: ${s.vehiculo}` : null,
-    (s.tipoTrabajo || s.tipo) ? `🔧 Tipo de trabajo: ${s.tipoTrabajo || s.tipo}` : null,
+    s.telCliente       ? `📞 Tel: ${s.telCliente}` : null,
+    vehiculos.length > 0 ? `🚛 Vehículo/Equipo: ${vehiculos.join(", ")}` : null,
     s.origen                  ? `📍 Origen (A): ${s.origen}` : null,
     s.destino                 ? `📍 Destino (B): ${s.destino}` : null,
     (!s.origen && s.direccion)? `📍 Dirección: ${s.direccion}` : null,

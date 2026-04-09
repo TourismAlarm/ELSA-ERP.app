@@ -83,11 +83,6 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
         <ListManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
       </div>
 
-      <div className="bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-6">
-        <p className="text-sm font-black text-zinc-900 mb-4">Tipos de trabajo</p>
-        <ListManager items={form.workTypes} onChange={(v) => setForm((f) => ({ ...f, workTypes: v }))} />
-      </div>
-
       <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving}>
         {saving ? "Guardando..." : "💾 Guardar configuración"}
       </Btn>

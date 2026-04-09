@@ -100,12 +100,14 @@ const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsAp
             {sol.emailCliente && <p className="text-zinc-500 text-sm mt-0.5">✉️ {sol.emailCliente}</p>}
           </div>
 
-          {(sol.vehiculo || sol.tipoTrabajo || sol.tipo) && (
-            <div className="flex flex-wrap gap-2">
-              {sol.vehiculo && <span className="bg-zinc-100 text-zinc-800 text-sm font-bold px-4 py-1.5 rounded-full">🚛 {sol.vehiculo}</span>}
-              {(sol.tipoTrabajo || sol.tipo) && <span className="bg-zinc-900 text-white text-sm font-bold px-4 py-1.5 rounded-full">🔧 {sol.tipoTrabajo || sol.tipo}</span>}
-            </div>
-          )}
+          {(() => {
+            const vs = Array.isArray(sol.vehiculo) ? sol.vehiculo : (sol.vehiculo ? [sol.vehiculo] : []);
+            return vs.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {vs.map((v) => <span key={v} className="bg-zinc-100 text-zinc-800 text-sm font-bold px-4 py-1.5 rounded-full">🚛 {v}</span>)}
+              </div>
+            );
+          })()}
 
           {(sol.origen || sol.destino) ? (
             <div className="grid grid-cols-2 gap-3">

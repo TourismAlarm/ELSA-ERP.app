@@ -73,7 +73,8 @@ export const generatePDF = (s, config) => {
     y += 30;
   }
 
-  const badges = [s.vehiculo, (s.tipoTrabajo || s.tipo) ? (s.tipoTrabajo || s.tipo).toUpperCase() : null].filter(Boolean);
+  const vehiculos = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
+  const badges = vehiculos.filter(Boolean);
   if (badges.length) {
     let bx = margin;
     badges.forEach((badge) => {

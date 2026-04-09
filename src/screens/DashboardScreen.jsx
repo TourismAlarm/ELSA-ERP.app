@@ -25,7 +25,8 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
 
   const searchResults = q.trim() === "" ? [] : solicitudes.filter((b) => {
     const notasText = (b.notas_seguimiento || []).map((n) => n.texto).join(" ");
-    return [b.cliente, b.descripcion, b.numero, b.tipo, b.tipoTrabajo, b.vehiculo, b.direccion, b.origen, b.destino, b.estado, notasText]
+    const vehiculosStr = Array.isArray(b.vehiculo) ? b.vehiculo.join(" ") : (b.vehiculo || "");
+    return [b.cliente, b.descripcion, b.numero, b.tipo, vehiculosStr, b.direccion, b.origen, b.destino, b.estado, notasText]
       .join(" ").toLowerCase().includes(q.toLowerCase());
   });
 
@@ -145,8 +146,9 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
                         <span className="text-xs text-zinc-300">·</span>
                         <span className="text-xs text-zinc-400">{b.fecha}</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
-                        {(b.tipoTrabajo || b.tipo) && <span className="text-xs font-bold bg-zinc-900 text-white px-2 py-0.5 rounded">{b.tipoTrabajo || b.tipo}</span>}
-                        {b.vehiculo && <span className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{b.vehiculo}</span>}
+                        {(Array.isArray(b.vehiculo) ? b.vehiculo : b.vehiculo ? [b.vehiculo] : []).map((v) => (
+                          <span key={v} className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{v}</span>
+                        ))}
                       </div>
                       <p className="font-black text-zinc-900 text-lg leading-tight truncate">{b.cliente || "Sin nombre"}</p>
                       {b.telCliente && <p className="text-xs text-zinc-500 mt-0.5">📞 {b.telCliente}</p>}
