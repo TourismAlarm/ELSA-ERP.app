@@ -1,17 +1,33 @@
 import { supabase } from "../supabase";
 
-const sanitize = (s) => ({
+const sanitize = (s) => {
+  // vehiculo se guarda como string separado por comas para compatibilidad con columna text
+  const vehiculoStr = Array.isArray(s.vehiculo)
+    ? s.vehiculo.join(", ")
+    : (s.vehiculo || "");
+
+  // nifCif y dirFact son campos del cliente, no de solicitudes — excluirlos del insert
+  const { nifCif, dirFact, ...rest } = s;
+
+  return {
+    ...rest,
+    vehiculo: vehiculoStr,
+    precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
+    metros: s.metros !== "" && s.metros != null ? Number(s.metros) : null,
+    peso:   s.peso   !== "" && s.peso   != null ? Number(s.peso)   : null,
+    bultos: s.bultos !== "" && s.bultos != null ? Number(s.bultos) : null,
+  };
+};
+
+const deserializeSolicitud = (s) => ({
   ...s,
-  precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
-  metros: s.metros !== "" && s.metros != null ? Number(s.metros) : null,
-  peso:   s.peso   !== "" && s.peso   != null ? Number(s.peso)   : null,
-  bultos: s.bultos !== "" && s.bultos != null ? Number(s.bultos) : null,
+  vehiculo: s.vehiculo ? s.vehiculo.split(", ").filter(Boolean) : [],
 });
 
 export const dbLoadSolicitudes = async () => {
   const { data, error } = await supabase.from("solicitudes").select("*").order("id", { ascending: false });
   if (error) { console.error(error); return []; }
-  return data;
+  return data.map(deserializeSolicitud);
 };
 
 export const dbSaveSolicitud = async (solicitud) => {
