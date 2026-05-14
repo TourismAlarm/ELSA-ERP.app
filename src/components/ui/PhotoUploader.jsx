@@ -6,6 +6,8 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
+  console.log("PhotoUploader mounted with solicitudId:", solicitudId);
+
   const uploadPhoto = async (file) => {
     try {
       setUploading(true);
