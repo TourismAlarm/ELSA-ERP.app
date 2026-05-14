@@ -7,9 +7,9 @@ const sanitize = (s) => {
     : (s.vehiculo || "");
 
   // nifCif y dirFact son campos del cliente, no de solicitudes — excluirlos del insert
-  const { nifCif, dirFact, ...rest } = s;
+  const { nifCif, dirFact, fotos, ...rest } = s;
 
-  return {
+  const sanitized = {
     ...rest,
     vehiculo: vehiculoStr,
     precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
@@ -17,6 +17,12 @@ const sanitize = (s) => {
     peso:   s.peso   !== "" && s.peso   != null ? Number(s.peso)   : null,
     bultos: s.bultos !== "" && s.bultos != null ? Number(s.bultos) : null,
   };
+
+  if (fotos && Array.isArray(fotos) && fotos.length > 0) {
+    sanitized.fotos = fotos;
+  }
+
+  return sanitized;
 };
 
 const deserializeSolicitud = (s) => ({
