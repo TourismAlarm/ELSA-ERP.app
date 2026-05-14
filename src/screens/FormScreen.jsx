@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, Field, Input, Textarea } from "../components/ui";
+import { Btn, Field, Input, Textarea, PhotoUploader } from "../components/ui";
 import { DEFAULT_VEHICLES } from "../lib/constants";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo) }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "" }
+      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [] }
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -173,6 +173,14 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
 
         <Field label="Descripción del servicio"><Textarea value={form.descripcion} onChange={set("descripcion")} placeholder="Descripción del trabajo a realizar..." /></Field>
         <Field label="Precio estimado (€) — opcional"><Input value={form.precio} onChange={set("precio")} placeholder="1500" type="number" min="0" step="0.01" /></Field>
+
+        <div className="border-t border-zinc-100 pt-4">
+          <PhotoUploader
+            solicitudId={form.id}
+            existingPhotos={form.fotos}
+            onPhotosChange={(fotos) => setForm((f) => ({ ...f, fotos }))}
+          />
+        </div>
 
         <div className="flex gap-3 mt-2 flex-wrap">
           <Btn size="lg" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "💾 Guardar"}</Btn>
