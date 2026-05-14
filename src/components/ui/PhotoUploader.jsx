@@ -7,11 +7,6 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
   const fileInputRef = useRef(null);
 
   const uploadPhoto = async (file) => {
-    if (!solicitudId) {
-      alert("Guarda primero la solicitud antes de agregar fotos.");
-      return;
-    }
-
     try {
       setUploading(true);
       const filename = `${Date.now()}_${file.name}`;

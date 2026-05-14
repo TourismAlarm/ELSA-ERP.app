@@ -4,6 +4,7 @@ import { DEFAULT_VEHICLES } from "../lib/constants";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [] }
@@ -176,7 +177,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
 
         <div className="border-t border-zinc-100 pt-4">
           <PhotoUploader
-            solicitudId={form.id}
+            solicitudId={tempId}
             existingPhotos={form.fotos}
             onPhotosChange={(fotos) => setForm((f) => ({ ...f, fotos }))}
           />
