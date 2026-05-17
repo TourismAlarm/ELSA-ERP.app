@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn } from "../components/ui";
+import { Btn, PhotoGallery } from "../components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", summary: "bg-amber-50 border-amber-200 text-amber-700",    badge: "bg-amber-100 text-amber-700" },
@@ -141,27 +141,8 @@ const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsAp
 
           {sol.fotos && sol.fotos.length > 0 && (
             <div>
-              <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Fotos del servicio</p>
-              <div className="grid grid-cols-2 gap-3">
-                {sol.fotos.map((foto) => (
-                  <a
-                    key={foto.id}
-                    href={foto.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group relative overflow-hidden rounded-lg border-2 border-zinc-200 hover:border-zinc-400 transition-colors"
-                  >
-                    <img
-                      src={foto.url}
-                      alt="Foto del servicio"
-                      className="w-full h-32 object-cover group-hover:opacity-75 transition-opacity"
-                    />
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center transition-opacity">
-                      <span className="text-white text-2xl">🔍</span>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Fotos del servicio ({sol.fotos.length})</p>
+              <PhotoGallery photos={sol.fotos} />
             </div>
           )}
 
