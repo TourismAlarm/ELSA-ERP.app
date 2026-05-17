@@ -10,6 +10,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
   const uploadPhoto = async (file) => {
     try {
       setUploading(true);
+      const uniqueId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
       const filename = `${Date.now()}_${file.name}`;
       const filePath = `solicitudes/${solicitudId}/${filename}`;
 
@@ -24,15 +25,17 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
         .getPublicUrl(filePath);
 
       const newPhoto = {
-        id: Date.now(),
+        id: uniqueId,
         url: publicUrl.publicUrl,
         path: filePath,
         uploadedAt: new Date().toISOString(),
       };
 
-      const updatedPhotos = [...photos, newPhoto];
-      setPhotos(updatedPhotos);
-      onPhotosChange(updatedPhotos);
+      setPhotos((prevPhotos) => {
+        const updatedPhotos = [...prevPhotos, newPhoto];
+        onPhotosChange(updatedPhotos);
+        return updatedPhotos;
+      });
     } catch (error) {
       console.error("Error uploading photo:", error);
       alert("Error al subir la foto. Intenta de nuevo.");
@@ -70,9 +73,11 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
 
       if (error) throw error;
 
-      const updatedPhotos = photos.filter((p) => p.id !== photo.id);
-      setPhotos(updatedPhotos);
-      onPhotosChange(updatedPhotos);
+      setPhotos((prevPhotos) => {
+        const updatedPhotos = prevPhotos.filter((p) => p.id !== photo.id);
+        onPhotosChange(updatedPhotos);
+        return updatedPhotos;
+      });
       setViewingIndex(null);
     } catch (error) {
       console.error("Error deleting photo:", error);
