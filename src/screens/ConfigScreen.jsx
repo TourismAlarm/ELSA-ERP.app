@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
-import { supabase } from "../supabase";
-import { Btn, Field, Input, ListManager } from "../components/ui";
-import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../lib/constants";
+import { supabase } from "../shared/lib/supabase";
+import { Btn, Field, Input, ListManager } from "../shared/components/ui";
+import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../shared/lib/constants";
 
 const downloadBackup = async () => {
   const [{ data: sols }, { data: cfg }] = await Promise.all([

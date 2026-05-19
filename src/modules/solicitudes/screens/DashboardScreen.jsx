@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn } from "../components/ui";
+import { Btn } from "../../../shared/components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700",    summary: "bg-amber-50 border-amber-200 text-amber-700" },

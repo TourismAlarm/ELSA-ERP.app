@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, Field, Input, Textarea, PhotoUploader } from "../components/ui";
-import { DEFAULT_VEHICLES } from "../lib/constants";
+import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
+import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);

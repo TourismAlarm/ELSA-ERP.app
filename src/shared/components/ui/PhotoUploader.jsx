@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "../../supabase";
+import { supabase } from "../../lib/supabase";
 
 const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => {
   const [photos, setPhotos] = useState(existingPhotos || []);

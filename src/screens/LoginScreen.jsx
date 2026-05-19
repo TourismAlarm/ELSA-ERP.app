@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { supabase } from "../supabase";
-import { Btn, Field, inputClass } from "../components/ui";
+import { supabase } from "../shared/lib/supabase";
+import { Btn, Field, inputClass } from "../shared/components/ui";
 
 const LoginScreen = ({ onLogin }) => {
   const [email, setEmail] = useState("");

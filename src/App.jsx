@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabase";
-import { LoginScreen, ConfigScreen, DashboardScreen, FormScreen, ViewScreen, ClientesScreen } from "./screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./lib/db";
-import { sendWhatsApp, sendEmail } from "./lib/messaging";
-import { generatePDF } from "./lib/pdf";
-import { today } from "./lib/utils";
+import { supabase } from "./shared/lib/supabase";
+import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
+import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
+import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
+import { generatePDF } from "./shared/lib/pdf";
+import { today } from "./shared/lib/utils";
 
 export default function App() {
   const [session, setSession]         = useState(null);

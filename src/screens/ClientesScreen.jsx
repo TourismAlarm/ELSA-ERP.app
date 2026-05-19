@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, Field, Input } from "../components/ui";
+import { Btn, Field, Input } from "../shared/components/ui";
 
 const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
   const [form, setForm] = useState({

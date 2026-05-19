@@ -1,5 +1,5 @@
 import { ADMIN_WHATSAPP, ADMIN_EMAIL } from "./constants";
-import { dbAddNota } from "./db";
+import { dbAddNota } from "../../modules/solicitudes/db";
 
 export const buildMessage = (s, config) => {
   const carga = [

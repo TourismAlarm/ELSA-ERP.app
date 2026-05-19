@@ -1,4 +1,4 @@
-import { supabase } from "../supabase";
+import { supabase } from "../../shared/lib/supabase";
 
 const sanitize = (s) => {
   // vehiculo se guarda como string separado por comas para compatibilidad con columna text
