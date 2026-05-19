@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Diagnóstico ERP — Presupuestos ELSA</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    color: #1a1a1a;
+    background: #f8f8f8;
+    padding: 40px 20px 80px;
+  }
+
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* ── Cabecera ── */
+  .header {
+    background: #141414;
+    color: #fff;
+    padding: 36px 44px 32px;
+  }
+  .header-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+  .header-meta {
+    font-size: 12px;
+    color: #777;
+  }
+  .header-meta span { margin-right: 20px; }
+
+  /* ── Cuerpo ── */
+  .body { padding: 44px; }
+
+  /* ── Secciones ── */
+  .section { margin-bottom: 48px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #141414;
+  }
+  .section-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: #141414;
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 900;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: #141414;
+  }
+
+  h3 {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin: 24px 0 10px;
+  }
+  h3:first-child { margin-top: 0; }
+
+  p { margin-bottom: 10px; color: #333; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── Árbol de archivos ── */
+  .tree {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 18px 20px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #222;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .tree .comment { color: #999; }
+
+  /* ── Tablas ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  th {
+    background: #f0f0f0;
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid #e0e0e0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 7px 12px;
+    border: 1px solid #e8e8e8;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #fafafa; }
+  code {
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 11.5px;
+    background: #f3f3f3;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: #c0392b;
+  }
+
+  /* ── Bloques de código inline ── */
+  .code-block {
+    background: #fafafa;
+    border: 1px solid #e8e8e8;
+    border-radius: 6px;
+    padding: 16px 20px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: #222;
+    overflow-x: auto;
+    white-space: pre;
+    margin-bottom: 14px;
+  }
+
+  /* ── Chips de estado ── */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    border: 1px solid;
+    margin: 0 2px;
+  }
+  .badge-ok    { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+  .badge-warn  { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+  .badge-risk  { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+
+  /* ── Callout boxes ── */
+  .callout {
+    border-left: 4px solid;
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  .callout-info  { border-color: #60a5fa; background: #eff6ff; color: #1e3a8a; }
+  .callout-warn  { border-color: #fbbf24; background: #fffbeb; color: #78350f; }
+  .callout-risk  { border-color: #f87171; background: #fef2f2; color: #7f1d1d; }
+  .callout-ok    { border-color: #34d399; background: #ecfdf5; color: #064e3b; }
+  .callout strong { font-weight: 800; }
+
+  /* ── Git log ── */
+  .git-log { font-family: "SF Mono", "Fira Code", monospace; font-size: 12px; }
+  .git-log .sha { color: #e67e22; }
+  .git-log .msg { color: #222; }
+  .git-log .line { display: flex; gap: 10px; padding: 3px 0; }
+
+  /* ── Resumen ejecutivo ── */
+  .summary-box {
+    background: #141414;
+    color: #e0e0e0;
+    border-radius: 8px;
+    padding: 28px 32px;
+    margin-top: 48px;
+  }
+  .summary-box h2 {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 900;
+    margin-bottom: 14px;
+    letter-spacing: -0.02em;
+  }
+  .summary-box p { color: #bbb; margin-bottom: 10px; font-size: 13.5px; }
+
+  /* ── Print ── */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { border: none; border-radius: 0; }
+    .no-print { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- CABECERA -->
+  <div class="header">
+    <p class="header-label">Informe técnico</p>
+    <h1>Diagnóstico ERP — Presupuestos ELSA</h1>
+    <div class="header-meta">
+      <span>📅 Mayo 2026</span>
+      <span>🗂 Rama: <code style="background:#333;color:#aaa;border-color:#555">claude/audit-codebase-erp-3bzOP</code></span>
+      <span>🔍 Solo lectura — sin modificaciones</span>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- ── 1. ESTRUCTURA ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">1</span>
+        <span class="section-title">Estructura del proyecto</span>
+      </div>
+
+      <h3>Árbol de carpetas (src/ completo)</h3>
+      <div class="tree">src/
+├── App.jsx                          <span class="comment">178 líneas  — orquestación central</span>
+├── App.css                          <span class="comment">184 líneas</span>
+├── index.css                        <span class="comment">  3 líneas</span>
+├── main.jsx                         <span class="comment"> 10 líneas</span>
+├── supabase.js                      <span class="comment">  6 líneas  — cliente Supabase</span>
+│
+├── assets/
+│   ├── hero.png
+│   ├── react.svg
+│   └── vite.svg
+│
+├── lib/
+│   ├── constants.js                 <span class="comment">  6 líneas</span>
+│   ├── db.js                        <span class="comment">126 líneas  — todas las queries</span>
+│   ├── messaging.js                 <span class="comment"> 50 líneas</span>
+│   ├── pdf.js                       <span class="comment">134 líneas</span>
+│   └── utils.js                     <span class="comment">  2 líneas</span>
+│
+├── components/
+│   └── ui/
+│       ├── index.js                 <span class="comment">  6 líneas</span>
+│       ├── Btn.jsx                  <span class="comment"> 23 líneas</span>
+│       ├── Field.jsx                <span class="comment">  8 líneas</span>
+│       ├── Input.jsx                <span class="comment"> 11 líneas</span>
+│       ├── ListManager.jsx          <span class="comment"> 31 líneas</span>
+│       ├── PhotoGallery.jsx         <span class="comment"> 99 líneas</span>
+│       └── PhotoUploader.jsx        <span class="comment">246 líneas</span>
+│
+└── screens/
+    ├── index.js                     <span class="comment">  6 líneas</span>
+    ├── DashboardScreen.jsx          <span class="comment">257 líneas</span>
+    ├── FormScreen.jsx               <span class="comment">195 líneas</span>
+    ├── ViewScreen.jsx               <span class="comment">204 líneas</span>
+    ├── ConfigScreen.jsx             <span class="comment"> 99 líneas</span>
+    ├── ClientesScreen.jsx           <span class="comment">129 líneas</span>
+    └── LoginScreen.jsx              <span class="comment"> 70 líneas</span></div>
+
+      <p><strong>Total:</strong> ~2.280 líneas de código fuente. Stack: React 19 · Vite 8 · Tailwind CSS 3 · Supabase JS v2 · jsPDF 4. Sin dependencias de UI externa (Radix, MUI, etc.).</p>
+    </div>
+
+    <!-- ── 2. ARQUITECTURA ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">2</span>
+        <span class="section-title">Arquitectura actual</span>
+      </div>
+
+      <h3>Routing / navegación</h3>
+      <p>No existe ningún router instalado (<code>react-router</code>, <code>wouter</code>, etc.). La navegación es un <code>useState("dashboard")</code> en <code>App.jsx</code> que acepta los valores:</p>
+      <div class="code-block">"dashboard" | "form" | "view" | "config" | "clientes"</div>
+      <p>Cada pantalla se monta y desmonta mediante un bloque condicional <code>{screen === "x" &amp;&amp; &lt;PantallaX /&gt;}</code>. No hay URLs por pantalla, no hay historial del navegador, y el botón atrás del navegador sale de la app en lugar de volver a la pantalla anterior.</p>
+
+      <h3>Estado global</h3>
+      <p>No hay Context, Zustand, Redux ni gestor de estado externo. Todo el estado vive en <code>App.jsx</code> como variables <code>useState</code>:</p>
+      <table>
+        <tr><th>Variable</th><th>Contenido</th></tr>
+        <tr><td><code>session</code></td><td>Sesión de Supabase Auth</td></tr>
+        <tr><td><code>config</code></td><td>Fila única de la tabla <code>config</code> (datos empresa)</td></tr>
+        <tr><td><code>solicitudes</code></td><td>Array completo de solicitudes en memoria</td></tr>
+        <tr><td><code>clientes</code></td><td>Array completo de clientes en memoria</td></tr>
+        <tr><td><code>screen</code></td><td>Pantalla activa (string)</td></tr>
+        <tr><td><code>editing</code> / <code>viewing</code></td><td>Solicitud seleccionada actualmente</td></tr>
+      </table>
+      <p>El patrón es <strong>prop drilling</strong> puro: <code>App</code> baja datos y callbacks a cada screen; las screens llaman los handlers y App actualiza el estado central.</p>
+
+      <h3>Responsabilidades de src/lib/</h3>
+      <table>
+        <tr><th>Archivo</th><th>Responsabilidad</th></tr>
+        <tr>
+          <td><code>constants.js</code></td>
+          <td>Valores hardcodeados: teléfono admin, email admin, listas por defecto de vehículos y tipos de trabajo.</td>
+        </tr>
+        <tr>
+          <td><code>db.js</code></td>
+          <td>Todas las operaciones Supabase (CRUD de <code>solicitudes</code>, <code>clientes</code>, <code>config</code>). Incluye la serialización/deserialización del campo <code>vehiculo</code> (array ↔ string CSV).</td>
+        </tr>
+        <tr>
+          <td><code>messaging.js</code></td>
+          <td>Construye el mensaje de texto, abre <code>wa.me/</code> o <code>mailto:</code>, y registra la acción como nota de seguimiento.</td>
+        </tr>
+        <tr>
+          <td><code>pdf.js</code></td>
+          <td>Genera el PDF con jsPDF. Layout completamente imperativo con coordenadas x/y manuales.</td>
+        </tr>
+        <tr>
+          <td><code>utils.js</code></td>
+          <td>Una sola función: <code>today()</code> que devuelve la fecha actual formateada en español (<code>DD/MM/YYYY</code>).</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ── 3. BASE DE DATOS ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">3</span>
+        <span class="section-title">Base de datos (Supabase)</span>
+      </div>
+
+      <h3>Tabla: <code>solicitudes</code></h3>
+      <table>
+        <tr><th>Columna</th><th>Tipo deducido</th><th>Notas</th></tr>
+        <tr><td><code>id</code></td><td>bigint PK</td><td>Autoincremental</td></tr>
+        <tr><td><code>numero</code></td><td>text / int</td><td>Generado por RPC <code>next_solicitud_numero</code></td></tr>
+        <tr><td><code>fecha</code></td><td>text</td><td>Formato <code>DD/MM/YYYY</code> (string, no date)</td></tr>
+        <tr><td><code>cliente</code></td><td>text</td><td>Nombre libre, no FK a <code>clientes</code></td></tr>
+        <tr><td><code>nifCif</code></td><td>text</td><td>Opcional, desnormalizado del cliente</td></tr>
+        <tr><td><code>dirFact</code></td><td>text</td><td>Opcional, desnormalizado del cliente</td></tr>
+        <tr><td><code>telCliente</code></td><td>text</td><td></td></tr>
+        <tr><td><code>emailCliente</code></td><td>text</td><td></td></tr>
+        <tr><td><code>vehiculo</code></td><td>text</td><td>Array serializado como CSV: <code>"Camión 1, Grúa 3"</code></td></tr>
+        <tr><td><code>origen</code></td><td>text</td><td>Punto A</td></tr>
+        <tr><td><code>destino</code></td><td>text</td><td>Punto B</td></tr>
+        <tr><td><code>direccion</code></td><td>text</td><td>Alternativa a origen/destino</td></tr>
+        <tr><td><code>metros</code></td><td>numeric</td><td>Opcional</td></tr>
+        <tr><td><code>peso</code></td><td>numeric</td><td>Opcional</td></tr>
+        <tr><td><code>bultos</code></td><td>numeric</td><td>Opcional</td></tr>
+        <tr><td><code>descripcion</code></td><td>text</td><td></td></tr>
+        <tr><td><code>precio</code></td><td>numeric</td><td>Precio estimado, opcional</td></tr>
+        <tr><td><code>estado</code></td><td>text</td><td><code>pendiente | seguimiento | aceptado | rechazado</code></td></tr>
+        <tr><td><code>fecha_ultimo_contacto</code></td><td>timestamptz</td><td>ISO string, se actualiza con cada acción</td></tr>
+        <tr><td><code>notas_seguimiento</code></td><td>jsonb</td><td>Array de objetos <code>{tipo, fecha, texto}</code></td></tr>
+        <tr><td><code>avisos_activos</code></td><td>boolean</td><td>Para silenciar alertas de seguimiento</td></tr>
+        <tr><td><code>fotos</code></td><td>jsonb</td><td>Array de objetos <code>{id, url, path, uploadedAt}</code></td></tr>
+      </table>
+
+      <h3>Tabla: <code>clientes</code></h3>
+      <table>
+        <tr><th>Columna</th><th>Tipo deducido</th></tr>
+        <tr><td><code>id</code></td><td>bigint PK</td></tr>
+        <tr><td><code>nombre</code></td><td>text</td></tr>
+        <tr><td><code>nifCif</code></td><td>text</td></tr>
+        <tr><td><code>dirFact</code></td><td>text</td></tr>
+        <tr><td><code>tel</code></td><td>text</td></tr>
+        <tr><td><code>email</code></td><td>text</td></tr>
+      </table>
+
+      <h3>Tabla: <code>config</code></h3>
+      <table>
+        <tr><th>Columna</th><th>Tipo deducido</th><th>Notas</th></tr>
+        <tr><td><code>id</code></td><td>int</td><td>Siempre = 1. Fila única (singleton)</td></tr>
+        <tr><td><code>nombre</code></td><td>text</td><td>Nombre empresa</td></tr>
+        <tr><td><code>tel</code></td><td>text</td><td></td></tr>
+        <tr><td><code>email</code></td><td>text</td><td></td></tr>
+        <tr><td><code>direccion</code></td><td>text</td><td></td></tr>
+        <tr><td><code>logo</code></td><td>text</td><td>Data-URI base64 de la imagen</td></tr>
+        <tr><td><code>vehicles</code></td><td>jsonb</td><td>Array de strings personalizables</td></tr>
+        <tr><td><code>workTypes</code></td><td>jsonb</td><td>Array de strings personalizables</td></tr>
+      </table>
+
+      <h3>Storage</h3>
+      <p>Bucket <code>service-photos</code>. Ruta de archivos: <code>solicitudes/{solicitudId}/{timestamp}_{filename}</code>. Acceso público vía <code>getPublicUrl</code>.</p>
+
+      <h3>Funciones RPC</h3>
+      <p><code>next_solicitud_numero</code> — única RPC referenciada. Genera el número correlativo de solicitud en el servidor (se llama en <code>dbSaveSolicitud</code>).</p>
+
+      <h3>RLS (Row Level Security)</h3>
+      <div class="callout callout-warn"><strong>No determinable desde el frontend.</strong> No hay referencias a políticas RLS en el código cliente. Requiere inspección directa en el panel de Supabase para confirmar si están activas.</div>
+    </div>
+
+    <!-- ── 4. ACOPLAMIENTO ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">4</span>
+        <span class="section-title">Acoplamiento</span>
+      </div>
+
+      <h3>Grado de acoplamiento actual</h3>
+      <div class="callout callout-warn"><strong>Alto.</strong> El código de solicitudes está fuertemente acoplado al resto por la arquitectura de orquestación centralizada en App.jsx.</div>
+
+      <p><strong>App.jsx es un monolito de orquestación.</strong> Gestiona simultáneamente autenticación, estado de solicitudes, estado de clientes, estado de config y navegación. Tiene 17 funciones handler y carga los tres recursos en el mismo <code>useEffect</code>.</p>
+
+      <p><strong>La navegación por string literal es frágil.</strong> Los valores de pantalla están escritos directamente como strings dispersos en <code>App.jsx</code>. No hay un sitio central de declaración de rutas.</p>
+
+      <p><strong>El objeto ESTADOS está duplicado</strong> entre <code>DashboardScreen.jsx</code> y <code>ViewScreen.jsx</code>. Añadir un estado nuevo requiere cambiar dos archivos.</p>
+
+      <p><strong>ConfigScreen.jsx accede a Supabase directamente</strong> (define su propia función <code>dbSaveConfig</code> local en línea 21), duplicando la que ya existe en <code>db.js</code>.</p>
+
+      <h3>¿Es fácil añadir módulos nuevos?</h3>
+      <p>Añadir un módulo (Flota, Facturación, Partes de trabajo) requiere hoy tocar obligatoriamente:</p>
+      <table>
+        <tr><th>Archivo</th><th>Qué hay que tocar</th></tr>
+        <tr><td><code>App.jsx</code></td><td>Añadir <code>useState</code>, handlers y bloque condicional de render</td></tr>
+        <tr><td><code>App.jsx</code> línea 38</td><td>Ampliar el <code>Promise.all</code> de carga inicial</td></tr>
+        <tr><td><code>screens/index.js</code></td><td>Exportar la nueva pantalla</td></tr>
+        <tr><td><code>lib/db.js</code></td><td>Añadir nuevas funciones de acceso (esto sí es limpio)</td></tr>
+      </table>
+      <p>Lo que <em>no</em> requeriría tocar: <code>lib/pdf.js</code>, <code>lib/messaging.js</code>, los componentes UI.</p>
+
+      <h3>Puntos de fricción concretos</h3>
+      <table>
+        <tr><th>Punto</th><th>Descripción</th></tr>
+        <tr><td><code>App.jsx</code> estado</td><td>Crecerá indefinidamente con cada módulo nuevo</td></tr>
+        <tr><td><code>App.jsx</code> render</td><td>El bloque de condicionales se vuelve inmanejable</td></tr>
+        <tr><td>Navegación por strings</td><td>Sin router no hay forma de referenciar pantallas externamente</td></tr>
+        <tr><td>ClientesScreen en Config</td><td>Los clientes están enterrados en el flujo de configuración; para un ERP deben ser módulo de primer nivel</td></tr>
+        <tr><td>ESTADOS duplicado</td><td>Cualquier cambio de estados hay que hacerlo en dos sitios</td></tr>
+      </table>
+    </div>
+
+    <!-- ── 5. PREPARACIÓN PARA CRECER ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">5</span>
+        <span class="section-title">Preparación para crecer</span>
+      </div>
+
+      <h3>¿La estructura aguanta convertirse en un ERP multi-módulo?</h3>
+      <div class="callout callout-risk"><strong>No directamente.</strong> La arquitectura es correcta para una app de una entidad gestionada por una persona. Para un ERP multi-módulo encontrará estos límites concretos:</div>
+
+      <table>
+        <tr><th>Límite</th><th>Descripción</th></tr>
+        <tr>
+          <td><strong>App.jsx como "dios"</strong></td>
+          <td>Con 4–5 módulos, tendría ~50 <code>useState</code>, ~40 handlers y ~15 bloques condicionales de render. Inmanejable.</td>
+        </tr>
+        <tr>
+          <td><strong>Sin router</strong></td>
+          <td>Sin URLs por pantalla no hay posibilidad de compartir enlaces, bookmarks ni navegación con historial. Bloqueador real para un ERP.</td>
+        </tr>
+        <tr>
+          <td><strong>Carga de datos monolítica</strong></td>
+          <td>Todo se carga al login. Para un ERP con flota, facturas, empleados, etc., esto sería inmanejable en rendimiento y memoria.</td>
+        </tr>
+        <tr>
+          <td><strong>Sin roles de usuario</strong></td>
+          <td>Supabase Auth está integrado pero solo hay un nivel de acceso. Un ERP necesita roles (comercial, administración, operario).</td>
+        </tr>
+      </table>
+
+      <h3>Reorganización de carpetas recomendada</h3>
+      <div class="tree">src/
+├── modules/
+│   ├── solicitudes/       <span class="comment">← lo que existe hoy</span>
+│   │   ├── screens/
+│   │   ├── db.js
+│   │   └── index.js
+│   ├── clientes/          <span class="comment">← mover de config → módulo propio</span>
+│   ├── flota/             <span class="comment">← nuevo</span>
+│   ├── facturacion/       <span class="comment">← nuevo</span>
+│   └── partes/            <span class="comment">← nuevo</span>
+├── shared/
+│   ├── components/ui/     <span class="comment">← lo que existe hoy</span>
+│   ├── lib/               <span class="comment">← utils, supabase client</span>
+│   └── hooks/
+├── router/                <span class="comment">← nueva capa</span>
+└── App.jsx                <span class="comment">← solo layout y auth</span></div>
+
+      <h3>Riesgos concretos de romper solicitudes al ampliar</h3>
+      <table>
+        <tr><th>Riesgo</th><th>Descripción</th></tr>
+        <tr>
+          <td>Refactor de estado global</td>
+          <td>Si se migra a Context o Zustand, los handlers de solicitudes pueden perder sincronización con <code>viewing</code> y <code>editing</code>.</td>
+        </tr>
+        <tr>
+          <td>Campo <code>vehiculo</code> como CSV</td>
+          <td>Si se migra a array real en BBDD, el código de serialización en <code>db.js</code> hay que actualizar en sincronía con la migración de datos.</td>
+        </tr>
+        <tr>
+          <td><code>fotos</code> en jsonb de solicitudes</td>
+          <td>Las fotos se guardan como jsonb en la propia fila. Si la tabla crece, esto penaliza los listados que hacen <code>select *</code>.</td>
+        </tr>
+        <tr>
+          <td><code>config</code> fila única con <code>id=1</code></td>
+          <td>Antipatrón para multi-empresa o multi-sucursal. Requiere migración si se necesita multi-tenant.</td>
+        </tr>
+        <tr>
+          <td><code>notas_seguimiento</code> como jsonb array</td>
+          <td>No se puede buscar ni filtrar por notas desde SQL de forma eficiente. Candidato a tabla propia si el volumen crece.</td>
+        </tr>
+        <tr>
+          <td><code>fecha</code> como string <code>DD/MM/YYYY</code></td>
+          <td>No es un tipo <code>date</code> en BBDD. Impide filtros por rango de fecha en SQL. Requiere migración de datos.</td>
+        </tr>
+        <tr>
+          <td>ESTADOS duplicado</td>
+          <td>Cambio de estados rompe si no se actualiza en <code>DashboardScreen.jsx</code> y <code>ViewScreen.jsx</code> simultáneamente.</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ── 6. ESTADO DEL REPOSITORIO ── -->
+    <div class="section">
+      <div class="section-header">
+        <span class="section-number">6</span>
+        <span class="section-title">Estado del repositorio</span>
+      </div>
+
+      <h3>git status</h3>
+      <div class="code-block">On branch claude/audit-codebase-erp-3bzOP
+nothing to commit, working tree clean</div>
+
+      <h3>git log --oneline -10</h3>
+      <div class="code-block git-log"><div class="line"><span class="sha">c19061f</span> <span class="msg">Merge pull request #4 from TourismAlarm/claude/add-service-photo-attachment-EnRBv</span></div><div class="line"><span class="sha">a64be32</span> <span class="msg">Aplicar galería modal a todas las vistas de fotos</span></div><div class="line"><span class="sha">da5492d</span> <span class="msg">Arreglar problema de fotos superpuestas al subir múltiples</span></div><div class="line"><span class="sha">5a24319</span> <span class="msg">Merge pull request #3 from TourismAlarm/claude/add-service-photo-attachment-EnRBv</span></div><div class="line"><span class="sha">2c657bb</span> <span class="msg">Mejorar visualización y gestión de fotos</span></div><div class="line"><span class="sha">7f17c4c</span> <span class="msg">Merge pull request #2 from TourismAlarm/claude/add-service-photo-attachment-EnRBv</span></div><div class="line"><span class="sha">d64dbf3</span> <span class="msg">Agregar debug para solicitudId en PhotoUploader</span></div><div class="line"><span class="sha">ea4c04e</span> <span class="msg">Permitir agregar fotos antes de guardar la solicitud</span></div><div class="line"><span class="sha">49c0ace</span> <span class="msg">Merge pull request #1 from TourismAlarm/claude/add-service-photo-attachment-EnRBv</span></div><div class="line"><span class="sha">4c1a38a</span> <span class="msg">Agregar funcionalidad para adjuntar fotos a servicios</span></div></div>
+
+      <div class="callout callout-ok">
+        <strong>Working tree limpio.</strong> No hay cambios sin commitear ni sin pushear. Los últimos 10 commits corresponden íntegramente a la feature de adjunto de fotos a servicios (4 rondas de PR + fixes). La app está en estado estable.
+      </div>
+    </div>
+
+    <!-- ── RESUMEN EJECUTIVO ── -->
+    <div class="summary-box">
+      <h2>Resumen ejecutivo</h2>
+      <p>La app tiene una base de código limpia, legible y funcional para su propósito actual (~2.300 líneas totales, 3 tablas, sin dependencias pesadas de UI).</p>
+      <p>El cuello de botella para crecer a ERP no está en ningún archivo concreto sino en dos puntos arquitecturales: la <strong>orquestación centralizada en App.jsx</strong> (estado global monolítico) y la <strong>ausencia de un router</strong> (navegación por string sin URLs).</p>
+      <p>Esos dos puntos son los que deben abordarse antes de añadir cualquier módulo nuevo, para evitar deuda técnica inmanejable desde el primer módulo adicional. El resto de la lógica (db.js, lib/, componentes UI) está bien aislado y reutilizable tal como está.</p>
+    </div>
+
+  </div><!-- /body -->
+</div><!-- /page -->
+
+</body>
+</html>
