@@ -52,7 +52,7 @@ export const dbSaveSolicitud = async (solicitud) => {
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
   if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return null; }
-  return data;
+  return { ...data, fecha: solicitud.fecha };
 };
 
 export const dbAddNota = async (id, nota) => {
