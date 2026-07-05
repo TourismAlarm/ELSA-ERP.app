@@ -11,6 +11,8 @@ DECLARE
   next_num integer;
 BEGIN
   IF NEW.numero IS NULL OR NEW.numero = '' THEN
+    -- Serializar la asignación: dos inserts simultáneos no pueden leer el mismo MAX
+    PERFORM pg_advisory_xact_lock(hashtext('albaranes_numero'));
     SELECT COALESCE(MAX((regexp_replace(numero, '\D', '', 'g'))::integer), 0) + 1
     INTO next_num
     FROM public.albaranes
