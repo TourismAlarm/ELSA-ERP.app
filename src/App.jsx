@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
+import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen } from "./modules/servicios/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
+import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
 import { today } from "./shared/lib/utils";
@@ -12,10 +14,13 @@ export default function App() {
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
+  const [servicios, setServicios]     = useState([]);
   const [clientes, setClientes]       = useState([]);
   const [screen, setScreen]           = useState("dashboard");
   const [editing, setEditing]         = useState(null);
   const [viewing, setViewing]         = useState(null);
+  const [editingServicio, setEditingServicio] = useState(null);
+  const [viewingServicio, setViewingServicio] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
 
@@ -36,9 +41,10 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadClientes()]);
+      const [cfg, sols, srvs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
+      setServicios(srvs);
       setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
@@ -50,6 +56,7 @@ export default function App() {
     setSession(null);
     setConfig(null);
     setSolicitudes([]);
+    setServicios([]);
     setScreen("dashboard");
   };
 
@@ -127,6 +134,56 @@ export default function App() {
     }
   };
 
+  // ---- Servicios ----
+  const handleServicioNew  = () => { setEditingServicio(null); setScreen("servicioForm"); };
+  const handleServicioEdit = (s) => { setEditingServicio(s); setScreen("servicioForm"); };
+  const handleServicioView = (s) => { setViewingServicio(s); setScreen("servicioView"); };
+
+  const handleServicioCambiarEstado = async (id, nuevoEstado) => {
+    await dbCambiarEstadoServicio(id, nuevoEstado);
+    setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
+    setViewingServicio((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado } : prev);
+  };
+
+  const handleServicioAddNota = async (id, texto) => {
+    const nota = { tipo: "manual", fecha: new Date().toISOString(), texto };
+    const updated = await dbAddNotaServicio(id, nota);
+    if (updated) {
+      setServicios((prev) => prev.map((s) => s.id === id ? { ...s, ...updated } : s));
+      setViewingServicio((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
+    }
+    return updated;
+  };
+
+  const handleServicioDelete = async (id) => {
+    if (!confirm("¿Eliminar este servicio?")) return;
+    await dbDeleteServicio(id);
+    setServicios((prev) => prev.filter((s) => s.id !== id));
+    if (screen === "servicioView") setScreen("servicios");
+  };
+
+  const handleServicioFormSave = async (form) => {
+    setSaving(true);
+    if (editingServicio) {
+      const updated = { ...editingServicio, ...form };
+      await dbUpdateServicio(updated);
+      setServicios((prev) => prev.map((s) => s.id === editingServicio.id ? updated : s));
+      setSaving(false);
+      setEditingServicio(null);
+      handleServicioView(updated);
+    } else {
+      const saved = await dbSaveServicio(form);
+      setSaving(false);
+      setEditingServicio(null);
+      if (saved) {
+        setServicios((prev) => [saved, ...prev]);
+        handleServicioView(saved);
+      } else {
+        setScreen("servicios");
+      }
+    }
+  };
+
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
@@ -142,6 +199,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+      {/* Navegación principal */}
+      {(screen === "dashboard" || screen === "servicios") && (
+        <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
+          <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
+            <button
+              onClick={() => setScreen("dashboard")}
+              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
+                screen === "dashboard" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              📋 Solicitudes
+            </button>
+            <button
+              onClick={() => setScreen("servicios")}
+              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
+                screen === "servicios" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              🔧 Servicios
+            </button>
+          </div>
+        </div>
+      )}
       {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
       {screen === "dashboard" && (
@@ -172,6 +252,32 @@ export default function App() {
           onGeneratePDF={(s) => generatePDF(s, config)}
           onCambiarEstado={handleCambiarEstado}
           onAddNota={handleAddNota}
+        />
+      )}
+      {screen === "servicios" && (
+        <ServiciosListScreen
+          servicios={servicios}
+          loading={loadingData}
+          onNew={handleServicioNew}
+          onView={handleServicioView}
+          onEdit={handleServicioEdit}
+          onDelete={handleServicioDelete}
+          onConfig={() => setScreen("config")}
+          onCambiarEstado={handleServicioCambiarEstado}
+        />
+      )}
+      {screen === "servicioForm" && (
+        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+      )}
+      {screen === "servicioView" && viewingServicio && (
+        <ServicioViewScreen
+          servicio={viewingServicio}
+          config={config || {}}
+          onEdit={() => handleServicioEdit(viewingServicio)}
+          onDelete={() => handleServicioDelete(viewingServicio.id)}
+          onBack={() => setScreen("servicios")}
+          onCambiarEstado={handleServicioCambiarEstado}
+          onAddNota={handleServicioAddNota}
         />
       )}
     </div>
