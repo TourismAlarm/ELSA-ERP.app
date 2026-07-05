@@ -38,13 +38,11 @@ export const dbLoadSolicitudes = async () => {
 };
 
 export const dbSaveSolicitud = async (solicitud) => {
-  const { data: numero, error: rpcError } = await supabase.rpc("next_solicitud_numero");
-  if (rpcError) { console.error(rpcError); alert("Error al guardar la solicitud: " + rpcError.message); return null; }
-
+  // numero lo asigna un trigger BEFORE INSERT en la misma transacción del insert,
+  // para que un insert fallido nunca consuma un número del contador
   const { id, ...rest } = sanitize(solicitud);
   const toInsert = {
     ...rest,
-    numero,
     estado: solicitud.estado || "pendiente",
     fecha_ultimo_contacto: new Date().toISOString(),
     notas_seguimiento: solicitud.notas_seguimiento || [],
@@ -52,7 +50,7 @@ export const dbSaveSolicitud = async (solicitud) => {
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
   if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return null; }
-  return data;
+  return { ...data, fecha: solicitud.fecha };
 };
 
 export const dbAddNota = async (id, nota) => {
