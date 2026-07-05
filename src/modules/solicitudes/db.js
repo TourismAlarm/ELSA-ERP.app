@@ -7,7 +7,7 @@ const sanitize = (s) => {
     : (s.vehiculo || "");
 
   // nifCif y dirFact son campos del cliente, no de solicitudes — excluirlos del insert
-  const { nifCif, dirFact, fotos, ...rest } = s;
+  const { nifCif, dirFact, fotos, telCliente, emailCliente, ...rest } = s;
 
   const sanitized = {
     ...rest,
@@ -38,7 +38,7 @@ export const dbLoadSolicitudes = async () => {
 
 export const dbSaveSolicitud = async (solicitud) => {
   const { data: numero, error: rpcError } = await supabase.rpc("next_solicitud_numero");
-  if (rpcError) { console.error(rpcError); return null; }
+  if (rpcError) { console.error(rpcError); alert("Error al guardar la solicitud: " + rpcError.message); return null; }
 
   const { id, ...rest } = sanitize(solicitud);
   const toInsert = {
@@ -50,7 +50,7 @@ export const dbSaveSolicitud = async (solicitud) => {
     avisos_activos: solicitud.avisos_activos !== undefined ? solicitud.avisos_activos : true,
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
-  if (error) { console.error(error); return null; }
+  if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return null; }
   return data;
 };
 
