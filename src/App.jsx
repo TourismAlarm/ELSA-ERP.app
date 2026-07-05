@@ -78,6 +78,32 @@ export default function App() {
     const now = new Date().toISOString();
     setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: now } : b));
     setViewing((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado, fecha_ultimo_contacto: now } : prev);
+
+    // Al aceptar una solicitud, crear su servicio vinculado (si no existe ya)
+    if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
+      const sol = solicitudes.find((b) => b.id === id);
+      if (!sol) return;
+      const hoy = new Date().toISOString().slice(0, 10);
+      const fecha = prompt("Fecha del servicio (AAAA-MM-DD):", hoy);
+      if (!fecha || !fecha.trim()) {
+        alert("Solicitud aceptada sin crear servicio. Puedes crearlo a mano desde la pestaña Servicios.");
+        return;
+      }
+      const saved = await dbSaveServicio({
+        cliente: sol.cliente,
+        vehiculo: sol.vehiculo,
+        origen: sol.origen,
+        destino: sol.destino,
+        descripcion: sol.descripcion,
+        precio: sol.precio,
+        fecha_servicio: fecha.trim(),
+        solicitud_id: id,
+      });
+      if (saved) {
+        setServicios((prev) => [saved, ...prev]);
+        alert(`Solicitud aceptada. Servicio ${saved.numero} creado para el ${fecha.trim()}.`);
+      }
+    }
   };
 
   const handleAddNota = async (id, texto) => {
