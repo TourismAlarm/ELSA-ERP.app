@@ -3,8 +3,11 @@ import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen } from "./modules/servicios/screens";
+import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
+import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
+import { generateAlbaranPDF } from "./modules/albaranes/pdf";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
 import { today } from "./shared/lib/utils";
@@ -15,12 +18,15 @@ export default function App() {
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [servicios, setServicios]     = useState([]);
+  const [albaranes, setAlbaranes]     = useState([]);
   const [clientes, setClientes]       = useState([]);
   const [screen, setScreen]           = useState("dashboard");
   const [editing, setEditing]         = useState(null);
   const [viewing, setViewing]         = useState(null);
   const [editingServicio, setEditingServicio] = useState(null);
   const [viewingServicio, setViewingServicio] = useState(null);
+  const [editingAlbaran, setEditingAlbaran] = useState(null);
+  const [viewingAlbaran, setViewingAlbaran] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
 
@@ -41,10 +47,11 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols, srvs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadClientes()]);
+      const [cfg, sols, srvs, albs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
       setServicios(srvs);
+      setAlbaranes(albs);
       setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
@@ -57,6 +64,7 @@ export default function App() {
     setConfig(null);
     setSolicitudes([]);
     setServicios([]);
+    setAlbaranes([]);
     setScreen("dashboard");
   };
 
@@ -184,6 +192,49 @@ export default function App() {
     }
   };
 
+  // ---- Albaranes ----
+  const handleAlbaranNew  = () => { setEditingAlbaran(null); setScreen("albaranForm"); };
+  const handleAlbaranEdit = (a) => { setEditingAlbaran(a); setScreen("albaranForm"); };
+  const handleAlbaranView = (a) => { setViewingAlbaran(a); setScreen("albaranView"); };
+
+  const handleAlbaranFirmar = async (id, firmaBase64, firmadoPor) => {
+    const updated = await dbFirmarAlbaran(id, firmaBase64, firmadoPor);
+    if (updated) {
+      setAlbaranes((prev) => prev.map((a) => a.id === id ? { ...a, ...updated } : a));
+      setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
+    }
+    return updated;
+  };
+
+  const handleAlbaranDelete = async (id) => {
+    if (!confirm("¿Eliminar este albarán?")) return;
+    await dbDeleteAlbaran(id);
+    setAlbaranes((prev) => prev.filter((a) => a.id !== id));
+    if (screen === "albaranView") setScreen("albaranesList");
+  };
+
+  const handleAlbaranFormSave = async (form) => {
+    setSaving(true);
+    if (editingAlbaran) {
+      const updated = { ...editingAlbaran, ...form };
+      await dbUpdateAlbaran(updated);
+      setAlbaranes((prev) => prev.map((a) => a.id === editingAlbaran.id ? updated : a));
+      setSaving(false);
+      setEditingAlbaran(null);
+      handleAlbaranView(updated);
+    } else {
+      const saved = await dbSaveAlbaran(form);
+      setSaving(false);
+      setEditingAlbaran(null);
+      if (saved) {
+        setAlbaranes((prev) => [saved, ...prev]);
+        handleAlbaranView(saved);
+      } else {
+        setScreen("albaranesList");
+      }
+    }
+  };
+
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
@@ -200,7 +251,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
       {/* Navegación principal */}
-      {(screen === "dashboard" || screen === "servicios") && (
+      {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
           <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
             <button
@@ -218,6 +269,14 @@ export default function App() {
               }`}
             >
               🔧 Servicios
+            </button>
+            <button
+              onClick={() => setScreen("albaranesList")}
+              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
+                screen === "albaranesList" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              📝 Albaranes
             </button>
           </div>
         </div>
@@ -278,6 +337,31 @@ export default function App() {
           onBack={() => setScreen("servicios")}
           onCambiarEstado={handleServicioCambiarEstado}
           onAddNota={handleServicioAddNota}
+        />
+      )}
+      {screen === "albaranesList" && (
+        <AlbaranesListScreen
+          albaranes={albaranes}
+          loading={loadingData}
+          onNew={handleAlbaranNew}
+          onView={handleAlbaranView}
+          onEdit={handleAlbaranEdit}
+          onDelete={handleAlbaranDelete}
+          onConfig={() => setScreen("config")}
+        />
+      )}
+      {screen === "albaranForm" && (
+        <AlbaranFormScreen initial={editingAlbaran} clientes={clientes} onSave={handleAlbaranFormSave} onCancel={() => setScreen("albaranesList")} saving={saving} />
+      )}
+      {screen === "albaranView" && viewingAlbaran && (
+        <AlbaranViewScreen
+          albaran={viewingAlbaran}
+          config={config || {}}
+          onEdit={() => handleAlbaranEdit(viewingAlbaran)}
+          onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
+          onBack={() => setScreen("albaranesList")}
+          onFirmar={handleAlbaranFirmar}
+          onGeneratePDF={(a) => generateAlbaranPDF(a, config || {})}
         />
       )}
     </div>
