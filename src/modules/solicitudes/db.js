@@ -6,8 +6,9 @@ const sanitize = (s) => {
     ? s.vehiculo.join(", ")
     : (s.vehiculo || "");
 
-  // nifCif y dirFact son campos del cliente, no de solicitudes — excluirlos del insert
-  const { nifCif, dirFact, fotos, telCliente, emailCliente, ...rest } = s;
+  // nifCif y dirFact son campos del cliente, y fecha es un campo derivado para la UI —
+  // ninguno existe como columna en solicitudes, excluirlos del insert
+  const { nifCif, dirFact, fotos, telCliente, emailCliente, fecha, ...rest } = s;
 
   const sanitized = {
     ...rest,
