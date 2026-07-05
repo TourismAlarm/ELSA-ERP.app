@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
-import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen } from "./modules/servicios/screens";
+import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
@@ -239,6 +239,21 @@ export default function App() {
     if (screen === "albaranView") setScreen("albaranesList");
   };
 
+  const handleCrearAlbaranDesdeServicio = async (servicio) => {
+    const saved = await dbSaveAlbaran({
+      cliente: servicio.cliente,
+      fecha: servicio.fecha_servicio,
+      descripcion: servicio.descripcion,
+      servicio_id: servicio.id,
+      lineas: [],
+    });
+    if (saved) {
+      setAlbaranes((prev) => [saved, ...prev]);
+      setViewingAlbaran(saved);
+      setScreen("albaranView");
+    }
+  };
+
   const handleAlbaranFormSave = async (form) => {
     setSaving(true);
     if (editingAlbaran) {
@@ -277,7 +292,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
       {/* Navegación principal */}
-      {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList") && (
+      {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
           <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
             <button
@@ -303,6 +318,14 @@ export default function App() {
               }`}
             >
               📝 Albaranes
+            </button>
+            <button
+              onClick={() => setScreen("calendario")}
+              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
+                screen === "calendario" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              📅 Calendario
             </button>
           </div>
         </div>
@@ -365,6 +388,16 @@ export default function App() {
           onBack={() => setScreen("servicios")}
           onCambiarEstado={handleServicioCambiarEstado}
           onAddNota={handleServicioAddNota}
+        />
+      )}
+      {screen === "calendario" && (
+        <CalendarScreen
+          servicios={servicios}
+          albaranes={albaranes}
+          onViewServicio={handleServicioView}
+          onViewAlbaran={handleAlbaranView}
+          onCrearAlbaran={handleCrearAlbaranDesdeServicio}
+          onConfig={() => setScreen("config")}
         />
       )}
       {screen === "albaranesList" && (
