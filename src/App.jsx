@@ -358,6 +358,8 @@ export default function App() {
         <ServicioViewScreen
           servicio={viewingServicio}
           config={config || {}}
+          solicitudOrigen={viewingServicio.solicitud_id ? solicitudes.find((b) => b.id === viewingServicio.solicitud_id) || null : null}
+          onVerSolicitud={handleView}
           onEdit={() => handleServicioEdit(viewingServicio)}
           onDelete={() => handleServicioDelete(viewingServicio.id)}
           onBack={() => setScreen("servicios")}

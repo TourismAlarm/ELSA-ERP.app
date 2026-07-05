@@ -14,7 +14,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -76,6 +76,24 @@ const ViewScreen = ({ servicio, config, onEdit, onDelete, onBack, onCambiarEstad
               <Btn size="lg" variant="secondary" onClick={() => handleCambioEstado("abierto")}>↩️ Reabrir servicio</Btn>
             )}
           </div>
+
+          {/* Origen: solicitud vinculada */}
+          {srv.solicitud_id && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Origen</p>
+                <p className="text-sm font-bold text-blue-900">
+                  📋 Creado desde la solicitud {solicitudOrigen?.numero || "(eliminada)"}
+                </p>
+                {solicitudOrigen?.fecha && (
+                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">Solicitud del {solicitudOrigen.fecha}</p>
+                )}
+              </div>
+              {solicitudOrigen && onVerSolicitud && (
+                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver solicitud</Btn>
+              )}
+            </div>
+          )}
 
           {/* Cliente */}
           <div className="bg-zinc-50 rounded-lg p-4">
