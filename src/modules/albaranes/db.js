@@ -25,15 +25,11 @@ export const dbLoadAlbaranes = async () => {
 };
 
 export const dbSaveAlbaran = async (albaran) => {
-  // La tabla albaranes aún no tiene trigger de numeración — el número
-  // se pide al contador genérico de la BD y se envía en el insert
-  const { data: numero, error: rpcError } = await supabase.rpc("next_numero", { p_clave: "albaran", p_prefijo: "ALB" });
-  if (rpcError) { console.error(rpcError); alert("Error al guardar el albarán: " + rpcError.message); return null; }
-
-  const { id, created_at, updated_at, ...rest } = sanitize(albaran);
+  // numero lo asigna el trigger BEFORE INSERT desde el contador persistente,
+  // en la misma transacción: un insert fallido no consume ni salta números
+  const { id, numero, created_at, updated_at, ...rest } = sanitize(albaran);
   const toInsert = {
     ...rest,
-    numero,
     estado: albaran.estado || "borrador",
   };
   const { data, error } = await supabase.from("albaranes").insert([toInsert]).select().single();
