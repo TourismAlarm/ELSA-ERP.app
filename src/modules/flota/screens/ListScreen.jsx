@@ -17,12 +17,19 @@ const Semaforo = ({ etiqueta, fecha }) => {
   );
 };
 
+const fechasDe = (v) => [
+  v.itv_vencimiento,
+  v.seguro_vencimiento,
+  ...(v.vencimientos || []).map((x) => x.fecha),
+];
+
 const ListScreen = ({ vehiculos, onNew, onView, onEdit, onDelete, onConfig, loading }) => {
-  const conAviso = vehiculos.filter((v) => {
-    const itv = estadoVencimiento(v.itv_vencimiento).nivel;
-    const seguro = estadoVencimiento(v.seguro_vencimiento).nivel;
-    return itv === "pronto" || itv === "vencido" || seguro === "pronto" || seguro === "vencido";
-  });
+  const conAviso = vehiculos.filter((v) =>
+    fechasDe(v).some((f) => {
+      const nivel = estadoVencimiento(f).nivel;
+      return nivel === "pronto" || nivel === "vencido";
+    })
+  );
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -76,6 +83,9 @@ const ListScreen = ({ vehiculos, onNew, onView, onEdit, onDelete, onConfig, load
                 <div className="flex flex-col gap-2 mb-4">
                   <Semaforo etiqueta="ITV" fecha={v.itv_vencimiento} />
                   <Semaforo etiqueta="Seguro" fecha={v.seguro_vencimiento} />
+                  {(v.vencimientos || []).map((x, i) => (
+                    <Semaforo key={i} etiqueta={x.nombre || "Vencimiento"} fecha={x.fecha} />
+                  ))}
                 </div>
 
                 <div className="flex gap-2 flex-wrap">

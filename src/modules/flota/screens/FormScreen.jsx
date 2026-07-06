@@ -1,18 +1,31 @@
 import { useState } from "react";
-import { Btn, Field, Input, Textarea } from "../../../shared/components/ui";
+import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 
 const FormScreen = ({ initial, onSave, onCancel, saving }) => {
+  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial }
-      : { nombre: "", matricula: "", tipo: "", itv_vencimiento: "", seguro_vencimiento: "", notas: "" }
+      ? { ...initial, vencimientos: initial.vencimientos || [], fotos: initial.fotos || [] }
+      : { nombre: "", matricula: "", tipo: "", itv_vencimiento: "", seguro_vencimiento: "", notas: "", vencimientos: [], fotos: [] }
   );
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  const setVencimiento = (i, k, valor) => {
+    setForm((f) => ({
+      ...f,
+      vencimientos: f.vencimientos.map((x, idx) => idx === i ? { ...x, [k]: valor } : x),
+    }));
+  };
+
+  const addVencimiento = () => setForm((f) => ({ ...f, vencimientos: [...f.vencimientos, { nombre: "", fecha: "" }] }));
+
+  const removeVencimiento = (i) => setForm((f) => ({ ...f, vencimientos: f.vencimientos.filter((_, idx) => idx !== i) }));
+
   const handleSave = () => {
     if (!form.nombre.trim()) { alert("El nombre del vehículo es obligatorio."); return; }
-    onSave(form);
+    const vencimientos = form.vencimientos.filter((x) => (x.nombre || "").trim() || x.fecha);
+    onSave({ ...form, vencimientos });
   };
 
   return (
@@ -49,9 +62,45 @@ const FormScreen = ({ initial, onSave, onCancel, saving }) => {
           </Field>
         </div>
 
+        {/* Vencimientos extra */}
+        <Field label="Otros vencimientos (tacógrafo, ADR, revisiones...)">
+          <div className="flex flex-col gap-3">
+            {form.vencimientos.map((x, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input value={x.nombre} onChange={(e) => setVencimiento(i, "nombre", e.target.value)} placeholder="Tacógrafo" />
+                </div>
+                <div className="w-40">
+                  <Input type="date" value={x.fecha || ""} onChange={(e) => setVencimiento(i, "fecha", e.target.value)} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeVencimiento(i)}
+                  className="text-zinc-300 hover:text-red-600 transition-colors text-xl leading-none p-1"
+                  title="Quitar vencimiento"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <Btn variant="secondary" size="md" onClick={addVencimiento}>➕ Añadir vencimiento</Btn>
+          </div>
+        </Field>
+
         <Field label="Notas">
           <Textarea value={form.notas || ""} onChange={set("notas")} placeholder="Revisiones, taller habitual, observaciones..." />
         </Field>
+
+        {/* Documentación y fotos */}
+        <div className="border-t border-zinc-100 pt-4">
+          <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Documentación y fotos</p>
+          <p className="text-xs text-zinc-400 mb-2">Permiso de circulación, ficha técnica, póliza, fotos del vehículo...</p>
+          <PhotoUploader
+            solicitudId={tempId}
+            existingPhotos={form.fotos}
+            onPhotosChange={(fotos) => setForm((f) => ({ ...f, fotos }))}
+          />
+        </div>
 
         <div className="flex gap-3 mt-2 flex-wrap">
           <Btn size="lg" className="flex-1" onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "💾 Guardar"}</Btn>
