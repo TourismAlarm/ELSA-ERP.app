@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Btn, PhotoGallery } from "../../../shared/components/ui";
+import { textoSobre } from "../../recursos/color";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", summary: "bg-amber-50 border-amber-200 text-amber-700",       badge: "bg-amber-100 text-amber-700" },
@@ -14,7 +15,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, recursoAsignado, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -118,6 +119,20 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
             <p className="font-black text-zinc-900 text-xl">{srv.cliente}</p>
           </div>
+
+          {/* Recurso de agenda */}
+          {recursoAsignado && (
+            <div
+              className="rounded-xl p-4 flex items-center gap-3"
+              style={{ backgroundColor: recursoAsignado.color || "#18181b", color: textoSobre(recursoAsignado.color) }}
+            >
+              <span className="w-4 h-4 rounded-full bg-white/70 shrink-0" />
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase opacity-70">Recurso de agenda</p>
+                <p className="text-base font-black">{recursoAsignado.nombre}</p>
+              </div>
+            </div>
+          )}
 
           {(() => {
             const vs = Array.isArray(srv.vehiculo) ? srv.vehiculo : (srv.vehiculo ? [srv.vehiculo] : []);

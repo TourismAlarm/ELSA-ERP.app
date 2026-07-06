@@ -15,6 +15,7 @@ const sanitize = (s) => {
     vehiculo: vehiculoStr,
     precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
     fecha_servicio: s.fecha_servicio || null,
+    recurso_id: s.recurso_id || null,
   };
 
   if (fotos && Array.isArray(fotos) && fotos.length > 0) {

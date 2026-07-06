@@ -459,7 +459,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} recursos={recursos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
@@ -469,6 +469,7 @@ export default function App() {
           onVerSolicitud={handleView}
           albaranVinculado={albaranes.find((a) => a.servicio_id === viewingServicio.id) || null}
           onVerAlbaran={handleAlbaranView}
+          recursoAsignado={viewingServicio.recurso_id ? recursos.find((r) => r.id === viewingServicio.recurso_id) || null : null}
           onSendEmail={(s) => sendServicioEmail(s, config)}
           onEdit={() => handleServicioEdit(viewingServicio)}
           onDelete={() => handleServicioDelete(viewingServicio.id)}
@@ -481,6 +482,7 @@ export default function App() {
         <CalendarScreen
           servicios={servicios}
           albaranes={albaranes}
+          recursos={recursos}
           onViewServicio={handleServicioView}
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
