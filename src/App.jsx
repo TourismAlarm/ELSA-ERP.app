@@ -228,6 +228,16 @@ export default function App() {
     if (updated) {
       setAlbaranes((prev) => prev.map((a) => a.id === id ? { ...a, ...updated } : a));
       setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
+
+      // La firma confirma que el trabajo está terminado:
+      // cerrar automáticamente el servicio vinculado
+      const albaran = albaranes.find((a) => a.id === id);
+      const servicio = albaran?.servicio_id ? servicios.find((s) => s.id === albaran.servicio_id) : null;
+      if (servicio && (servicio.estado || "abierto") !== "realizado") {
+        await dbCambiarEstadoServicio(servicio.id, "realizado");
+        setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, estado: "realizado" } : s));
+        setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, estado: "realizado" } : prev);
+      }
     }
     return updated;
   };
