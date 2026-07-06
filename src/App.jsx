@@ -5,11 +5,13 @@ import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/s
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
+import { RecursosScreen } from "./modules/recursos/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
 import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
+import { dbLoadRecursos, dbSaveRecurso, dbUpdateRecurso, dbDeleteRecurso } from "./modules/recursos/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
@@ -33,6 +35,7 @@ export default function App() {
   const [vehiculos, setVehiculos] = useState([]);
   const [editingVehiculo, setEditingVehiculo] = useState(null);
   const [viewingVehiculo, setViewingVehiculo] = useState(null);
+  const [recursos, setRecursos] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
 
@@ -53,12 +56,13 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
+      const [cfg, sols, srvs, albs, vhcs, recs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadRecursos(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
       setServicios(srvs);
       setAlbaranes(albs);
       setVehiculos(vhcs);
+      setRecursos(recs);
       setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
@@ -139,6 +143,23 @@ export default function App() {
     if (!confirm("¿Eliminar este cliente?")) return;
     await dbDeleteCliente(id);
     setClientes((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleSaveRecurso = async (recurso) => {
+    const saved = await dbSaveRecurso(recurso);
+    if (saved) setRecursos((prev) => [...prev, saved].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)));
+    return saved;
+  };
+
+  const handleEditRecurso = async (id, datos) => {
+    await dbUpdateRecurso({ id, ...datos });
+    setRecursos((prev) => prev.map((r) => r.id === id ? { ...r, ...datos } : r));
+  };
+
+  const handleDeleteRecurso = async (id) => {
+    if (!confirm("¿Eliminar este recurso?")) return;
+    await dbDeleteRecurso(id);
+    setRecursos((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleToggleAvisos = async (id, valor) => {
@@ -390,8 +411,9 @@ export default function App() {
           </div>
         </div>
       )}
-      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
+      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} onRecursos={() => setScreen("recursos")} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
+      {screen === "recursos" && <RecursosScreen recursos={recursos} onBack={() => setScreen("config")} onNew={handleSaveRecurso} onEdit={handleEditRecurso} onDelete={handleDeleteRecurso} />}
       {screen === "dashboard" && (
         <DashboardScreen
           solicitudes={solicitudes}
