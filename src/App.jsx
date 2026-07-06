@@ -4,10 +4,12 @@ import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
+import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
 import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
+import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
@@ -28,6 +30,9 @@ export default function App() {
   const [viewingServicio, setViewingServicio] = useState(null);
   const [editingAlbaran, setEditingAlbaran] = useState(null);
   const [viewingAlbaran, setViewingAlbaran] = useState(null);
+  const [vehiculos, setVehiculos] = useState([]);
+  const [editingVehiculo, setEditingVehiculo] = useState(null);
+  const [viewingVehiculo, setViewingVehiculo] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
 
@@ -48,11 +53,12 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols, srvs, albs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadClientes()]);
+      const [cfg, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
       setServicios(srvs);
       setAlbaranes(albs);
+      setVehiculos(vhcs);
       setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
@@ -66,6 +72,7 @@ export default function App() {
     setSolicitudes([]);
     setServicios([]);
     setAlbaranes([]);
+    setVehiculos([]);
     setScreen("dashboard");
   };
 
@@ -265,6 +272,40 @@ export default function App() {
     }
   };
 
+  // ---- Flota ----
+  const handleVehiculoNew  = () => { setEditingVehiculo(null); setScreen("vehiculoForm"); };
+  const handleVehiculoEdit = (v) => { setEditingVehiculo(v); setScreen("vehiculoForm"); };
+  const handleVehiculoView = (v) => { setViewingVehiculo(v); setScreen("vehiculoView"); };
+
+  const handleVehiculoDelete = async (id) => {
+    if (!confirm("¿Eliminar este vehículo?")) return;
+    await dbDeleteVehiculo(id);
+    setVehiculos((prev) => prev.filter((v) => v.id !== id));
+    if (screen === "vehiculoView") setScreen("flota");
+  };
+
+  const handleVehiculoFormSave = async (form) => {
+    setSaving(true);
+    if (editingVehiculo) {
+      const updated = { ...editingVehiculo, ...form };
+      await dbUpdateVehiculo(updated);
+      setVehiculos((prev) => prev.map((v) => v.id === editingVehiculo.id ? updated : v).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
+      setSaving(false);
+      setEditingVehiculo(null);
+      handleVehiculoView(updated);
+    } else {
+      const saved = await dbSaveVehiculo(form);
+      setSaving(false);
+      setEditingVehiculo(null);
+      if (saved) {
+        setVehiculos((prev) => [...prev, saved].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
+        handleVehiculoView(saved);
+      } else {
+        setScreen("flota");
+      }
+    }
+  };
+
   const handleAlbaranFormSave = async (form) => {
     setSaving(true);
     if (editingAlbaran) {
@@ -303,7 +344,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
       {/* Navegación principal */}
-      {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario") && (
+      {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario" || screen === "flota") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
           <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
             <button
@@ -337,6 +378,14 @@ export default function App() {
               }`}
             >
               📅 Calendario
+            </button>
+            <button
+              onClick={() => setScreen("flota")}
+              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
+                screen === "flota" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              🚚 Flota
             </button>
           </div>
         </div>
@@ -414,6 +463,28 @@ export default function App() {
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
           onConfig={() => setScreen("config")}
+        />
+      )}
+      {screen === "flota" && (
+        <FlotaListScreen
+          vehiculos={vehiculos}
+          loading={loadingData}
+          onNew={handleVehiculoNew}
+          onView={handleVehiculoView}
+          onEdit={handleVehiculoEdit}
+          onDelete={handleVehiculoDelete}
+          onConfig={() => setScreen("config")}
+        />
+      )}
+      {screen === "vehiculoForm" && (
+        <VehiculoFormScreen initial={editingVehiculo} onSave={handleVehiculoFormSave} onCancel={() => setScreen("flota")} saving={saving} />
+      )}
+      {screen === "vehiculoView" && viewingVehiculo && (
+        <VehiculoViewScreen
+          vehiculo={viewingVehiculo}
+          onEdit={() => handleVehiculoEdit(viewingVehiculo)}
+          onDelete={() => handleVehiculoDelete(viewingVehiculo.id)}
+          onBack={() => setScreen("flota")}
         />
       )}
       {screen === "albaranesList" && (
