@@ -96,44 +96,63 @@ const CalendarScreen = ({ servicios, albaranes, onViewServicio, onViewAlbaran, o
           ))}
         </div>
 
-        {/* Rejilla de días */}
-        <div className="grid grid-cols-7 gap-1.5">
+        {/* Rejilla de días (estilo agenda: cada día muestra sus servicios) */}
+        <div className="grid grid-cols-7 gap-1">
           {celdas.map((dia, i) => {
             if (dia === null) return <div key={`vacio-${i}`} />;
             const iso = toISO(new Date(mes.year, mes.month, dia));
-            const svs = porDia[iso] || [];
-            const abiertos = svs.filter((s) => (s.estado || "abierto") === "abierto").length;
+            const svs = (porDia[iso] || [])
+              .slice()
+              .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
             const esHoy = iso === hoy();
             const seleccionado = iso === fecha;
+            const visibles = svs.slice(0, 3);
+            const extra = svs.length - visibles.length;
             return (
               <button
                 key={iso}
                 onClick={() => setFecha(iso)}
-                className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center gap-0.5 transition-colors ${
+                className={`min-h-[72px] rounded-lg border-2 flex flex-col items-stretch gap-0.5 p-1 text-left transition-colors ${
                   seleccionado
-                    ? "bg-zinc-900 text-white border-zinc-900"
-                    : esHoy
-                      ? "bg-white text-zinc-900 border-zinc-900"
-                      : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400"
+                    ? "bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900"
+                    : "bg-white border-zinc-200 hover:border-zinc-400"
                 }`}
               >
-                <span className="text-sm font-black leading-none">{dia}</span>
-                {svs.length > 0 ? (
-                  <span className={`text-[10px] font-black leading-none px-1.5 py-0.5 rounded-full ${
-                    seleccionado
-                      ? "bg-white text-zinc-900"
-                      : abiertos > 0
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-emerald-100 text-emerald-700"
-                  }`}>
-                    {svs.length}
+                <span className={`self-center text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
+                  esHoy ? "bg-zinc-900 text-white" : "text-zinc-700"
+                }`}>
+                  {dia}
+                </span>
+                {visibles.map((s) => (
+                  <span
+                    key={s.id}
+                    className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${
+                      (s.estado || "abierto") === "abierto"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-emerald-100 text-emerald-800"
+                    }`}
+                  >
+                    {s.cliente || "Sin nombre"}
                   </span>
-                ) : (
-                  <span className="text-[10px] leading-none px-1.5 py-0.5 opacity-0">·</span>
+                ))}
+                {extra > 0 && (
+                  <span className="block w-full truncate px-1 text-[9px] font-black text-zinc-500 leading-tight">
+                    +{extra} más
+                  </span>
                 )}
               </button>
             );
           })}
+        </div>
+
+        {/* Leyenda */}
+        <div className="flex items-center justify-center gap-4 mt-3">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+            <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Abierto
+          </span>
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+            <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Realizado
+          </span>
         </div>
 
         {(!esMesActual || fecha !== hoy()) && (
