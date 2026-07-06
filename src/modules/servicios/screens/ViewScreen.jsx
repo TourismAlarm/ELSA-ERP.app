@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Btn, PhotoGallery } from "../../../shared/components/ui";
-import { textoSobre } from "../../recursos/color";
+import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", summary: "bg-amber-50 border-amber-200 text-amber-700",       badge: "bg-amber-100 text-amber-700" },
@@ -15,7 +15,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, recursoAsignado, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, coloresVehiculo = {}, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -120,25 +120,21 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
             <p className="font-black text-zinc-900 text-xl">{srv.cliente}</p>
           </div>
 
-          {/* Recurso de agenda */}
-          {recursoAsignado && (
-            <div
-              className="rounded-xl p-4 flex items-center gap-3"
-              style={{ backgroundColor: recursoAsignado.color || "#18181b", color: textoSobre(recursoAsignado.color) }}
-            >
-              <span className="w-4 h-4 rounded-full bg-white/70 shrink-0" />
-              <div>
-                <p className="text-xs font-bold tracking-widest uppercase opacity-70">Recurso de agenda</p>
-                <p className="text-base font-black">{recursoAsignado.nombre}</p>
-              </div>
-            </div>
-          )}
-
           {(() => {
             const vs = Array.isArray(srv.vehiculo) ? srv.vehiculo : (srv.vehiculo ? [srv.vehiculo] : []);
             return vs.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {vs.map((v) => <span key={v} className="bg-zinc-100 text-zinc-800 text-sm font-bold px-4 py-1.5 rounded-full">🚛 {v}</span>)}
+                {vs.map((v) => (
+                  <span
+                    key={v}
+                    className="text-sm font-bold px-4 py-1.5 rounded-full"
+                    style={coloresVehiculo[v]
+                      ? { backgroundColor: coloresVehiculo[v], color: textoSobre(coloresVehiculo[v]) }
+                      : { backgroundColor: "#f4f4f5", color: "#27272a" }}
+                  >
+                    🚛 {v}
+                  </span>
+                ))}
               </div>
             );
           })()}
