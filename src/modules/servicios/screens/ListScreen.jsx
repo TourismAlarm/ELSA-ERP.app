@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Btn } from "../../../shared/components/ui";
+import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700",     summary: "bg-amber-50 border-amber-200 text-amber-700" },
@@ -9,7 +10,8 @@ const ESTADOS = {
 const formatFecha = (fecha) =>
   fecha ? new Date(fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
-const ListScreen = ({ servicios, onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado }) => {
+const ListScreen = ({ servicios, vehiculos = [], onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado }) => {
+  const vehiculoPorId = Object.fromEntries(vehiculos.map((v) => [v.id, v]));
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -115,9 +117,18 @@ const ListScreen = ({ servicios, onNew, onView, onEdit, onDelete, onConfig, load
                           </>
                         )}
                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
-                        {(Array.isArray(s.vehiculo) ? s.vehiculo : s.vehiculo ? [s.vehiculo] : []).map((v) => (
-                          <span key={v} className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{v}</span>
-                        ))}
+                        {s.vehiculo_id && vehiculoPorId[s.vehiculo_id] ? (
+                          <span
+                            className="text-xs font-bold px-2 py-0.5 rounded"
+                            style={{ backgroundColor: vehiculoPorId[s.vehiculo_id].color || "#18181b", color: textoSobre(vehiculoPorId[s.vehiculo_id].color) }}
+                          >
+                            {vehiculoPorId[s.vehiculo_id].nombre}
+                          </span>
+                        ) : (
+                          (Array.isArray(s.vehiculo) ? s.vehiculo : s.vehiculo ? [s.vehiculo] : []).map((v) => (
+                            <span key={v} className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{v}</span>
+                          ))
+                        )}
                       </div>
                       <p className="font-black text-zinc-900 text-lg leading-tight truncate">{s.cliente || "Sin nombre"}</p>
                       {s.origen && <p className="text-xs text-zinc-500 mt-0.5">📍 {s.origen}{s.destino ? ` → ${s.destino}` : ""}</p>}

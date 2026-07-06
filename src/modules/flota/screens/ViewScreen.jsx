@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Btn, PhotoGallery } from "../../../shared/components/ui";
+import { textoSobre } from "../../../shared/lib/color";
 import { NIVELES, estadoVencimiento, formatFecha } from "../vencimientos";
 import { dbLoadMantenimientos, dbSaveMantenimiento, dbDeleteMantenimiento } from "../db";
 
@@ -77,6 +78,9 @@ const ViewScreen = ({ vehiculo, onEdit, onDelete, onBack }) => {
       <div className="bg-white border-2 border-zinc-200 rounded-xl shadow-sm mb-5 p-6 flex flex-col gap-5">
 
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded" style={{ backgroundColor: v.color || "#a1a1aa", color: textoSobre(v.color) }}>
+            <span className="w-3 h-3 rounded-full bg-white/70" /> Color
+          </span>
           {v.matricula && <span className="text-sm font-bold bg-zinc-900 text-white px-3 py-1 rounded tracking-widest">{v.matricula}</span>}
           {v.tipo && <span className="text-sm font-semibold bg-zinc-100 text-zinc-700 px-3 py-1 rounded">{v.tipo}</span>}
         </div>

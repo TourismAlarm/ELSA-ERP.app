@@ -1,31 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
-import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
-import { textoSobre } from "../../recursos/color";
+import { textoSobre } from "../../../shared/lib/color";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
-const FormScreen = ({ initial, config, clientes = [], recursos = [], onSave, onSaveCliente, onCancel, saving }) => {
-  const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+const FormScreen = ({ initial, config, clientes = [], vehiculos = [], onSave, onSaveCliente, onCancel, saving }) => {
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), recurso_id: initial.recurso_id || "" }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), descripcion: "", precio: "", fotos: [], recurso_id: "" }
+      ? { ...initial, fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), vehiculo_id: initial.vehiculo_id || "" }
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", origen: "", destino: "", fecha_servicio: hoy(), descripcion: "", precio: "", fotos: [], vehiculo_id: "" }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const vehicles = config?.vehicles ?? DEFAULT_VEHICLES;
-
-  const toggleVehiculo = (v) => {
-    setForm((f) => {
-      const arr = Array.isArray(f.vehiculo) ? f.vehiculo : (f.vehiculo ? [f.vehiculo] : []);
-      return { ...f, vehiculo: arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v] };
-    });
-  };
 
   // Cerrar sugerencias al pulsar fuera
   useEffect(() => {
@@ -143,52 +133,32 @@ const FormScreen = ({ initial, config, clientes = [], recursos = [], onSave, onS
           <Input type="date" value={form.fecha_servicio || ""} onChange={set("fecha_servicio")} />
         </Field>
 
-        {recursos.length > 0 && (
-          <Field label="Recurso de agenda (color en el calendario)">
+        <Field label="Vehículo / Equipo (color en el calendario)">
+          {vehiculos.length === 0 ? (
+            <p className="text-sm text-zinc-400">No hay vehículos en la flota. Añádelos desde 🚚 Flota.</p>
+          ) : (
             <div className="flex flex-wrap gap-2 pt-0.5">
-              {recursos.map((r) => {
-                const selected = form.recurso_id === r.id;
+              {vehiculos.map((v) => {
+                const selected = form.vehiculo_id === v.id;
                 return (
                   <button
-                    key={r.id}
+                    key={v.id}
                     type="button"
-                    onClick={() => setForm((f) => ({ ...f, recurso_id: selected ? "" : r.id }))}
+                    onClick={() => setForm((f) => ({ ...f, vehiculo_id: selected ? "" : v.id }))}
                     className="text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-all"
                     style={
                       selected
-                        ? { backgroundColor: r.color || "#18181b", borderColor: r.color || "#18181b", color: textoSobre(r.color) }
-                        : { backgroundColor: "#fff", borderColor: r.color || "#e4e4e7", color: "#3f3f46" }
+                        ? { backgroundColor: v.color || "#18181b", borderColor: v.color || "#18181b", color: textoSobre(v.color) }
+                        : { backgroundColor: "#fff", borderColor: v.color || "#e4e4e7", color: "#3f3f46" }
                     }
                   >
-                    <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: r.color || "#a1a1aa" }} />
-                    {r.nombre}
+                    <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: v.color || "#a1a1aa" }} />
+                    {v.nombre}
                   </button>
                 );
               })}
             </div>
-          </Field>
-        )}
-
-        <Field label="Vehículo / Equipo">
-          <div className="flex flex-wrap gap-2 pt-0.5">
-            {vehicles.map((v) => {
-              const selected = form.vehiculo.includes(v);
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => toggleVehiculo(v)}
-                  className={`text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-colors ${
-                    selected
-                      ? "bg-zinc-900 text-white border-zinc-900"
-                      : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-                  }`}
-                >
-                  {v}
-                </button>
-              );
-            })}
-          </div>
+          )}
         </Field>
 
         <div className="grid grid-cols-2 gap-4">

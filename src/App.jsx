@@ -5,13 +5,11 @@ import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/s
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
-import { RecursosScreen } from "./modules/recursos/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
 import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
-import { dbLoadRecursos, dbSaveRecurso, dbUpdateRecurso, dbDeleteRecurso } from "./modules/recursos/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
@@ -35,7 +33,6 @@ export default function App() {
   const [vehiculos, setVehiculos] = useState([]);
   const [editingVehiculo, setEditingVehiculo] = useState(null);
   const [viewingVehiculo, setViewingVehiculo] = useState(null);
-  const [recursos, setRecursos] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
 
@@ -56,13 +53,12 @@ export default function App() {
     if (!sessionUserId) return;
     (async () => {
       setLoadingData(true);
-      const [cfg, sols, srvs, albs, vhcs, recs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadRecursos(), dbLoadClientes()]);
+      const [cfg, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
       setConfig(cfg);
       setSolicitudes(sols);
       setServicios(srvs);
       setAlbaranes(albs);
       setVehiculos(vhcs);
-      setRecursos(recs);
       setClientes(clts);
       setScreen(cfg ? "dashboard" : "config");
       setLoadingData(false);
@@ -143,23 +139,6 @@ export default function App() {
     if (!confirm("¿Eliminar este cliente?")) return;
     await dbDeleteCliente(id);
     setClientes((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  const handleSaveRecurso = async (recurso) => {
-    const saved = await dbSaveRecurso(recurso);
-    if (saved) setRecursos((prev) => [...prev, saved].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)));
-    return saved;
-  };
-
-  const handleEditRecurso = async (id, datos) => {
-    await dbUpdateRecurso({ id, ...datos });
-    setRecursos((prev) => prev.map((r) => r.id === id ? { ...r, ...datos } : r));
-  };
-
-  const handleDeleteRecurso = async (id) => {
-    if (!confirm("¿Eliminar este recurso?")) return;
-    await dbDeleteRecurso(id);
-    setRecursos((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleToggleAvisos = async (id, valor) => {
@@ -411,9 +390,8 @@ export default function App() {
           </div>
         </div>
       )}
-      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} onRecursos={() => setScreen("recursos")} />}
+      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
-      {screen === "recursos" && <RecursosScreen recursos={recursos} onBack={() => setScreen("config")} onNew={handleSaveRecurso} onEdit={handleEditRecurso} onDelete={handleDeleteRecurso} />}
       {screen === "dashboard" && (
         <DashboardScreen
           solicitudes={solicitudes}
@@ -449,6 +427,7 @@ export default function App() {
       {screen === "servicios" && (
         <ServiciosListScreen
           servicios={servicios}
+          vehiculos={vehiculos}
           loading={loadingData}
           onNew={handleServicioNew}
           onView={handleServicioView}
@@ -459,7 +438,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} recursos={recursos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} vehiculos={vehiculos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
@@ -469,8 +448,8 @@ export default function App() {
           onVerSolicitud={handleView}
           albaranVinculado={albaranes.find((a) => a.servicio_id === viewingServicio.id) || null}
           onVerAlbaran={handleAlbaranView}
-          recursoAsignado={viewingServicio.recurso_id ? recursos.find((r) => r.id === viewingServicio.recurso_id) || null : null}
-          onSendEmail={(s) => sendServicioEmail(s, config)}
+          vehiculoAsignado={viewingServicio.vehiculo_id ? vehiculos.find((v) => v.id === viewingServicio.vehiculo_id) || null : null}
+          onSendEmail={(s) => sendServicioEmail(vehiculos.find((v) => v.id === s.vehiculo_id) ? { ...s, vehiculoNombre: vehiculos.find((v) => v.id === s.vehiculo_id).nombre } : s, config)}
           onEdit={() => handleServicioEdit(viewingServicio)}
           onDelete={() => handleServicioDelete(viewingServicio.id)}
           onBack={() => setScreen("servicios")}
@@ -482,7 +461,7 @@ export default function App() {
         <CalendarScreen
           servicios={servicios}
           albaranes={albaranes}
-          recursos={recursos}
+          vehiculos={vehiculos}
           onViewServicio={handleServicioView}
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Btn } from "../../../shared/components/ui";
-import { textoSobre } from "../../recursos/color";
+import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700" },
@@ -15,16 +15,16 @@ const toISO = (d) =>
 
 const hoy = () => toISO(new Date());
 
-const CalendarScreen = ({ servicios, albaranes, recursos = [], onViewServicio, onViewAlbaran, onCrearAlbaran, onConfig }) => {
-  // Índice de recursos por id para pintar cada servicio con su color
-  const recursoPorId = Object.fromEntries(recursos.map((r) => [r.id, r]));
+const CalendarScreen = ({ servicios, albaranes, vehiculos = [], onViewServicio, onViewAlbaran, onCrearAlbaran, onConfig }) => {
+  // Índice de vehículos por id para pintar cada servicio con su color
+  const vehiculoPorId = Object.fromEntries(vehiculos.map((v) => [v.id, v]));
 
-  // Estilo de la etiqueta de un servicio: color del recurso si lo tiene,
+  // Estilo de la etiqueta de un servicio: color del vehículo si lo tiene,
   // si no, el color por estado (ámbar abierto / verde realizado)
   const estiloEvento = (s) => {
-    const recurso = s.recurso_id ? recursoPorId[s.recurso_id] : null;
-    if (recurso) {
-      return { style: { backgroundColor: recurso.color || "#18181b", color: textoSobre(recurso.color) }, className: "" };
+    const vehiculo = s.vehiculo_id ? vehiculoPorId[s.vehiculo_id] : null;
+    if (vehiculo && vehiculo.color) {
+      return { style: { backgroundColor: vehiculo.color, color: textoSobre(vehiculo.color) }, className: "" };
     }
     return {
       style: {},
@@ -165,11 +165,11 @@ const CalendarScreen = ({ servicios, albaranes, recursos = [], onViewServicio, o
 
         {/* Leyenda */}
         <div className="flex items-center justify-center gap-x-4 gap-y-1.5 mt-3 flex-wrap">
-          {recursos.length > 0 ? (
+          {vehiculos.some((v) => v.color) ? (
             <>
-              {recursos.map((r) => (
-                <span key={r.id} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
-                  <span className="w-3 h-3 rounded" style={{ backgroundColor: r.color || "#a1a1aa" }} /> {r.nombre}
+              {vehiculos.filter((v) => v.color).map((v) => (
+                <span key={v.id} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
+                  <span className="w-3 h-3 rounded" style={{ backgroundColor: v.color }} /> {v.nombre}
                 </span>
               ))}
               <span className="text-xs font-semibold text-zinc-500">✓ = realizado</span>
@@ -217,12 +217,12 @@ const CalendarScreen = ({ servicios, albaranes, recursos = [], onViewServicio, o
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <span className="text-xs font-bold text-zinc-400 tracking-widest">{s.numero}</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
-                    {s.recurso_id && recursoPorId[s.recurso_id] && (
+                    {s.vehiculo_id && vehiculoPorId[s.vehiculo_id] && (
                       <span
                         className="text-xs font-bold px-2 py-0.5 rounded"
-                        style={{ backgroundColor: recursoPorId[s.recurso_id].color || "#18181b", color: textoSobre(recursoPorId[s.recurso_id].color) }}
+                        style={{ backgroundColor: vehiculoPorId[s.vehiculo_id].color || "#18181b", color: textoSobre(vehiculoPorId[s.vehiculo_id].color) }}
                       >
-                        {recursoPorId[s.recurso_id].nombre}
+                        {vehiculoPorId[s.vehiculo_id].nombre}
                       </span>
                     )}
                     {albaran && (

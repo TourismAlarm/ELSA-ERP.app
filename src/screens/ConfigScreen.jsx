@@ -23,7 +23,7 @@ const dbSaveConfig = async (cfg) => {
   if (error) console.error(error);
 };
 
-const ConfigScreen = ({ onSave, initial, onLogout, onClientes, onRecursos }) => {
+const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     vehicles: DEFAULT_VEHICLES, workTypes: DEFAULT_WORK_TYPES,
@@ -88,9 +88,6 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes, onRecursos }) => 
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={onClientes}>
         👥 Gestionar clientes
-      </Btn>
-      <Btn size="md" variant="secondary" className="w-full" onClick={onRecursos}>
-        🎨 Recursos y colores
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={downloadBackup}>
         📥 Descargar copia de seguridad

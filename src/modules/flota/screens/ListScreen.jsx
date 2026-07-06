@@ -78,7 +78,10 @@ const ListScreen = ({ vehiculos, onNew, onView, onEdit, onDelete, onConfig, load
                   {v.matricula && <span className="text-xs font-bold bg-zinc-900 text-white px-2 py-0.5 rounded tracking-widest">{v.matricula}</span>}
                   {v.tipo && <span className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{v.tipo}</span>}
                 </div>
-                <p className="font-black text-zinc-900 text-lg leading-tight truncate mb-3">🚚 {v.nombre}</p>
+                <p className="font-black text-zinc-900 text-lg leading-tight truncate mb-3 flex items-center gap-2">
+                  <span className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: v.color || "#a1a1aa" }} />
+                  🚚 {v.nombre}
+                </p>
 
                 <div className="flex flex-col gap-2 mb-4">
                   <Semaforo etiqueta="ITV" fecha={v.itv_vencimiento} />

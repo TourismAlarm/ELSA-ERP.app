@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Btn, PhotoGallery } from "../../../shared/components/ui";
-import { textoSobre } from "../../recursos/color";
+import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", summary: "bg-amber-50 border-amber-200 text-amber-700",       badge: "bg-amber-100 text-amber-700" },
@@ -15,7 +15,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, recursoAsignado, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, vehiculoAsignado, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -120,21 +120,20 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
             <p className="font-black text-zinc-900 text-xl">{srv.cliente}</p>
           </div>
 
-          {/* Recurso de agenda */}
-          {recursoAsignado && (
+          {/* Vehículo / Equipo asignado */}
+          {vehiculoAsignado ? (
             <div
               className="rounded-xl p-4 flex items-center gap-3"
-              style={{ backgroundColor: recursoAsignado.color || "#18181b", color: textoSobre(recursoAsignado.color) }}
+              style={{ backgroundColor: vehiculoAsignado.color || "#18181b", color: textoSobre(vehiculoAsignado.color) }}
             >
               <span className="w-4 h-4 rounded-full bg-white/70 shrink-0" />
               <div>
-                <p className="text-xs font-bold tracking-widest uppercase opacity-70">Recurso de agenda</p>
-                <p className="text-base font-black">{recursoAsignado.nombre}</p>
+                <p className="text-xs font-bold tracking-widest uppercase opacity-70">Vehículo / Equipo</p>
+                <p className="text-base font-black">🚚 {vehiculoAsignado.nombre}</p>
               </div>
             </div>
-          )}
-
-          {(() => {
+          ) : (() => {
+            // Servicios antiguos: vehículo guardado como texto
             const vs = Array.isArray(srv.vehiculo) ? srv.vehiculo : (srv.vehiculo ? [srv.vehiculo] : []);
             return vs.length > 0 && (
               <div className="flex flex-wrap gap-2">

@@ -5,7 +5,10 @@ const formatFecha = (f) =>
   f ? new Date(f + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
 
 export const buildServicioMessage = (s, config) => {
-  const vehiculos = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
+  // vehiculoNombre viene del vehículo de flota asignado; si no, del texto antiguo
+  const vehiculosTexto = s.vehiculoNombre
+    ? s.vehiculoNombre
+    : (Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : [])).join(", ");
   const estado = (s.estado || "abierto") === "realizado" ? "🟢 Realizado" : "🟠 Abierto";
 
   return [
@@ -14,7 +17,7 @@ export const buildServicioMessage = (s, config) => {
     `Estado: ${estado}`,
     ``,
     `👤 Cliente: ${s.cliente || "—"}`,
-    vehiculos.length > 0 ? `🚛 Vehículo/Equipo: ${vehiculos.join(", ")}` : null,
+    vehiculosTexto ? `🚛 Vehículo/Equipo: ${vehiculosTexto}` : null,
     s.origen  ? `📍 Origen (A): ${s.origen}` : null,
     s.destino ? `📍 Destino (B): ${s.destino}` : null,
     ``,

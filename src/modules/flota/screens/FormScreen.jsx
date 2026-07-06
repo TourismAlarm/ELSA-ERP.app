@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
+import { Btn, Field, Input, Textarea, PhotoUploader, ColorPicker } from "../../../shared/components/ui";
+import { PALETA } from "../../../shared/lib/color";
 
 const FormScreen = ({ initial, onSave, onCancel, saving }) => {
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vencimientos: initial.vencimientos || [], fotos: initial.fotos || [] }
-      : { nombre: "", matricula: "", tipo: "", itv_vencimiento: "", seguro_vencimiento: "", notas: "", vencimientos: [], fotos: [] }
+      ? { ...initial, vencimientos: initial.vencimientos || [], fotos: initial.fotos || [], color: initial.color || PALETA[0] }
+      : { nombre: "", matricula: "", tipo: "", itv_vencimiento: "", seguro_vencimiento: "", notas: "", vencimientos: [], fotos: [], color: PALETA[0] }
   );
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -52,6 +53,10 @@ const FormScreen = ({ initial, onSave, onCancel, saving }) => {
             <Input value={form.tipo || ""} onChange={set("tipo")} placeholder="Grúa, camión, furgoneta..." />
           </Field>
         </div>
+
+        <Field label="Color (identifica el vehículo en el calendario)">
+          <ColorPicker value={form.color} onChange={(color) => setForm((f) => ({ ...f, color }))} />
+        </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Vencimiento ITV">
