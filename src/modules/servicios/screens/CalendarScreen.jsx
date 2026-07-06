@@ -8,12 +8,50 @@ const primerVehiculo = (s) => {
   return arr[0] || null;
 };
 
-const ESTADOS = {
-  abierto:   { label: "Abierto",   emoji: "🟠", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700" },
-  realizado: { label: "Realizado", emoji: "🟢", border: "border-l-emerald-400", badge: "bg-emerald-100 text-emerald-700" },
+const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
+
+// --- Rejilla horaria del día seleccionado (07:00 a 21:00, franjas de 30 min) ---
+const HORA_MIN = 7;
+const HORA_MAX = 21;
+const PX_POR_MINUTO = 1; // 60px por hora
+const TOTAL_MINUTOS = (HORA_MAX - HORA_MIN) * 60;
+
+// "HH:MM" o "HH:MM:SS" -> minutos desde el inicio de la rejilla
+const aMinutosDesdeInicio = (h) => {
+  const [hh, mm] = h.split(":");
+  return (Number(hh) - HORA_MIN) * 60 + Number(mm || 0);
 };
 
-const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
+const horaCorta = (h) => (h ? h.slice(0, 5) : "");
+
+const minutosAHora = (min) => {
+  const h = HORA_MIN + Math.floor(min / 60);
+  return `${String(h).padStart(2, "0")}:${min % 60 === 0 ? "00" : "30"}`;
+};
+
+// Reparte en columnas los eventos que se solapan (estilo Google Calendar):
+// los solapados comparten el ancho, los que no, ocupan todo
+const asignarColumnas = (eventos) => {
+  const ordenados = [...eventos].sort((a, b) => a.ini - b.ini || a.fin - b.fin);
+  const colFin = []; // fin del último evento colocado en cada columna
+  let cluster = -1;
+  let finCluster = -1;
+  ordenados.forEach((ev) => {
+    if (ev.ini >= finCluster) { cluster++; colFin.length = 0; finCluster = ev.fin; }
+    else finCluster = Math.max(finCluster, ev.fin);
+    let col = colFin.findIndex((f) => f <= ev.ini);
+    if (col === -1) col = colFin.length;
+    colFin[col] = ev.fin;
+    ev.col = col;
+    ev.cluster = cluster;
+  });
+  const colsPorCluster = {};
+  ordenados.forEach((ev) => {
+    colsPorCluster[ev.cluster] = Math.max(colsPorCluster[ev.cluster] || 0, ev.col + 1);
+  });
+  ordenados.forEach((ev) => { ev.cols = colsPorCluster[ev.cluster]; });
+  return ordenados;
+};
 
 // Formatea una Date local a AAAA-MM-DD sin pasar por UTC (evita saltos de día)
 const toISO = (d) =>
@@ -21,7 +59,7 @@ const toISO = (d) =>
 
 const hoy = () => toISO(new Date());
 
-const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
   // tiene, si no, el color por estado (ámbar abierto / verde realizado)
   const estiloEvento = (s) => {
@@ -75,6 +113,20 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
   const delDia = (porDia[fecha] || [])
     .slice()
     .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
+
+  // Rejilla horaria: servicios con hora (bloques posicionados) y sin hora (chips)
+  const sinHora = delDia.filter((s) => !s.hora_inicio);
+  const conHora = asignarColumnas(
+    delDia
+      .filter((s) => s.hora_inicio)
+      .map((s) => {
+        const ini = aMinutosDesdeInicio(s.hora_inicio);
+        let fin = s.hora_fin ? aMinutosDesdeInicio(s.hora_fin) : ini + 60; // sin fin: 1h por defecto
+        if (fin <= ini) fin = ini + 30; // fin anterior a inicio: bloque mínimo
+        return { s, ini, fin };
+      })
+  );
+  const franjas = Array.from({ length: TOTAL_MINUTOS / 30 }, (_, i) => i * 30);
 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
@@ -202,58 +254,90 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
       {/* Día seleccionado */}
       <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-4">{labelDia}</p>
 
-      {delDia.length === 0 ? (
-        <div className="text-center py-12 text-zinc-400">
-          <div className="text-5xl mb-3">📅</div>
-          <p className="font-semibold">No hay servicios programados este día</p>
-          <p className="text-sm mt-1">Toca otro día del mes para ver sus servicios</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {delDia.map((s) => {
-            const estado = s.estado || "abierto";
-            const cfg = ESTADOS[estado] || ESTADOS.abierto;
-            const albaran = albaranes.find((a) => a.servicio_id === s.id);
-            return (
-              <div key={s.id} className={`bg-white border-2 border-zinc-200 rounded-xl overflow-hidden hover:border-zinc-400 transition-colors border-l-4 ${cfg.border}`}>
-                <div className="p-5">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <span className="text-xs font-bold text-zinc-400 tracking-widest">{s.numero}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
-                    {(Array.isArray(s.vehiculo) ? s.vehiculo : s.vehiculo ? [s.vehiculo] : []).map((nombre) => (
-                      <span
-                        key={nombre}
-                        className="text-xs font-bold px-2 py-0.5 rounded"
-                        style={coloresVehiculo[nombre]
-                          ? { backgroundColor: coloresVehiculo[nombre], color: textoSobre(coloresVehiculo[nombre]) }
-                          : { backgroundColor: "#f4f4f5", color: "#3f3f46" }}
-                      >
-                        {nombre}
-                      </span>
-                    ))}
-                    {albaran && (
-                      <span className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">📝 {albaran.numero}</span>
-                    )}
-                  </div>
-                  <p className="font-black text-zinc-900 text-lg leading-tight truncate mb-1">{s.cliente || "Sin nombre"}</p>
-                  {(s.origen || s.destino) && (
-                    <p className="text-xs text-zinc-500 mb-3">📍 {s.origen || "—"}{s.destino ? ` → ${s.destino}` : ""}</p>
-                  )}
+      <Btn size="lg" className="w-full mb-4" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Nuevo servicio</Btn>
 
-                  <div className="flex gap-2 flex-wrap">
-                    <Btn size="md" className="flex-1" onClick={() => onViewServicio(s)}>👁 Ver servicio</Btn>
-                    {albaran ? (
-                      <Btn size="md" variant="secondary" className="flex-1" onClick={() => onViewAlbaran(albaran)}>📝 Ver albarán</Btn>
-                    ) : (
-                      <Btn size="md" variant="secondary" className="flex-1" onClick={() => onCrearAlbaran(s)}>📝 Crear albarán</Btn>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      {/* Servicios sin hora asignada */}
+      {sinHora.length > 0 && (
+        <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-3">
+          <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Sin hora asignada</p>
+          <div className="flex flex-wrap gap-2">
+            {sinHora.map((s) => {
+              const ev = estiloEvento(s);
+              const albaran = albaranes.find((a) => a.servicio_id === s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onViewServicio(s)}
+                  style={ev.style}
+                  className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
+                >
+                  {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {/* Rejilla horaria del día */}
+      <div className="bg-white border-2 border-zinc-200 rounded-xl p-3 pt-4">
+        <div className="flex">
+          {/* Columna de horas */}
+          <div className="w-12 shrink-0">
+            {franjas.map((min) => (
+              <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
+                <span className={`absolute -top-1.5 right-2 leading-none ${min % 60 === 0 ? "text-[10px] font-bold text-zinc-500" : "text-[9px] text-zinc-300"}`}>
+                  {minutosAHora(min)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Área de eventos */}
+          <div className="flex-1 relative border-l-2 border-zinc-100">
+            {/* Franjas vacías: tocar crea un servicio a esa hora */}
+            {franjas.map((min) => (
+              <button
+                key={min}
+                onClick={() => onNuevoServicioEnHora(fecha, minutosAHora(min))}
+                title={`Nuevo servicio a las ${minutosAHora(min)}`}
+                className={`block w-full border-t transition-colors hover:bg-blue-50 ${min % 60 === 0 ? "border-zinc-200" : "border-zinc-100"}`}
+                style={{ height: 30 * PX_POR_MINUTO }}
+              />
+            ))}
+
+            {/* Bloques de servicios con hora */}
+            {conHora.map(({ s, ini, fin, col, cols }) => {
+              const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
+              const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
+              const ev = estiloEvento(s);
+              const albaran = albaranes.find((a) => a.servicio_id === s.id);
+              const hecho = (s.estado || "abierto") === "realizado";
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => onViewServicio(s)}
+                  style={{
+                    top: top * PX_POR_MINUTO,
+                    height: alto * PX_POR_MINUTO,
+                    left: `calc(${(col / cols) * 100}% + 2px)`,
+                    width: `calc(${100 / cols}% - 4px)`,
+                    ...ev.style,
+                  }}
+                  className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
+                >
+                  <p className="text-[10px] font-black leading-tight truncate">
+                    {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
+                  </p>
+                  <p className="text-[11px] font-bold leading-tight truncate">
+                    {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -5,13 +5,14 @@ import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
-const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
+const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), hora_inicio: initial.hora_inicio || "", hora_fin: initial.hora_fin || "" }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), hora_inicio: "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
+      // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), hora_inicio: prefill?.hora_inicio || "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
