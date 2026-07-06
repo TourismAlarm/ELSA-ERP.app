@@ -14,7 +14,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -183,6 +183,11 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-white border-2 border-zinc-200 rounded-xl p-5 mb-4">
+        <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Confirmación de trabajo</p>
+        <Btn size="lg" variant="email" className="w-full" onClick={() => onSendEmail(srv)}>✉️ Enviar por email</Btn>
       </div>
 
       <div className="flex gap-3 flex-wrap">

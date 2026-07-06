@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { ADMIN_EMAIL } from "../../shared/lib/constants";
 
 const formatFecha = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
@@ -6,7 +7,7 @@ const formatFecha = (f) =>
 const formatFechaHora = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-export const generateAlbaranPDF = (a, config) => {
+const buildAlbaranDoc = (a, config) => {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, margin = 18;
   let y = 0;
@@ -141,5 +142,44 @@ export const generateAlbaranPDF = (a, config) => {
   }
 
   footer();
-  doc.save(`Albaran_${a.numero}.pdf`);
+  return doc;
+};
+
+export const generateAlbaranPDF = (a, config) => {
+  buildAlbaranDoc(a, config).save(`Albaran_${a.numero}.pdf`);
+};
+
+// Envía el albarán por email con el PDF adjunto usando la hoja de compartir
+// del sistema (iOS/Android). Si el navegador no soporta compartir archivos,
+// descarga el PDF y abre el correo para adjuntarlo a mano.
+export const shareAlbaranPDF = async (a, config) => {
+  const doc = buildAlbaranDoc(a, config);
+  const nombreArchivo = `Albaran_${a.numero}.pdf`;
+  const blob = doc.output("blob");
+  const file = new File([blob], nombreArchivo, { type: "application/pdf" });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: `Albarán ${a.numero}`,
+        text: `Albarán ${a.numero} – ${a.cliente || "Sin nombre"}`,
+      });
+      return;
+    } catch (err) {
+      if (err.name === "AbortError") return; // el usuario canceló la hoja de compartir
+      console.error(err);
+    }
+  }
+
+  doc.save(nombreArchivo);
+  const body = [
+    `Adjunto el albarán ${a.numero}${a.cliente ? ` de ${a.cliente}` : ""}.`,
+    ``,
+    `(El PDF ${nombreArchivo} se acaba de descargar — adjúntalo a este correo.)`,
+  ].join("\n");
+  window.open(
+    `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`Albarán ${a.numero} – ${a.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(body)}`,
+    "_blank"
+  );
 };
