@@ -7,7 +7,8 @@ import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, Vie
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
-import { generateAlbaranPDF } from "./modules/albaranes/pdf";
+import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
+import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
 import { today } from "./shared/lib/utils";
@@ -397,6 +398,7 @@ export default function App() {
           onVerSolicitud={handleView}
           albaranVinculado={albaranes.find((a) => a.servicio_id === viewingServicio.id) || null}
           onVerAlbaran={handleAlbaranView}
+          onSendEmail={(s) => sendServicioEmail(s, config)}
           onEdit={() => handleServicioEdit(viewingServicio)}
           onDelete={() => handleServicioDelete(viewingServicio.id)}
           onBack={() => setScreen("servicios")}
@@ -441,6 +443,7 @@ export default function App() {
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
           onGeneratePDF={(a) => generateAlbaranPDF(a, config || {})}
+          onEnviarEmail={(a) => shareAlbaranPDF(a, config || {})}
         />
       )}
     </div>

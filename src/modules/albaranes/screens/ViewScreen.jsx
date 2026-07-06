@@ -12,7 +12,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   fechaISO ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF }) => {
+const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
   const [alb, setAlb] = useState(albaran);
   const [firmante, setFirmante] = useState("");
   const [firmando, setFirmando] = useState(false);
@@ -236,7 +236,11 @@ const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicit
       </div>
 
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-5 mb-4">
-        <Btn size="lg" className="w-full" onClick={() => onGeneratePDF(alb)}>📄 Generar PDF</Btn>
+        <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Documento</p>
+        <div className="flex gap-3 flex-wrap">
+          <Btn size="lg" className="flex-1" onClick={() => onGeneratePDF(alb)}>📄 Generar PDF</Btn>
+          <Btn size="lg" variant="email" className="flex-1" onClick={() => onEnviarEmail(alb)}>✉️ Enviar por email</Btn>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
