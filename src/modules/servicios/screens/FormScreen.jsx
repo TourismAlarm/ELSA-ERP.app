@@ -10,8 +10,8 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy() }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), descripcion: "", precio: "", fotos: [] }
+      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), hora_inicio: initial.hora_inicio || "", hora_fin: initial.hora_fin || "" }
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), hora_inicio: "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -142,6 +142,18 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
         <Field label="Fecha del servicio">
           <Input type="date" value={form.fecha_servicio || ""} onChange={set("fecha_servicio")} />
         </Field>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Hora inicio">
+            <Input type="time" value={form.hora_inicio || ""} onChange={set("hora_inicio")} />
+          </Field>
+          <Field label="Hora fin">
+            <Input type="time" value={form.hora_fin || ""} onChange={set("hora_fin")} />
+          </Field>
+        </div>
+        {form.hora_inicio && form.hora_fin && form.hora_fin < form.hora_inicio && (
+          <p className="text-xs text-red-500 -mt-3">La hora de fin es anterior a la de inicio</p>
+        )}
 
         <Field label="Vehículo / Equipo (color en el calendario)">
           <div className="flex flex-wrap gap-2 pt-0.5">
