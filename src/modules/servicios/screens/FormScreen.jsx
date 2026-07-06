@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
+import { textoSobre } from "../../recursos/color";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
-const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
+const FormScreen = ({ initial, config, clientes = [], recursos = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy() }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), descripcion: "", precio: "", fotos: [] }
+      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), recurso_id: initial.recurso_id || "" }
+      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: hoy(), descripcion: "", precio: "", fotos: [], recurso_id: "" }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -141,6 +142,32 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
         <Field label="Fecha del servicio">
           <Input type="date" value={form.fecha_servicio || ""} onChange={set("fecha_servicio")} />
         </Field>
+
+        {recursos.length > 0 && (
+          <Field label="Recurso de agenda (color en el calendario)">
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {recursos.map((r) => {
+                const selected = form.recurso_id === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, recurso_id: selected ? "" : r.id }))}
+                    className="text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-all"
+                    style={
+                      selected
+                        ? { backgroundColor: r.color || "#18181b", borderColor: r.color || "#18181b", color: textoSobre(r.color) }
+                        : { backgroundColor: "#fff", borderColor: r.color || "#e4e4e7", color: "#3f3f46" }
+                    }
+                  >
+                    <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: r.color || "#a1a1aa" }} />
+                    {r.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+        )}
 
         <Field label="Vehículo / Equipo">
           <div className="flex flex-wrap gap-2 pt-0.5">
