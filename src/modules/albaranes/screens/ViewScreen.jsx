@@ -12,7 +12,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   fechaISO ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const ViewScreen = ({ albaran, config, onEdit, onDelete, onBack, onFirmar, onGeneratePDF }) => {
+const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF }) => {
   const [alb, setAlb] = useState(albaran);
   const [firmante, setFirmante] = useState("");
   const [firmando, setFirmando] = useState(false);
@@ -121,6 +121,39 @@ const ViewScreen = ({ albaran, config, onEdit, onDelete, onBack, onFirmar, onGen
               <p className="text-xs mt-2 opacity-70">Firmado el {formatFechaHora(alb.firmado_en)}</p>
             )}
           </div>
+
+          {/* Servicio vinculado */}
+          {alb.servicio_id && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Vinculado</p>
+                <p className="text-sm font-bold text-blue-900">
+                  🔧 Servicio {servicioVinculado?.numero || "(eliminado)"}
+                  {servicioVinculado && (
+                    <span className="ml-2 text-xs font-black px-2 py-0.5 rounded bg-white/70">
+                      {(servicioVinculado.estado || "abierto") === "realizado" ? "🟢 Realizado" : "🟠 Abierto"}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {servicioVinculado && onVerServicio && (
+                <Btn size="sm" variant="secondary" onClick={() => onVerServicio(servicioVinculado)}>👁 Ver servicio</Btn>
+              )}
+            </div>
+          )}
+
+          {/* Solicitud vinculada */}
+          {alb.solicitud_id && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Vinculado</p>
+                <p className="text-sm font-bold text-blue-900">📋 Solicitud {solicitudVinculada?.numero || "(eliminada)"}</p>
+              </div>
+              {solicitudVinculada && onVerSolicitud && (
+                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudVinculada)}>👁 Ver solicitud</Btn>
+              )}
+            </div>
+          )}
 
           {/* Cliente */}
           <div className="bg-zinc-50 rounded-lg p-4">

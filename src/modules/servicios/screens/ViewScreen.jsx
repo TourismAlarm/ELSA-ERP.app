@@ -14,7 +14,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -91,6 +91,24 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, onEdit,
               </div>
               {solicitudOrigen && onVerSolicitud && (
                 <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver solicitud</Btn>
+              )}
+            </div>
+          )}
+
+          {/* Albarán vinculado */}
+          {albaranVinculado && (
+            <div className="bg-violet-50 border-2 border-violet-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-violet-400">Vinculado</p>
+                <p className="text-sm font-bold text-violet-900">
+                  📝 Albarán {albaranVinculado.numero}
+                  <span className="ml-2 text-xs font-black px-2 py-0.5 rounded bg-white/70">
+                    {(albaranVinculado.estado || "borrador") === "firmado" ? "🟢 Firmado" : "🟠 Borrador"}
+                  </span>
+                </p>
+              </div>
+              {onVerAlbaran && (
+                <Btn size="sm" variant="secondary" onClick={() => onVerAlbaran(albaranVinculado)}>👁 Ver albarán</Btn>
               )}
             </div>
           )}
