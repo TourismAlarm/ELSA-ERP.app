@@ -7,15 +7,15 @@ const sanitize = (s) => {
     : (s.vehiculo || "");
 
   // nifCif, dirFact, telCliente y emailCliente son campos del cliente —
-  // no existen como columnas en servicios, excluirlos del insert
-  const { nifCif, dirFact, fotos, telCliente, emailCliente, ...rest } = s;
+  // no existen como columnas en servicios, excluirlos del insert.
+  // recurso_id se retira (fusionado en vehiculo/equipo); no persistirlo.
+  const { nifCif, dirFact, fotos, telCliente, emailCliente, recurso_id, ...rest } = s;
 
   const sanitized = {
     ...rest,
     vehiculo: vehiculoStr,
     precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
     fecha_servicio: s.fecha_servicio || null,
-    recurso_id: s.recurso_id || null,
   };
 
   if (fotos && Array.isArray(fotos) && fotos.length > 0) {

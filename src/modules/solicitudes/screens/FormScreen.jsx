@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
+import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
@@ -15,7 +16,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const vehicles = config?.vehicles ?? DEFAULT_VEHICLES;
+  const vehicles = normalizeVehiculos(config?.vehicles ?? DEFAULT_VEHICLES);
 
   const toggleVehiculo = (v) => {
     setForm((f) => {
@@ -139,19 +140,21 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
         <Field label="Vehículo / Equipo">
           <div className="flex flex-wrap gap-2 pt-0.5">
             {vehicles.map((v) => {
-              const selected = form.vehiculo.includes(v);
+              const selected = form.vehiculo.includes(v.nombre);
               return (
                 <button
-                  key={v}
+                  key={v.nombre}
                   type="button"
-                  onClick={() => toggleVehiculo(v)}
-                  className={`text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-colors ${
+                  onClick={() => toggleVehiculo(v.nombre)}
+                  className="text-sm font-bold px-3 py-1.5 rounded-full border-2 transition-all"
+                  style={
                     selected
-                      ? "bg-zinc-900 text-white border-zinc-900"
-                      : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
-                  }`}
+                      ? { backgroundColor: v.color, borderColor: v.color, color: textoSobre(v.color) }
+                      : { backgroundColor: "#fff", borderColor: v.color, color: "#3f3f46" }
+                  }
                 >
-                  {v}
+                  <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle" style={{ backgroundColor: v.color }} />
+                  {v.nombre}
                 </button>
               );
             })}

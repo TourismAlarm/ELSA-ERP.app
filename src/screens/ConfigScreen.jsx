@@ -1,7 +1,69 @@
 import { useState, useRef } from "react";
 import { supabase } from "../shared/lib/supabase";
-import { Btn, Field, Input, ListManager } from "../shared/components/ui";
+import { Btn, Field, Input, ColorPicker } from "../shared/components/ui";
 import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../shared/lib/constants";
+import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
+
+// Gestor de vehículos / equipos con color (los que se usan en servicios,
+// solicitudes y el calendario). Cada uno es { nombre, color }.
+const VehiculosManager = ({ items, onChange }) => {
+  const [draft, setDraft] = useState("");
+  const [editando, setEditando] = useState(null); // índice con el picker abierto
+
+  const add = () => {
+    const nombre = draft.trim();
+    if (!nombre || items.some((v) => v.nombre === nombre)) return;
+    onChange([...items, { nombre, color: PALETA[items.length % PALETA.length] }]);
+    setDraft("");
+  };
+
+  return (
+    <div>
+      <div className="flex flex-col gap-2 mb-3">
+        {items.length === 0 && <span className="text-xs text-zinc-400 italic">Sin vehículos / equipos</span>}
+        {items.map((v, i) => (
+          <div key={i} className="flex items-center gap-2 flex-wrap">
+            <span
+              className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: v.color, color: textoSobre(v.color) }}
+            >
+              {v.nombre}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEditando(editando === i ? null : i)}
+              className="text-xs font-bold text-zinc-500 hover:text-zinc-900"
+            >
+              🎨 Color
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((_, idx) => idx !== i))}
+              className="text-zinc-400 hover:text-red-500 transition-colors leading-none text-lg"
+            >
+              ×
+            </button>
+            {editando === i && (
+              <div className="w-full pl-1 pb-1">
+                <ColorPicker value={v.color} onChange={(color) => onChange(items.map((x, idx) => idx === i ? { ...x, color } : x))} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder="Camión 1, 24+jib, Externo..."
+          className="w-full border-2 border-zinc-200 rounded-md px-4 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-900 bg-white"
+        />
+        <button type="button" onClick={add} className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-md hover:bg-zinc-700 transition-colors shrink-0">+ Añadir</button>
+      </div>
+    </div>
+  );
+};
 
 const downloadBackup = async () => {
   const [{ data: sols }, { data: cfg }] = await Promise.all([
@@ -23,12 +85,12 @@ const dbSaveConfig = async (cfg) => {
   if (error) console.error(error);
 };
 
-const ConfigScreen = ({ onSave, initial, onLogout, onClientes, onRecursos }) => {
+const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
-    vehicles: DEFAULT_VEHICLES, workTypes: DEFAULT_WORK_TYPES,
+    workTypes: DEFAULT_WORK_TYPES,
     ...initial,
-    vehicles:  initial?.vehicles  ?? DEFAULT_VEHICLES,
+    vehicles:  normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     workTypes: initial?.workTypes ?? DEFAULT_WORK_TYPES,
   }));
   const [saving, setSaving] = useState(false);
@@ -79,8 +141,9 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes, onRecursos }) => 
       </div>
 
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
-        <p className="text-sm font-black text-zinc-900 mb-4">Vehículos / Equipos</p>
-        <ListManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
+        <p className="text-sm font-black text-zinc-900 mb-1">Vehículos / Equipos</p>
+        <p className="text-xs text-zinc-400 mb-4">Los que se asignan en servicios y solicitudes. Su color identifica el trabajo en el calendario.</p>
+        <VehiculosManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
       </div>
 
       <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving}>
@@ -88,9 +151,6 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes, onRecursos }) => 
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={onClientes}>
         👥 Gestionar clientes
-      </Btn>
-      <Btn size="md" variant="secondary" className="w-full" onClick={onRecursos}>
-        🎨 Recursos y colores
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={downloadBackup}>
         📥 Descargar copia de seguridad
