@@ -18,7 +18,7 @@ const diasDesde = (fechaISO) => {
 const formatFecha = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsApp, onSendEmail, onGeneratePDF, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdit, onDelete, onBack, onSendWhatsApp, onSendEmail, onGeneratePDF, onCambiarEstado, onAddNota }) => {
   const [sol, setSol] = useState(solicitud);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -91,6 +91,24 @@ const ViewScreen = ({ solicitud, config, onEdit, onDelete, onBack, onSendWhatsAp
               <option value="rechazado">🔴 Rechazado</option>
             </select>
           </div>
+
+          {/* Servicio vinculado */}
+          {servicioVinculado && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Vinculado</p>
+                <p className="text-sm font-bold text-blue-900">🔧 Servicio {servicioVinculado.numero}</p>
+                {servicioVinculado.fecha_servicio && (
+                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">
+                    Programado para el {new Date(servicioVinculado.fecha_servicio + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+              {onVerServicio && (
+                <Btn size="sm" variant="secondary" onClick={() => onVerServicio(servicioVinculado)}>👁 Ver servicio</Btn>
+              )}
+            </div>
+          )}
 
           {/* Cliente */}
           <div className="bg-zinc-50 rounded-lg p-4">

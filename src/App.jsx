@@ -362,6 +362,8 @@ export default function App() {
         <ViewScreen
           solicitud={viewing}
           config={config || {}}
+          servicioVinculado={servicios.find((s) => s.solicitud_id === viewing.id) || null}
+          onVerServicio={handleServicioView}
           onEdit={() => handleEdit(viewing)}
           onDelete={() => handleDelete(viewing.id)}
           onBack={() => setScreen("dashboard")}
@@ -393,6 +395,8 @@ export default function App() {
           config={config || {}}
           solicitudOrigen={viewingServicio.solicitud_id ? solicitudes.find((b) => b.id === viewingServicio.solicitud_id) || null : null}
           onVerSolicitud={handleView}
+          albaranVinculado={albaranes.find((a) => a.servicio_id === viewingServicio.id) || null}
+          onVerAlbaran={handleAlbaranView}
           onEdit={() => handleServicioEdit(viewingServicio)}
           onDelete={() => handleServicioDelete(viewingServicio.id)}
           onBack={() => setScreen("servicios")}
@@ -428,6 +432,10 @@ export default function App() {
         <AlbaranViewScreen
           albaran={viewingAlbaran}
           config={config || {}}
+          servicioVinculado={viewingAlbaran.servicio_id ? servicios.find((s) => s.id === viewingAlbaran.servicio_id) || null : null}
+          onVerServicio={handleServicioView}
+          solicitudVinculada={viewingAlbaran.solicitud_id ? solicitudes.find((b) => b.id === viewingAlbaran.solicitud_id) || null : null}
+          onVerSolicitud={handleView}
           onEdit={() => handleAlbaranEdit(viewingAlbaran)}
           onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
           onBack={() => setScreen("albaranesList")}
