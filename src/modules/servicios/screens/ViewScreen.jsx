@@ -12,6 +12,16 @@ const TIPO_EMOJI = { whatsapp: "💬", email: "✉️", manual: "📝" };
 const formatFechaDia = (fecha) =>
   fecha ? new Date(fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
+const horaCorta = (h) => (h ? h.slice(0, 5) : "");
+
+const rangoHoras = (inicio, fin) => {
+  const i = horaCorta(inicio), f = horaCorta(fin);
+  if (i && f) return `${i} - ${f}`;
+  if (i) return `desde ${i}`;
+  if (f) return `hasta ${f}`;
+  return "";
+};
+
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -60,7 +70,10 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
           </div>
           <div className="ml-auto text-right">
             <p className="text-zinc-400 text-xs">Fecha servicio</p>
-            <p className="text-white font-bold text-sm">{formatFechaDia(srv.fecha_servicio) || "—"}</p>
+            <p className="text-white font-bold text-sm">
+              {formatFechaDia(srv.fecha_servicio) || "—"}
+              {rangoHoras(srv.hora_inicio, srv.hora_fin) && <>  ·  {rangoHoras(srv.hora_inicio, srv.hora_fin)}</>}
+            </p>
           </div>
         </div>
 

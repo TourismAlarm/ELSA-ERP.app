@@ -112,7 +112,9 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
                         {s.fecha_servicio && (
                           <>
                             <span className="text-xs text-zinc-300">·</span>
-                            <span className="text-xs text-zinc-400">{formatFecha(s.fecha_servicio)}</span>
+                            <span className="text-xs text-zinc-400">
+                              {formatFecha(s.fecha_servicio)}{s.hora_inicio ? ` · ${s.hora_inicio.slice(0, 5)}` : ""}
+                            </span>
                           </>
                         )}
                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
