@@ -5,3 +5,4 @@ export { default as ListManager } from './ListManager';
 export { default as PhotoUploader } from './PhotoUploader';
 export { default as PhotoGallery } from './PhotoGallery';
 export { default as ColorPicker } from './ColorPicker';
+export { default as MapasModal } from './MapasModal';

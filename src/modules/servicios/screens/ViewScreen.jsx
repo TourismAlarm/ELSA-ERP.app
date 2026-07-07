@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
@@ -28,6 +28,7 @@ const formatFechaHora = (fechaISO) =>
 const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
+  const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
   const [addingNota, setAddingNota] = useState(false);
 
   const estado = srv.estado || "abierto";
@@ -162,8 +163,20 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
 
           {(srv.origen || srv.destino) && (
             <div className="grid grid-cols-2 gap-3">
-              {srv.origen && <div className="bg-zinc-50 rounded-lg p-4"><p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Origen (A)</p><p className="text-zinc-800 text-sm font-semibold">📍 {srv.origen}</p></div>}
-              {srv.destino && <div className="bg-zinc-50 rounded-lg p-4"><p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Destino (B)</p><p className="text-zinc-800 text-sm font-semibold">📍 {srv.destino}</p></div>}
+              {srv.origen && (
+                <button onClick={() => setDireccionAbrir(srv.origen)} className="bg-zinc-50 rounded-lg p-4 text-left hover:bg-zinc-100 transition-colors">
+                  <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Origen (A)</p>
+                  <p className="text-zinc-800 text-sm font-semibold">📍 {srv.origen}</p>
+                  <p className="text-[10px] font-bold text-blue-600 mt-1">Abrir en Maps / Waze</p>
+                </button>
+              )}
+              {srv.destino && (
+                <button onClick={() => setDireccionAbrir(srv.destino)} className="bg-zinc-50 rounded-lg p-4 text-left hover:bg-zinc-100 transition-colors">
+                  <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Destino (B)</p>
+                  <p className="text-zinc-800 text-sm font-semibold">📍 {srv.destino}</p>
+                  <p className="text-[10px] font-bold text-blue-600 mt-1">Abrir en Maps / Waze</p>
+                </button>
+              )}
             </div>
           )}
 
@@ -226,6 +239,8 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
         <Btn size="md" variant="secondary" className="flex-1" onClick={onEdit}>✏️ Editar</Btn>
         <Btn size="md" variant="danger" onClick={onDelete}>🗑 Eliminar</Btn>
       </div>
+
+      <MapasModal direccion={direccionAbrir} onClose={() => setDireccionAbrir(null)} />
     </div>
   );
 };
