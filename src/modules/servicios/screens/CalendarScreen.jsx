@@ -78,6 +78,8 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
+  // Servicio tocado en la rejilla/chips: abre el panel de acciones
+  const [servicioSeleccionado, setServicioSeleccionado] = useState(null);
 
   const cambiarMes = (delta) => {
     const d = new Date(mes.year, mes.month + delta, 1);
@@ -267,7 +269,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               return (
                 <button
                   key={s.id}
-                  onClick={() => onViewServicio(s)}
+                  onClick={() => setServicioSeleccionado(s)}
                   style={ev.style}
                   className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
                 >
@@ -316,7 +318,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               return (
                 <button
                   key={s.id}
-                  onClick={() => onViewServicio(s)}
+                  onClick={() => setServicioSeleccionado(s)}
                   style={{
                     top: top * PX_POR_MINUTO,
                     height: alto * PX_POR_MINUTO,
@@ -338,6 +340,53 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
           </div>
         </div>
       </div>
+
+      {/* Panel de acciones del servicio tocado */}
+      {servicioSeleccionado && (() => {
+        const s = servicioSeleccionado;
+        const albaran = albaranes.find((a) => a.servicio_id === s.id);
+        const hecho = (s.estado || "abierto") === "realizado";
+        const cerrar = () => setServicioSeleccionado(null);
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col justify-end">
+            <div className="absolute inset-0 bg-black/40" onClick={cerrar} />
+            <div className="relative bg-white rounded-t-2xl p-5 pb-8">
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-xs font-bold text-zinc-400 tracking-widest">{s.numero}</span>
+                    {s.hora_inicio && (
+                      <span className="text-xs font-bold text-zinc-500">
+                        {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}
+                      </span>
+                    )}
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${hecho ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {hecho ? "🟢 Realizado" : "🟠 Abierto"}
+                    </span>
+                  </div>
+                  <p className="font-black text-zinc-900 text-lg leading-tight truncate">{s.cliente || "Sin nombre"}</p>
+                  {(s.origen || s.destino) && (
+                    <p className="text-xs text-zinc-500 mt-0.5">📍 {s.origen || "—"}{s.destino ? ` → ${s.destino}` : ""}</p>
+                  )}
+                </div>
+                <button onClick={cerrar} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1 shrink-0">×</button>
+              </div>
+              <div className="flex flex-col gap-3 mt-4">
+                <Btn size="lg" className="w-full" onClick={() => { cerrar(); onViewServicio(s); }}>👁 Ver servicio</Btn>
+                {albaran ? (
+                  <Btn size="lg" variant="secondary" className="w-full" onClick={() => { cerrar(); onViewAlbaran(albaran); }}>
+                    📝 Ver albarán {albaran.numero}
+                  </Btn>
+                ) : (
+                  <Btn size="lg" variant="secondary" className="w-full" onClick={() => { cerrar(); onCrearAlbaran(s); }}>
+                    📝 Crear albarán
+                  </Btn>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
