@@ -15,16 +15,24 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const filtered = servicios.filter((s) => {
-    return filtroEstado === "todos" || (s.estado || "abierto") === filtroEstado;
-  });
+  // Orden por fecha del servicio, más reciente primero; sin fecha, al final
+  const porFecha = (a, b) => {
+    if (!a.fecha_servicio && !b.fecha_servicio) return 0;
+    if (!a.fecha_servicio) return 1;
+    if (!b.fecha_servicio) return -1;
+    return b.fecha_servicio.localeCompare(a.fecha_servicio);
+  };
+
+  const filtered = servicios
+    .filter((s) => filtroEstado === "todos" || (s.estado || "abierto") === filtroEstado)
+    .sort(porFecha);
 
   const searchResults = q.trim() === "" ? [] : servicios.filter((s) => {
     const notasText = (s.notas || []).map((n) => n.texto).join(" ");
     const vehiculosStr = Array.isArray(s.vehiculo) ? s.vehiculo.join(" ") : (s.vehiculo || "");
     return [s.cliente, s.descripcion, s.numero, vehiculosStr, s.origen, s.destino, s.estado, notasText]
       .join(" ").toLowerCase().includes(q.toLowerCase());
-  });
+  }).sort(porFecha);
 
   const conteo = Object.fromEntries(
     Object.keys(ESTADOS).map((e) => [e, servicios.filter((s) => (s.estado || "abierto") === e).length])

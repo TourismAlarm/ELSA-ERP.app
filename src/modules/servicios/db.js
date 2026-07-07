@@ -59,7 +59,8 @@ export const dbUpdateServicio = async (servicio) => {
 
 export const dbDeleteServicio = async (id) => {
   const { error } = await supabase.from("servicios").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar el servicio: " + error.message); return false; }
+  return true;
 };
 
 export const dbCambiarEstadoServicio = async (id, estado) => {

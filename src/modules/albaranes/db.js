@@ -43,6 +43,14 @@ export const dbUpdateAlbaran = async (albaran) => {
   if (error) { console.error(error); alert("Error al guardar el albarán: " + error.message); }
 };
 
+// Desvincula del servicio los albaranes que apuntan a él (no los borra).
+// Necesario antes de borrar un servicio: la FK albaranes.servicio_id lo impide.
+export const dbDesvincularAlbaranesDeServicio = async (servicioId) => {
+  const { error } = await supabase.from("albaranes").update({ servicio_id: null }).eq("servicio_id", servicioId);
+  if (error) { console.error(error); alert("Error al desvincular los albaranes: " + error.message); return false; }
+  return true;
+};
+
 export const dbDeleteAlbaran = async (id) => {
   const { error } = await supabase.from("albaranes").delete().eq("id", id);
   if (error) console.error(error);
