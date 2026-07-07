@@ -28,6 +28,7 @@ export default function App() {
   const [editing, setEditing]         = useState(null);
   const [viewing, setViewing]         = useState(null);
   const [editingServicio, setEditingServicio] = useState(null);
+  const [prefillServicio, setPrefillServicio] = useState(null);
   const [viewingServicio, setViewingServicio] = useState(null);
   const [editingAlbaran, setEditingAlbaran] = useState(null);
   const [viewingAlbaran, setViewingAlbaran] = useState(null);
@@ -178,7 +179,14 @@ export default function App() {
   };
 
   // ---- Servicios ----
-  const handleServicioNew  = () => { setEditingServicio(null); setScreen("servicioForm"); };
+  const handleServicioNew  = () => { setEditingServicio(null); setPrefillServicio(null); setScreen("servicioForm"); };
+
+  // Alta desde el calendario: fecha (y hora, si se tocó una franja) precargadas
+  const handleNuevoServicioEnHora = (fechaISO, hora) => {
+    setEditingServicio(null);
+    setPrefillServicio(hora ? { fecha_servicio: fechaISO, hora_inicio: hora } : { fecha_servicio: fechaISO });
+    setScreen("servicioForm");
+  };
   const handleServicioEdit = (s) => { setEditingServicio(s); setScreen("servicioForm"); };
   const handleServicioView = (s) => { setViewingServicio(s); setScreen("servicioView"); };
 
@@ -442,7 +450,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
@@ -469,6 +477,7 @@ export default function App() {
           onViewServicio={handleServicioView}
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
+          onNuevoServicioEnHora={handleNuevoServicioEnHora}
           onConfig={() => setScreen("config")}
         />
       )}
