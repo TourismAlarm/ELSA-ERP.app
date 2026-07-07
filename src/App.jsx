@@ -483,6 +483,8 @@ export default function App() {
           servicios={servicios}
           albaranes={albaranes}
           coloresVehiculo={coloresVehiculo}
+          flota={vehiculos}
+          onVerVehiculo={handleVehiculoView}
           onViewServicio={handleServicioView}
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}

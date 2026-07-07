@@ -90,7 +90,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
   // tiene, si no, el color por estado (ámbar abierto / verde realizado)
   const estiloEvento = (s) => {
@@ -156,7 +156,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
       const rect = semanaColsRef.current.getBoundingClientRect();
       const idx = Math.max(0, Math.min(6, Math.floor(((e.clientX - rect.left) / rect.width) * 7)));
       dia = diasDeLaSemana[idx];
-      min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA) / PX_POR_MINUTO - p.grabOffset;
+      min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA - alturaAvisosSemana) / PX_POR_MINUTO - p.grabOffset;
     }
     min = Math.max(0, Math.min(TOTAL_MINUTOS - p.dur, Math.round(min / 15) * 15));
     return { dia, min };
@@ -292,6 +292,21 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
     setMes({ year: d.getFullYear(), month: d.getMonth() });
   };
 
+  // Vencimientos de la flota (ITV, seguro y extras) agrupados por fecha.
+  // Son avisos informativos: tocarlos navega al vehículo, no se arrastran.
+  const avisosPorDia = {};
+  (flota || []).forEach((v) => {
+    const añade = (f, tipo) => {
+      if (f) (avisosPorDia[f] = avisosPorDia[f] || []).push({ tipo, vehiculo: v });
+    };
+    añade(v.itv_vencimiento, "ITV");
+    añade(v.seguro_vencimiento, "Seguro");
+    (v.vencimientos || []).forEach((x) => añade(x.fecha, x.nombre || "Vencimiento"));
+  });
+  const ALTO_AVISO = 18; // px por fila de aviso en la vista de semana
+  const maxAvisosSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (avisosPorDia[iso] || []).length));
+  const alturaAvisosSemana = maxAvisosSemana * ALTO_AVISO;
+
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
   return (
@@ -348,12 +363,15 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               <button
                 key={iso}
                 onClick={() => setFecha(iso)}
-                className={`min-h-[72px] rounded-lg border-2 flex flex-col items-stretch gap-0.5 p-1 text-left transition-colors ${
+                className={`relative min-h-[72px] rounded-lg border-2 flex flex-col items-stretch gap-0.5 p-1 text-left transition-colors ${
                   seleccionado
                     ? "bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900"
                     : "bg-white border-zinc-200 hover:border-zinc-400"
                 }`}
               >
+                {(avisosPorDia[iso] || []).length > 0 && (
+                  <span className="absolute top-0.5 right-0.5 text-[9px] leading-none" title="Vencimiento de flota">⚠️</span>
+                )}
                 <span className={`self-center text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
                   esHoy ? "bg-zinc-900 text-white" : "text-zinc-700"
                 }`}>
@@ -444,6 +462,24 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
         <>
           {/* Día seleccionado */}
           <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-4">{labelDia}</p>
+
+          {/* Vencimientos de flota del día (informativos, navegan al vehículo) */}
+          {(avisosPorDia[fecha] || []).length > 0 && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-3">
+              <p className="text-xs font-bold text-red-400 tracking-widest uppercase mb-2">Vencimientos de flota</p>
+              <div className="flex flex-wrap gap-2">
+                {avisosPorDia[fecha].map((a, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onVerVehiculo && onVerVehiculo(a.vehiculo)}
+                    className="text-xs font-bold px-3 py-2 rounded-full bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                  >
+                    ⚠️ {a.tipo} {a.vehiculo.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Servicios sin hora asignada */}
           {sinHora.length > 0 && (
@@ -568,6 +604,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               {/* Columna de horas (fija al hacer scroll) */}
               <div className="w-11 shrink-0 sticky left-0 bg-white z-20">
                 <div className="h-10" />
+                {alturaAvisosSemana > 0 && <div style={{ height: alturaAvisosSemana }} />}
                 {franjas.map((min) => (
                   <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
                     {min % 60 === 0 && (
@@ -613,6 +650,23 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
                         </span>
                       )}
                     </button>
+
+                    {/* Franja de vencimientos de flota (todo el día) */}
+                    {alturaAvisosSemana > 0 && (
+                      <div className="border-t border-zinc-100 overflow-hidden" style={{ height: alturaAvisosSemana }}>
+                        {(avisosPorDia[iso] || []).map((a, i) => (
+                          <button
+                            key={i}
+                            onClick={() => onVerVehiculo && onVerVehiculo(a.vehiculo)}
+                            title={`${a.tipo} ${a.vehiculo.nombre}`}
+                            className="block w-full truncate text-left text-[8px] font-black bg-red-100 text-red-700 hover:bg-red-200 rounded px-1 mt-px leading-tight transition-colors"
+                            style={{ height: ALTO_AVISO - 2 }}
+                          >
+                            ⚠️ {a.tipo} {a.vehiculo.nombre}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Área horaria del día */}
                     <div className="relative">
