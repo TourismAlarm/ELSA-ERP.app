@@ -53,11 +53,32 @@ const asignarColumnas = (eventos) => {
   return ordenados;
 };
 
+// Convierte los servicios con hora de un día en bloques posicionables
+// (ini/fin en minutos desde las 07:00, con reparto de columnas si se solapan)
+const bloquesDe = (lista) =>
+  asignarColumnas(
+    lista
+      .filter((s) => s.hora_inicio)
+      .map((s) => {
+        const ini = aMinutosDesdeInicio(s.hora_inicio);
+        let fin = s.hora_fin ? aMinutosDesdeInicio(s.hora_fin) : ini + 60; // sin fin: 1h por defecto
+        if (fin <= ini) fin = ini + 30; // fin anterior a inicio: bloque mínimo
+        return { s, ini, fin };
+      })
+  );
+
 // Formatea una Date local a AAAA-MM-DD sin pasar por UTC (evita saltos de día)
 const toISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const hoy = () => toISO(new Date());
+
+// Lunes de la semana que contiene una fecha ISO
+const lunesDe = (iso) => {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+};
 
 const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
@@ -80,6 +101,8 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
   });
   // Servicio tocado en la rejilla/chips: abre el panel de acciones
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null);
+  // Vista de la rejilla horaria: un día o la semana completa
+  const [vistaHoras, setVistaHoras] = useState("dia");
 
   const cambiarMes = (delta) => {
     const d = new Date(mes.year, mes.month + delta, 1);
@@ -118,17 +141,35 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
 
   // Rejilla horaria: servicios con hora (bloques posicionados) y sin hora (chips)
   const sinHora = delDia.filter((s) => !s.hora_inicio);
-  const conHora = asignarColumnas(
-    delDia
-      .filter((s) => s.hora_inicio)
-      .map((s) => {
-        const ini = aMinutosDesdeInicio(s.hora_inicio);
-        let fin = s.hora_fin ? aMinutosDesdeInicio(s.hora_fin) : ini + 60; // sin fin: 1h por defecto
-        if (fin <= ini) fin = ini + 30; // fin anterior a inicio: bloque mínimo
-        return { s, ini, fin };
-      })
-  );
+  const conHora = bloquesDe(delDia);
   const franjas = Array.from({ length: TOTAL_MINUTOS / 30 }, (_, i) => i * 30);
+
+  // Semana (lunes a domingo) que contiene la fecha seleccionada
+  const diasDeLaSemana = (() => {
+    const lunes = lunesDe(fecha);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(lunes);
+      d.setDate(lunes.getDate() + i);
+      return toISO(d);
+    });
+  })();
+
+  const labelSemana = (() => {
+    const ini = new Date(diasDeLaSemana[0] + "T00:00:00");
+    const fin = new Date(diasDeLaSemana[6] + "T00:00:00");
+    const mIni = ini.toLocaleDateString("es-ES", { month: "short" });
+    const mFin = fin.toLocaleDateString("es-ES", { month: "short" });
+    return mIni === mFin
+      ? `${ini.getDate()} – ${fin.getDate()} ${mFin}`
+      : `${ini.getDate()} ${mIni} – ${fin.getDate()} ${mFin}`;
+  })();
+
+  const cambiarSemana = (delta) => {
+    const d = new Date(fecha + "T00:00:00");
+    d.setDate(d.getDate() + delta * 7);
+    setFecha(toISO(d));
+    setMes({ year: d.getFullYear(), month: d.getMonth() });
+  };
 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
@@ -253,93 +294,227 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
         )}
       </div>
 
-      {/* Día seleccionado */}
-      <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-4">{labelDia}</p>
+      {/* Conmutador Día / Semana */}
+      <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5 mb-4">
+        <button
+          onClick={() => setVistaHoras("dia")}
+          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
+            vistaHoras === "dia" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+          }`}
+        >
+          Día
+        </button>
+        <button
+          onClick={() => setVistaHoras("semana")}
+          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
+            vistaHoras === "semana" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+          }`}
+        >
+          Semana
+        </button>
+      </div>
 
       <Btn size="lg" className="w-full mb-4" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Nuevo servicio</Btn>
 
-      {/* Servicios sin hora asignada */}
-      {sinHora.length > 0 && (
-        <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-3">
-          <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Sin hora asignada</p>
-          <div className="flex flex-wrap gap-2">
-            {sinHora.map((s) => {
-              const ev = estiloEvento(s);
-              const albaran = albaranes.find((a) => a.servicio_id === s.id);
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setServicioSeleccionado(s)}
-                  style={ev.style}
-                  className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
-                >
-                  {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {vistaHoras === "dia" ? (
+        <>
+          {/* Día seleccionado */}
+          <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-4">{labelDia}</p>
 
-      {/* Rejilla horaria del día */}
-      <div className="bg-white border-2 border-zinc-200 rounded-xl p-3 pt-4">
-        <div className="flex">
-          {/* Columna de horas */}
-          <div className="w-12 shrink-0">
-            {franjas.map((min) => (
-              <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
-                <span className={`absolute -top-1.5 right-2 leading-none ${min % 60 === 0 ? "text-[10px] font-bold text-zinc-500" : "text-[9px] text-zinc-300"}`}>
-                  {minutosAHora(min)}
-                </span>
+          {/* Servicios sin hora asignada */}
+          {sinHora.length > 0 && (
+            <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-3">
+              <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Sin hora asignada</p>
+              <div className="flex flex-wrap gap-2">
+                {sinHora.map((s) => {
+                  const ev = estiloEvento(s);
+                  const albaran = albaranes.find((a) => a.servicio_id === s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setServicioSeleccionado(s)}
+                      style={ev.style}
+                      className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
+                    >
+                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+          )}
+
+          {/* Rejilla horaria del día */}
+          <div className="bg-white border-2 border-zinc-200 rounded-xl p-3 pt-4">
+            <div className="flex">
+              {/* Columna de horas */}
+              <div className="w-12 shrink-0">
+                {franjas.map((min) => (
+                  <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
+                    <span className={`absolute -top-1.5 right-2 leading-none ${min % 60 === 0 ? "text-[10px] font-bold text-zinc-500" : "text-[9px] text-zinc-300"}`}>
+                      {minutosAHora(min)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Área de eventos */}
+              <div className="flex-1 relative border-l-2 border-zinc-100">
+                {/* Franjas vacías: tocar crea un servicio a esa hora */}
+                {franjas.map((min) => (
+                  <button
+                    key={min}
+                    onClick={() => onNuevoServicioEnHora(fecha, minutosAHora(min))}
+                    title={`Nuevo servicio a las ${minutosAHora(min)}`}
+                    className={`block w-full border-t transition-colors hover:bg-blue-50 ${min % 60 === 0 ? "border-zinc-200" : "border-zinc-100"}`}
+                    style={{ height: 30 * PX_POR_MINUTO }}
+                  />
+                ))}
+
+                {/* Bloques de servicios con hora */}
+                {conHora.map(({ s, ini, fin, col, cols }) => {
+                  const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
+                  const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
+                  const ev = estiloEvento(s);
+                  const albaran = albaranes.find((a) => a.servicio_id === s.id);
+                  const hecho = (s.estado || "abierto") === "realizado";
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setServicioSeleccionado(s)}
+                      style={{
+                        top: top * PX_POR_MINUTO,
+                        height: alto * PX_POR_MINUTO,
+                        left: `calc(${(col / cols) * 100}% + 2px)`,
+                        width: `calc(${100 / cols}% - 4px)`,
+                        ...ev.style,
+                      }}
+                      className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
+                    >
+                      <p className="text-[10px] font-black leading-tight truncate">
+                        {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
+                      </p>
+                      <p className="text-[11px] font-bold leading-tight truncate">
+                        {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Navegación de semana */}
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <button
+              onClick={() => cambiarSemana(-1)}
+              className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+            >
+              ◀
+            </button>
+            <p className="text-sm font-black text-zinc-700 text-center flex-1 capitalize">{labelSemana}</p>
+            <button
+              onClick={() => cambiarSemana(1)}
+              className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+            >
+              ▶
+            </button>
           </div>
 
-          {/* Área de eventos */}
-          <div className="flex-1 relative border-l-2 border-zinc-100">
-            {/* Franjas vacías: tocar crea un servicio a esa hora */}
-            {franjas.map((min) => (
-              <button
-                key={min}
-                onClick={() => onNuevoServicioEnHora(fecha, minutosAHora(min))}
-                title={`Nuevo servicio a las ${minutosAHora(min)}`}
-                className={`block w-full border-t transition-colors hover:bg-blue-50 ${min % 60 === 0 ? "border-zinc-200" : "border-zinc-100"}`}
-                style={{ height: 30 * PX_POR_MINUTO }}
-              />
-            ))}
+          {/* Rejilla semanal (scroll horizontal en pantallas estrechas) */}
+          <div className="bg-white border-2 border-zinc-200 rounded-xl p-2 pt-3 overflow-x-auto">
+            <div className="flex min-w-[600px]">
+              {/* Columna de horas (fija al hacer scroll) */}
+              <div className="w-11 shrink-0 sticky left-0 bg-white z-20">
+                <div className="h-10" />
+                {franjas.map((min) => (
+                  <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
+                    {min % 60 === 0 && (
+                      <span className="absolute -top-1.5 right-1.5 leading-none text-[10px] font-bold text-zinc-500">
+                        {minutosAHora(min)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-            {/* Bloques de servicios con hora */}
-            {conHora.map(({ s, ini, fin, col, cols }) => {
-              const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
-              const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
-              const ev = estiloEvento(s);
-              const albaran = albaranes.find((a) => a.servicio_id === s.id);
-              const hecho = (s.estado || "abierto") === "realizado";
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setServicioSeleccionado(s)}
-                  style={{
-                    top: top * PX_POR_MINUTO,
-                    height: alto * PX_POR_MINUTO,
-                    left: `calc(${(col / cols) * 100}% + 2px)`,
-                    width: `calc(${100 / cols}% - 4px)`,
-                    ...ev.style,
-                  }}
-                  className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
-                >
-                  <p className="text-[10px] font-black leading-tight truncate">
-                    {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
-                  </p>
-                  <p className="text-[11px] font-bold leading-tight truncate">
-                    {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
-                  </p>
-                </button>
-              );
-            })}
+              {/* Una columna por día de la semana */}
+              {diasDeLaSemana.map((iso, idx) => {
+                const d = new Date(iso + "T00:00:00");
+                const svsDia = porDia[iso] || [];
+                const sinHoraDia = svsDia.filter((s) => !s.hora_inicio).length;
+                const bloques = bloquesDe(svsDia);
+                const esHoy = iso === hoy();
+                const seleccionado = iso === fecha;
+                return (
+                  <div key={iso} className="flex-1 min-w-[72px] border-l border-zinc-100">
+                    {/* Cabecera del día */}
+                    <button
+                      onClick={() => setFecha(iso)}
+                      className={`w-full h-10 flex items-center justify-center gap-1 rounded-t-lg transition-colors ${
+                        seleccionado ? "bg-zinc-100" : "hover:bg-zinc-50"
+                      }`}
+                    >
+                      <span className="text-[10px] font-black text-zinc-400">{DIAS_SEMANA[idx]}</span>
+                      <span className={`text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
+                        esHoy ? "bg-zinc-900 text-white" : "text-zinc-800"
+                      }`}>
+                        {d.getDate()}
+                      </span>
+                      {sinHoraDia > 0 && (
+                        <span
+                          onClick={(e) => { e.stopPropagation(); setFecha(iso); setVistaHoras("dia"); }}
+                          title={`${sinHoraDia} sin hora — ver día`}
+                          className="text-[9px] font-black bg-zinc-200 text-zinc-700 rounded-full px-1.5 py-0.5 leading-none cursor-pointer"
+                        >
+                          •{sinHoraDia}
+                        </span>
+                      )}
+                    </button>
+
+                    {/* Área horaria del día */}
+                    <div className="relative">
+                      {franjas.map((min) => (
+                        <button
+                          key={min}
+                          onClick={() => onNuevoServicioEnHora(iso, minutosAHora(min))}
+                          title={`Nuevo servicio el ${d.getDate()} a las ${minutosAHora(min)}`}
+                          className={`block w-full border-t transition-colors hover:bg-blue-50 ${min % 60 === 0 ? "border-zinc-200" : "border-zinc-100"}`}
+                          style={{ height: 30 * PX_POR_MINUTO }}
+                        />
+                      ))}
+                      {bloques.map(({ s, ini, fin, col, cols }) => {
+                        const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
+                        const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
+                        const ev = estiloEvento(s);
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setServicioSeleccionado(s)}
+                            style={{
+                              top: top * PX_POR_MINUTO,
+                              height: alto * PX_POR_MINUTO,
+                              left: `calc(${(col / cols) * 100}% + 1px)`,
+                              width: `calc(${100 / cols}% - 2px)`,
+                              ...ev.style,
+                            }}
+                            className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
+                          >
+                            <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
+                            <p className="text-[9px] font-bold leading-tight truncate">{s.cliente || "Sin nombre"}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Panel de acciones del servicio tocado */}
       {servicioSeleccionado && (() => {
