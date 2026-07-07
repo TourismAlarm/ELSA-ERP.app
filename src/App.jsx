@@ -460,6 +460,7 @@ export default function App() {
           onVerSolicitud={handleView}
           albaranVinculado={albaranes.find((a) => a.servicio_id === viewingServicio.id) || null}
           onVerAlbaran={handleAlbaranView}
+          onCrearAlbaran={handleCrearAlbaranDesdeServicio}
           coloresVehiculo={coloresVehiculo}
           onSendEmail={(s) => sendServicioEmail(s, config)}
           onEdit={() => handleServicioEdit(viewingServicio)}

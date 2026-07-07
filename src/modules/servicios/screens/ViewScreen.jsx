@@ -25,7 +25,7 @@ const rangoHoras = (inicio, fin) => {
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, coloresVehiculo = {}, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [addingNota, setAddingNota] = useState(false);
@@ -110,7 +110,7 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
           )}
 
           {/* Albarán vinculado */}
-          {albaranVinculado && (
+          {albaranVinculado ? (
             <div className="bg-violet-50 border-2 border-violet-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase mb-1 text-violet-400">Vinculado</p>
@@ -124,6 +124,14 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
               {onVerAlbaran && (
                 <Btn size="sm" variant="secondary" onClick={() => onVerAlbaran(albaranVinculado)}>👁 Ver albarán</Btn>
               )}
+            </div>
+          ) : onCrearAlbaran && (
+            <div className="bg-violet-50 border-2 border-dashed border-violet-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-xs font-bold tracking-widest uppercase mb-1 text-violet-400">Albarán</p>
+                <p className="text-sm font-bold text-violet-900">Este servicio aún no tiene albarán</p>
+              </div>
+              <Btn size="md" onClick={() => onCrearAlbaran(srv)}>📝 Crear albarán</Btn>
             </div>
           )}
 
