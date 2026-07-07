@@ -161,6 +161,19 @@ const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicit
             <p className="font-black text-zinc-900 text-xl">{alb.cliente}</p>
           </div>
 
+          {/* Vehículo / Equipo (del servicio vinculado) */}
+          {(() => {
+            const vs = servicioVinculado
+              ? (Array.isArray(servicioVinculado.vehiculo) ? servicioVinculado.vehiculo : (servicioVinculado.vehiculo ? [servicioVinculado.vehiculo] : []))
+              : [];
+            return vs.length > 0 && (
+              <div className="bg-zinc-50 rounded-lg p-4">
+                <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Vehículo / Equipo</p>
+                <p className="font-bold text-zinc-900">🚛 {vs.join(", ")}</p>
+              </div>
+            );
+          })()}
+
           <div>
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Descripción del trabajo</p>
             <p className="text-zinc-700 text-sm leading-relaxed whitespace-pre-wrap">{alb.descripcion || "—"}</p>
