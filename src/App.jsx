@@ -190,6 +190,14 @@ export default function App() {
   const handleServicioEdit = (s) => { setEditingServicio(s); setScreen("servicioForm"); };
   const handleServicioView = (s) => { setViewingServicio(s); setScreen("servicioView"); };
 
+  // Mover un servicio arrastrándolo en el calendario (cambia fecha y/u horas)
+  const handleMoverServicio = async (servicio, fecha_servicio, hora_inicio, hora_fin) => {
+    const updated = { ...servicio, fecha_servicio, hora_inicio, hora_fin };
+    await dbUpdateServicio(updated);
+    setServicios((prev) => prev.map((s) => s.id === servicio.id ? updated : s));
+    setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, fecha_servicio, hora_inicio, hora_fin } : prev);
+  };
+
   const handleServicioCambiarEstado = async (id, nuevoEstado) => {
     await dbCambiarEstadoServicio(id, nuevoEstado);
     setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
@@ -479,6 +487,7 @@ export default function App() {
           onViewAlbaran={handleAlbaranView}
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
           onNuevoServicioEnHora={handleNuevoServicioEnHora}
+          onMoverServicio={handleMoverServicio}
           onConfig={() => setScreen("config")}
         />
       )}

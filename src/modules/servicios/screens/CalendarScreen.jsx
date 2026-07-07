@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Btn } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
@@ -28,6 +28,16 @@ const minutosAHora = (min) => {
   const h = HORA_MIN + Math.floor(min / 60);
   return `${String(h).padStart(2, "0")}:${min % 60 === 0 ? "00" : "30"}`;
 };
+
+// Minutos desde el inicio de la rejilla -> "HH:MM" (admite cualquier minuto,
+// para el arrastre con snap de 15 min)
+const minAbsAHora = (min) => {
+  const t = HORA_MIN * 60 + min;
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
+
+// Alto en px de la cabecera de cada columna en la vista de semana (h-10)
+const ALTO_CABECERA_SEMANA = 40;
 
 // Reparte en columnas los eventos que se solapan (estilo Google Calendar):
 // los solapados comparten el ancho, los que no, ocupan todo
@@ -80,7 +90,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
   // tiene, si no, el color por estado (ámbar abierto / verde realizado)
   const estiloEvento = (s) => {
@@ -103,6 +113,117 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null);
   // Vista de la rejilla horaria: un día o la semana completa
   const [vistaHoras, setVistaHoras] = useState("dia");
+
+  // --- Arrastrar y soltar bloques (mantener pulsado en táctil, arrastrar con ratón) ---
+  // drag = posición propuesta del bloque fantasma { s, dur, durReal, dia, min }
+  const [drag, setDrag] = useState(null);
+  const pressRef = useRef(null);        // datos del gesto en curso
+  const justDraggedRef = useRef(false); // evita que el click tras soltar abra el panel
+  const diaAreaRef = useRef(null);      // área de eventos de la vista de día
+  const semanaColsRef = useRef(null);   // contenedor de las 7 columnas de la semana
+
+  // Bloquea el scroll nativo solo mientras hay un arrastre activo
+  const bloquearScroll = useRef((e) => {
+    if (pressRef.current?.active) e.preventDefault();
+  }).current;
+
+  const limpiarArrastre = () => {
+    const p = pressRef.current;
+    if (p?.timer) clearTimeout(p.timer);
+    document.removeEventListener("touchmove", bloquearScroll);
+    pressRef.current = null;
+    setDrag(null);
+  };
+
+  const activarArrastre = () => {
+    const p = pressRef.current;
+    if (!p || p.active) return;
+    p.active = true;
+    p.target = { dia: p.origenDia, min: p.ini };
+    if (navigator.vibrate) navigator.vibrate(30);
+    setDrag({ s: p.s, dur: p.dur, durReal: p.durReal, dia: p.origenDia, min: p.ini });
+  };
+
+  // Posición (día + minutos con snap de 15) bajo el puntero
+  const objetivoDe = (e, p) => {
+    let dia, min;
+    if (vistaHoras === "dia" || !semanaColsRef.current) {
+      const rect = diaAreaRef.current?.getBoundingClientRect();
+      if (!rect) return null;
+      dia = fecha;
+      min = (e.clientY - rect.top) / PX_POR_MINUTO - p.grabOffset;
+    } else {
+      const rect = semanaColsRef.current.getBoundingClientRect();
+      const idx = Math.max(0, Math.min(6, Math.floor(((e.clientX - rect.left) / rect.width) * 7)));
+      dia = diasDeLaSemana[idx];
+      min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA) / PX_POR_MINUTO - p.grabOffset;
+    }
+    min = Math.max(0, Math.min(TOTAL_MINUTOS - p.dur, Math.round(min / 15) * 15));
+    return { dia, min };
+  };
+
+  const iniciarArrastre = (e, bloque, diaISO) => {
+    if (pressRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    pressRef.current = {
+      s: bloque.s,
+      ini: bloque.ini,
+      dur: bloque.fin - bloque.ini,
+      durReal: Boolean(bloque.s.hora_fin),
+      origenDia: diaISO,
+      grabOffset: (e.clientY - rect.top) / PX_POR_MINUTO,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false,
+      timer: null,
+      target: null,
+    };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* sin captura seguimos igual */ }
+    document.addEventListener("touchmove", bloquearScroll, { passive: false });
+    // Táctil: mantener pulsado ~0,4s activa el arrastre; ratón: basta con mover
+    if (e.pointerType !== "mouse") pressRef.current.timer = setTimeout(activarArrastre, 380);
+  };
+
+  const moverArrastre = (e) => {
+    const p = pressRef.current;
+    if (!p) return;
+    if (!p.active) {
+      const dist = Math.hypot(e.clientX - p.startX, e.clientY - p.startY);
+      if (e.pointerType === "mouse") {
+        if (dist > 4) activarArrastre();
+      } else if (dist > 12) {
+        limpiarArrastre(); // el dedo se mueve antes de la pulsación larga: es scroll
+      }
+      if (!pressRef.current?.active) return;
+    }
+    const t = objetivoDe(e, p);
+    if (t && (!p.target || t.dia !== p.target.dia || t.min !== p.target.min)) {
+      p.target = t;
+      setDrag({ s: p.s, dur: p.dur, durReal: p.durReal, ...t });
+    }
+  };
+
+  const soltarArrastre = () => {
+    const p = pressRef.current;
+    if (!p) return;
+    if (p.active && p.target) {
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 300);
+      const { dia, min } = p.target;
+      if (dia !== p.origenDia || min !== p.ini) {
+        onMoverServicio(p.s, dia, minAbsAHora(min), p.durReal ? minAbsAHora(min + p.dur) : null);
+      }
+    }
+    limpiarArrastre();
+  };
+
+  // Props comunes de arrastre para los bloques de la rejilla
+  const propsArrastre = (bloque, diaISO) => ({
+    onPointerDown: (e) => iniciarArrastre(e, bloque, diaISO),
+    onPointerMove: moverArrastre,
+    onPointerUp: soltarArrastre,
+    onPointerCancel: limpiarArrastre,
+  });
 
   const cambiarMes = (delta) => {
     const d = new Date(mes.year, mes.month + delta, 1);
@@ -314,7 +435,10 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
         </button>
       </div>
 
-      <Btn size="lg" className="w-full mb-4" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Nuevo servicio</Btn>
+      <Btn size="lg" className="w-full mb-1.5" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Nuevo servicio</Btn>
+      <p className="text-[11px] text-zinc-400 text-center mb-4">
+        Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
+      </p>
 
       {vistaHoras === "dia" ? (
         <>
@@ -359,7 +483,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               </div>
 
               {/* Área de eventos */}
-              <div className="flex-1 relative border-l-2 border-zinc-100">
+              <div ref={diaAreaRef} className="flex-1 relative border-l-2 border-zinc-100">
                 {/* Franjas vacías: tocar crea un servicio a esa hora */}
                 {franjas.map((min) => (
                   <button
@@ -372,7 +496,8 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
                 ))}
 
                 {/* Bloques de servicios con hora */}
-                {conHora.map(({ s, ini, fin, col, cols }) => {
+                {conHora.map((bloque) => {
+                  const { s, ini, fin, col, cols } = bloque;
                   const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                   const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
                   const ev = estiloEvento(s);
@@ -381,15 +506,17 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
                   return (
                     <button
                       key={s.id}
-                      onClick={() => setServicioSeleccionado(s)}
+                      onClick={() => { if (justDraggedRef.current) return; setServicioSeleccionado(s); }}
+                      {...propsArrastre(bloque, fecha)}
                       style={{
                         top: top * PX_POR_MINUTO,
                         height: alto * PX_POR_MINUTO,
                         left: `calc(${(col / cols) * 100}% + 2px)`,
                         width: `calc(${100 / cols}% - 4px)`,
+                        WebkitTouchCallout: "none",
                         ...ev.style,
                       }}
-                      className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
+                      className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                     >
                       <p className="text-[10px] font-black leading-tight truncate">
                         {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
@@ -400,6 +527,18 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
                     </button>
                   );
                 })}
+
+                {/* Bloque fantasma durante el arrastre */}
+                {drag && drag.dia === fecha && (
+                  <div
+                    className="absolute left-0.5 right-0.5 z-10 rounded-lg border-2 border-dashed border-zinc-900 bg-zinc-900/10 pointer-events-none px-1 pt-0.5"
+                    style={{ top: drag.min * PX_POR_MINUTO, height: drag.dur * PX_POR_MINUTO }}
+                  >
+                    <span className="inline-block text-[10px] font-black bg-zinc-900 text-white rounded px-1">
+                      {minAbsAHora(drag.min)}{drag.durReal ? ` – ${minAbsAHora(drag.min + drag.dur)}` : ""}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -441,6 +580,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
               </div>
 
               {/* Una columna por día de la semana */}
+              <div ref={semanaColsRef} className="flex flex-1">
               {diasDeLaSemana.map((iso, idx) => {
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
@@ -485,32 +625,48 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, onViewServ
                           style={{ height: 30 * PX_POR_MINUTO }}
                         />
                       ))}
-                      {bloques.map(({ s, ini, fin, col, cols }) => {
+                      {bloques.map((bloque) => {
+                        const { s, ini, fin, col, cols } = bloque;
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
                         const ev = estiloEvento(s);
                         return (
                           <button
                             key={s.id}
-                            onClick={() => setServicioSeleccionado(s)}
+                            onClick={() => { if (justDraggedRef.current) return; setServicioSeleccionado(s); }}
+                            {...propsArrastre(bloque, iso)}
                             style={{
                               top: top * PX_POR_MINUTO,
                               height: alto * PX_POR_MINUTO,
                               left: `calc(${(col / cols) * 100}% + 1px)`,
                               width: `calc(${100 / cols}% - 2px)`,
+                              WebkitTouchCallout: "none",
                               ...ev.style,
                             }}
-                            className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 ${ev.className}`}
+                            className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                           >
                             <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
                             <p className="text-[9px] font-bold leading-tight truncate">{s.cliente || "Sin nombre"}</p>
                           </button>
                         );
                       })}
+
+                      {/* Bloque fantasma durante el arrastre */}
+                      {drag && drag.dia === iso && (
+                        <div
+                          className="absolute left-0.5 right-0.5 z-10 rounded border-2 border-dashed border-zinc-900 bg-zinc-900/10 pointer-events-none px-0.5 pt-0.5"
+                          style={{ top: drag.min * PX_POR_MINUTO, height: drag.dur * PX_POR_MINUTO }}
+                        >
+                          <span className="inline-block text-[9px] font-black bg-zinc-900 text-white rounded px-1">
+                            {minAbsAHora(drag.min)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
+              </div>
             </div>
           </div>
         </>
