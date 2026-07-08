@@ -18,6 +18,7 @@ export const buildMessage = (s, config) => {
     s.nifCif           ? `🪪 NIF/CIF: ${s.nifCif}` : null,
     s.dirFact          ? `🏢 Dir. facturación: ${s.dirFact}` : null,
     s.telCliente       ? `📞 Tel: ${s.telCliente}` : null,
+    s.emailCliente     ? `✉️ Email: ${s.emailCliente}` : null,
     vehiculos.length > 0 ? `🚛 Vehículo/Equipo: ${vehiculos.join(", ")}` : null,
     s.origen                  ? `📍 Origen (A): ${s.origen}` : null,
     s.destino                 ? `📍 Destino (B): ${s.destino}` : null,

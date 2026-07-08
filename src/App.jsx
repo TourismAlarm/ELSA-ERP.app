@@ -7,7 +7,7 @@ import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, Vie
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
-import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran } from "./modules/albaranes/db";
+import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
@@ -215,8 +215,21 @@ export default function App() {
   };
 
   const handleServicioDelete = async (id) => {
-    if (!confirm("¿Eliminar este servicio?")) return;
-    await dbDeleteServicio(id);
+    // La FK de albaranes.servicio_id impide borrar un servicio con albaranes:
+    // avisar y desvincularlos primero (los albaranes no se borran)
+    const vinculados = albaranes.filter((a) => a.servicio_id === id);
+    if (vinculados.length > 0) {
+      const nums = vinculados.map((a) => a.numero).join(", ");
+      const plural = vinculados.length !== 1;
+      if (!confirm(`Este servicio tiene ${vinculados.length} albarán${plural ? "es" : ""} vinculado${plural ? "s" : ""} (${nums}). Se desvincular${plural ? "án" : "á"} (no se borra${plural ? "n" : ""}) y después se eliminará el servicio. ¿Continuar?`)) return;
+      const okDesvincular = await dbDesvincularAlbaranesDeServicio(id);
+      if (!okDesvincular) return;
+      setAlbaranes((prev) => prev.map((a) => a.servicio_id === id ? { ...a, servicio_id: null } : a));
+    } else if (!confirm("¿Eliminar este servicio?")) {
+      return;
+    }
+    const ok = await dbDeleteServicio(id);
+    if (!ok) return; // si la BD rechaza el borrado, no lo quitamos de pantalla
     setServicios((prev) => prev.filter((s) => s.id !== id));
     if (screen === "servicioView") setScreen("servicios");
   };
