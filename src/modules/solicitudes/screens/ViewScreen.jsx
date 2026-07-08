@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal } from "../../../shared/components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", summary: "bg-amber-50 border-amber-200 text-amber-700",    badge: "bg-amber-100 text-amber-700" },
@@ -21,6 +21,7 @@ const formatFecha = (fechaISO) =>
 const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdit, onDelete, onBack, onSendWhatsApp, onSendEmail, onGeneratePDF, onCambiarEstado, onAddNota }) => {
   const [sol, setSol] = useState(solicitud);
   const [nuevaNota, setNuevaNota] = useState("");
+  const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
   const [addingNota, setAddingNota] = useState(false);
 
   const estado = sol.estado || "pendiente";
@@ -131,14 +132,27 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
 
           {(sol.origen || sol.destino) ? (
             <div className="grid grid-cols-2 gap-3">
-              {sol.origen && <div className="bg-zinc-50 rounded-lg p-4"><p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Origen (A)</p><p className="text-zinc-800 text-sm font-semibold">📍 {sol.origen}</p></div>}
-              {sol.destino && <div className="bg-zinc-50 rounded-lg p-4"><p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Destino (B)</p><p className="text-zinc-800 text-sm font-semibold">📍 {sol.destino}</p></div>}
+              {sol.origen && (
+                <button onClick={() => setDireccionAbrir(sol.origen)} className="bg-zinc-50 rounded-lg p-4 text-left hover:bg-zinc-100 transition-colors">
+                  <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Origen (A)</p>
+                  <p className="text-zinc-800 text-sm font-semibold">📍 {sol.origen}</p>
+                  <p className="text-[10px] font-bold text-blue-600 mt-1">Abrir en Maps / Waze</p>
+                </button>
+              )}
+              {sol.destino && (
+                <button onClick={() => setDireccionAbrir(sol.destino)} className="bg-zinc-50 rounded-lg p-4 text-left hover:bg-zinc-100 transition-colors">
+                  <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-1">Destino (B)</p>
+                  <p className="text-zinc-800 text-sm font-semibold">📍 {sol.destino}</p>
+                  <p className="text-[10px] font-bold text-blue-600 mt-1">Abrir en Maps / Waze</p>
+                </button>
+              )}
             </div>
           ) : sol.direccion && (
-            <div className="bg-zinc-50 rounded-lg p-4">
+            <button onClick={() => setDireccionAbrir(sol.direccion)} className="bg-zinc-50 rounded-lg p-4 text-left w-full hover:bg-zinc-100 transition-colors">
               <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Dirección del servicio</p>
               <p className="text-zinc-800 text-sm font-semibold">📍 {sol.direccion}</p>
-            </div>
+              <p className="text-[10px] font-bold text-blue-600 mt-1">Abrir en Maps / Waze</p>
+            </button>
           )}
 
           {(sol.metros || sol.peso || sol.bultos) && (
@@ -215,6 +229,8 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
         <Btn size="md" variant="secondary" onClick={() => onGeneratePDF(sol)}>📄 PDF</Btn>
         <Btn size="md" variant="danger" onClick={onDelete}>🗑 Eliminar</Btn>
       </div>
+
+      <MapasModal direccion={direccionAbrir} onClose={() => setDireccionAbrir(null)} />
     </div>
   );
 };
