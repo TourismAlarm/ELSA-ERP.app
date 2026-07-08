@@ -7,7 +7,7 @@ const formatFecha = (f) =>
 const formatFechaHora = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const buildAlbaranDoc = (a, config) => {
+const buildAlbaranDoc = (a, config, servicio = null) => {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, margin = 18;
   let y = 0;
@@ -65,6 +65,20 @@ const buildAlbaranDoc = (a, config) => {
   doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
   doc.text(a.cliente || "—", margin + 5, y + 15);
   y += 28;
+
+  // Vehículo / Equipo (del servicio vinculado)
+  const vehiculos = servicio
+    ? (Array.isArray(servicio.vehiculo) ? servicio.vehiculo : (servicio.vehiculo ? [servicio.vehiculo] : []))
+    : [];
+  if (vehiculos.length > 0) {
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(margin, y, W - margin * 2, 20, 2, 2, "F");
+    doc.setTextColor(100, 100, 100); doc.setFontSize(7); doc.setFont("helvetica", "bold");
+    doc.text("VEHÍCULO / EQUIPO", margin + 5, y + 7);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
+    doc.text(vehiculos.join(", "), margin + 5, y + 15);
+    y += 28;
+  }
 
   // Descripción
   if (a.descripcion) {
@@ -145,15 +159,15 @@ const buildAlbaranDoc = (a, config) => {
   return doc;
 };
 
-export const generateAlbaranPDF = (a, config) => {
-  buildAlbaranDoc(a, config).save(`Albaran_${a.numero}.pdf`);
+export const generateAlbaranPDF = (a, config, servicio = null) => {
+  buildAlbaranDoc(a, config, servicio).save(`Albaran_${a.numero}.pdf`);
 };
 
 // Envía el albarán por email con el PDF adjunto usando la hoja de compartir
 // del sistema (iOS/Android). Si el navegador no soporta compartir archivos,
 // descarga el PDF y abre el correo para adjuntarlo a mano.
-export const shareAlbaranPDF = async (a, config) => {
-  const doc = buildAlbaranDoc(a, config);
+export const shareAlbaranPDF = async (a, config, servicio = null) => {
+  const doc = buildAlbaranDoc(a, config, servicio);
   const nombreArchivo = `Albaran_${a.numero}.pdf`;
   const blob = doc.output("blob");
   const file = new File([blob], nombreArchivo, { type: "application/pdf" });

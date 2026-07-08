@@ -552,8 +552,8 @@ export default function App() {
           onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
-          onGeneratePDF={(a) => generateAlbaranPDF(a, config || {})}
-          onEnviarEmail={(a) => shareAlbaranPDF(a, config || {})}
+          onGeneratePDF={(a) => generateAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
+          onEnviarEmail={(a) => shareAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
         />
       )}
     </div>
