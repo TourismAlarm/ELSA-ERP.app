@@ -503,6 +503,7 @@ export default function App() {
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
           onNuevoServicioEnHora={handleNuevoServicioEnHora}
           onMoverServicio={handleMoverServicio}
+          onAddNota={handleServicioAddNota}
           onConfig={() => setScreen("config")}
         />
       )}
