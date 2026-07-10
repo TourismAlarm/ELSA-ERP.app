@@ -156,7 +156,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
       const rect = semanaColsRef.current.getBoundingClientRect();
       const idx = Math.max(0, Math.min(6, Math.floor(((e.clientX - rect.left) / rect.width) * 7)));
       dia = diasDeLaSemana[idx];
-      min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA - alturaAvisosSemana) / PX_POR_MINUTO - p.grabOffset;
+      min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA - alturaAvisosSemana - alturaSinHoraSemana) / PX_POR_MINUTO - p.grabOffset;
     }
     min = Math.max(0, Math.min(TOTAL_MINUTOS - p.dur, Math.round(min / 15) * 15));
     return { dia, min };
@@ -306,6 +306,12 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
   const ALTO_AVISO = 18; // px por fila de aviso en la vista de semana
   const maxAvisosSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (avisosPorDia[iso] || []).length));
   const alturaAvisosSemana = maxAvisosSemana * ALTO_AVISO;
+
+  // Franja de servicios sin hora en la vista de semana (misma altura en las 7
+  // columnas para que la rejilla horaria quede alineada)
+  const ALTO_SIN_HORA = 18; // px por fila de servicio sin hora
+  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (porDia[iso] || []).filter((s) => !s.hora_inicio).length));
+  const alturaSinHoraSemana = maxSinHoraSemana * ALTO_SIN_HORA;
 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
@@ -560,6 +566,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                       <p className="text-[11px] font-bold leading-tight truncate">
                         {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
                       </p>
+                      {s.descripcion && (
+                        <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
+                      )}
                     </button>
                   );
                 })}
@@ -605,6 +614,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
               <div className="w-11 shrink-0 sticky left-0 bg-white z-20">
                 <div className="h-10" />
                 {alturaAvisosSemana > 0 && <div style={{ height: alturaAvisosSemana }} />}
+                {alturaSinHoraSemana > 0 && <div style={{ height: alturaSinHoraSemana }} />}
                 {franjas.map((min) => (
                   <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
                     {min % 60 === 0 && (
@@ -621,7 +631,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
               {diasDeLaSemana.map((iso, idx) => {
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
-                const sinHoraDia = svsDia.filter((s) => !s.hora_inicio).length;
+                const sinHoraDia = svsDia.filter((s) => !s.hora_inicio);
                 const bloques = bloquesDe(svsDia);
                 const esHoy = iso === hoy();
                 const seleccionado = iso === fecha;
@@ -640,15 +650,6 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                       }`}>
                         {d.getDate()}
                       </span>
-                      {sinHoraDia > 0 && (
-                        <span
-                          onClick={(e) => { e.stopPropagation(); setFecha(iso); setVistaHoras("dia"); }}
-                          title={`${sinHoraDia} sin hora — ver día`}
-                          className="text-[9px] font-black bg-zinc-200 text-zinc-700 rounded-full px-1.5 py-0.5 leading-none cursor-pointer"
-                        >
-                          •{sinHoraDia}
-                        </span>
-                      )}
                     </button>
 
                     {/* Franja de vencimientos de flota (todo el día) */}
@@ -665,6 +666,26 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                             ⚠️ {a.tipo} {a.vehiculo.nombre}
                           </button>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Franja de servicios sin hora asignada (tocar abre el panel) */}
+                    {alturaSinHoraSemana > 0 && (
+                      <div className="border-t border-zinc-100 overflow-hidden" style={{ height: alturaSinHoraSemana }}>
+                        {sinHoraDia.map((s) => {
+                          const ev = estiloEvento(s);
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => setServicioSeleccionado(s)}
+                              title={s.cliente || "Sin nombre"}
+                              style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
+                              className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className}`}
+                            >
+                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -701,6 +722,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                           >
                             <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
                             <p className="text-[9px] font-bold leading-tight truncate">{s.cliente || "Sin nombre"}</p>
+                            {s.descripcion && (
+                              <p className="text-[8px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
+                            )}
                           </button>
                         );
                       })}
@@ -752,6 +776,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                   <p className="font-black text-zinc-900 text-lg leading-tight truncate">{s.cliente || "Sin nombre"}</p>
                   {(s.origen || s.destino) && (
                     <p className="text-xs text-zinc-500 mt-0.5">📍 {s.origen || "—"}{s.destino ? ` → ${s.destino}` : ""}</p>
+                  )}
+                  {s.descripcion && (
+                    <p className="text-sm text-zinc-600 mt-2 line-clamp-3">{s.descripcion}</p>
                   )}
                 </div>
                 <button onClick={cerrar} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1 shrink-0">×</button>
