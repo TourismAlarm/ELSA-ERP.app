@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Btn } from "../../../shared/components/ui";
+import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
 // Devuelve el primer vehículo/equipo del servicio (para el color del calendario)
@@ -23,6 +23,14 @@ const aMinutosDesdeInicio = (h) => {
 };
 
 const horaCorta = (h) => (h ? h.slice(0, 5) : "");
+
+// Emoji por tipo de nota (mismo criterio que la vista del servicio)
+const TIPO_EMOJI = { whatsapp: "💬", email: "✉️", manual: "📝" };
+
+const formatFechaHora = (fechaISO) =>
+  fechaISO
+    ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "";
 
 const minutosAHora = (min) => {
   const h = HORA_MIN + Math.floor(min / 60);
@@ -90,7 +98,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onAddNota, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
   // tiene, si no, el color por estado (ámbar abierto / verde realizado)
   const estiloEvento = (s) => {
@@ -111,8 +119,23 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
   });
   // Servicio tocado en la rejilla/chips: abre el panel de acciones
   const [servicioSeleccionado, setServicioSeleccionado] = useState(null);
+  // Dirección a abrir en Maps/Waze desde el panel de acciones
+  const [direccionAbrir, setDireccionAbrir] = useState(null);
+  // Nota que se está escribiendo en el panel de acciones
+  const [nuevaNota, setNuevaNota] = useState("");
+  const [guardandoNota, setGuardandoNota] = useState(false);
   // Vista de la rejilla horaria: un día o la semana completa
   const [vistaHoras, setVistaHoras] = useState("dia");
+
+  // Añade una nota al servicio del panel y refresca el panel con la respuesta
+  const handleAddNotaPanel = async () => {
+    if (!nuevaNota.trim() || !servicioSeleccionado || !onAddNota) return;
+    setGuardandoNota(true);
+    const updated = await onAddNota(servicioSeleccionado.id, nuevaNota.trim());
+    if (updated) setServicioSeleccionado((prev) => (prev ? { ...prev, ...updated } : prev));
+    setNuevaNota("");
+    setGuardandoNota(false);
+  };
 
   // --- Arrastrar y soltar bloques (mantener pulsado en táctil, arrastrar con ratón) ---
   // drag = posición propuesta del bloque fantasma { s, dur, durReal, dia, min }
@@ -755,11 +778,13 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
         const s = servicioSeleccionado;
         const albaran = albaranes.find((a) => a.servicio_id === s.id);
         const hecho = (s.estado || "abierto") === "realizado";
-        const cerrar = () => setServicioSeleccionado(null);
+        const notas = [...(s.notas || [])].reverse(); // más recientes primero
+        const cerrar = () => { setServicioSeleccionado(null); setNuevaNota(""); };
         return (
           <div className="fixed inset-0 z-50 flex flex-col justify-end">
             <div className="absolute inset-0 bg-black/40" onClick={cerrar} />
-            <div className="relative bg-white rounded-t-2xl p-5 pb-8">
+            <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
+              {/* Cabecera */}
               <div className="flex items-start justify-between gap-3 mb-1">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -774,15 +799,70 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                     </span>
                   </div>
                   <p className="font-black text-zinc-900 text-lg leading-tight truncate">{s.cliente || "Sin nombre"}</p>
-                  {(s.origen || s.destino) && (
-                    <p className="text-xs text-zinc-500 mt-0.5">📍 {s.origen || "—"}{s.destino ? ` → ${s.destino}` : ""}</p>
-                  )}
-                  {s.descripcion && (
-                    <p className="text-sm text-zinc-600 mt-2 line-clamp-3">{s.descripcion}</p>
-                  )}
                 </div>
                 <button onClick={cerrar} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1 shrink-0">×</button>
               </div>
+
+              {/* Origen y destino: tocar abre Google Maps / Waze */}
+              {(s.origen || s.destino) && (
+                <div className="flex flex-col gap-2 mt-3">
+                  {s.origen && (
+                    <button
+                      onClick={() => setDireccionAbrir(s.origen)}
+                      className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg px-3 py-2 text-left transition-colors"
+                    >
+                      <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase shrink-0">A</span>
+                      <span className="text-sm font-semibold text-zinc-800 truncate flex-1">📍 {s.origen}</span>
+                      <span className="text-[10px] font-bold text-blue-600 shrink-0">Maps / Waze</span>
+                    </button>
+                  )}
+                  {s.destino && (
+                    <button
+                      onClick={() => setDireccionAbrir(s.destino)}
+                      className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg px-3 py-2 text-left transition-colors"
+                    >
+                      <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase shrink-0">B</span>
+                      <span className="text-sm font-semibold text-zinc-800 truncate flex-1">🏁 {s.destino}</span>
+                      <span className="text-[10px] font-bold text-blue-600 shrink-0">Maps / Waze</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Descripción */}
+              {s.descripcion && (
+                <p className="text-sm text-zinc-600 mt-3 whitespace-pre-wrap">{s.descripcion}</p>
+              )}
+
+              {/* Notas: historial + añadir una nueva */}
+              <div className="mt-4">
+                <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Notas</p>
+                {notas.length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2 max-h-32 overflow-y-auto">
+                    {notas.map((nota, i) => (
+                      <div key={i} className="bg-zinc-50 rounded-lg px-3 py-1.5">
+                        <p className="text-sm text-zinc-700">{TIPO_EMOJI[nota.tipo] || "📝"} {nota.texto}</p>
+                        <p className="text-[10px] text-zinc-400 mt-0.5">{formatFechaHora(nota.fecha)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {onAddNota && (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={nuevaNota}
+                      onChange={(e) => setNuevaNota(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAddNotaPanel()}
+                      placeholder="Escribe una nota..."
+                      className="flex-1 border-2 border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-zinc-500"
+                    />
+                    <Btn size="sm" onClick={handleAddNotaPanel} disabled={guardandoNota || !nuevaNota.trim()}>+ Añadir</Btn>
+                  </div>
+                )}
+              </div>
+
+              {/* Acciones */}
               <div className="flex flex-col gap-3 mt-4">
                 <Btn size="lg" className="w-full" onClick={() => { cerrar(); onViewServicio(s); }}>👁 Ver servicio</Btn>
                 {albaran ? (
@@ -799,6 +879,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
           </div>
         );
       })()}
+
+      {/* Abrir dirección del panel en Google Maps / Waze */}
+      <MapasModal direccion={direccionAbrir} onClose={() => setDireccionAbrir(null)} />
     </div>
   );
 };
