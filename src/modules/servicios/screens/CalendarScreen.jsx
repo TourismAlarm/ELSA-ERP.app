@@ -2,11 +2,26 @@ import { useState, useRef } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
-// Devuelve el primer vehículo/equipo del servicio (para el color del calendario)
-const primerVehiculo = (s) => {
+// Lista de vehículos/equipos de un servicio (normaliza array/string)
+const vehiculosDe = (s) => {
   const arr = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
-  return arr[0] || null;
+  return arr.filter(Boolean);
 };
+
+// Devuelve el primer vehículo/equipo del servicio (para el color del calendario)
+const primerVehiculo = (s) => vehiculosDe(s)[0] || null;
+
+// Expande un servicio en una entrada por cada vehículo/equipo, para pintar cada
+// camión con su color en el calendario (como se hace a mano en Google Calendar).
+// Sigue siendo UN solo servicio: todas las entradas comparten el mismo `s`.
+// Un servicio sin vehículos o con uno solo produce una única entrada.
+const porVehiculo = (s) => {
+  const vs = vehiculosDe(s);
+  return vs.length > 1 ? vs.map((v) => ({ s, vehiculo: v })) : [{ s, vehiculo: vs[0] || null }];
+};
+
+// Aplica porVehiculo a una lista de servicios
+const expandir = (lista) => lista.flatMap(porVehiculo);
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -73,15 +88,17 @@ const asignarColumnas = (eventos) => {
 
 // Convierte los servicios con hora de un día en bloques posicionables
 // (ini/fin en minutos desde las 07:00, con reparto de columnas si se solapan)
+// Cada servicio con varios vehículos genera un bloque por vehículo (mismas
+// horas, colocados en paralelo por asignarColumnas), como entradas separadas.
 const bloquesDe = (lista) =>
   asignarColumnas(
     lista
       .filter((s) => s.hora_inicio)
-      .map((s) => {
+      .flatMap((s) => {
         const ini = aMinutosDesdeInicio(s.hora_inicio);
         let fin = s.hora_fin ? aMinutosDesdeInicio(s.hora_fin) : ini + 60; // sin fin: 1h por defecto
         if (fin <= ini) fin = ini + 30; // fin anterior a inicio: bloque mínimo
-        return { s, ini, fin };
+        return porVehiculo(s).map((e) => ({ ...e, ini, fin }));
       })
   );
 
@@ -99,10 +116,12 @@ const lunesDe = (iso) => {
 };
 
 const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onAddNota, onConfig }) => {
-  // Estilo de la etiqueta de un servicio: color de su vehículo/equipo si lo
-  // tiene, si no, el color por estado (ámbar abierto / verde realizado)
-  const estiloEvento = (s) => {
-    const color = coloresVehiculo[primerVehiculo(s)];
+  // Estilo de la etiqueta de un servicio: color del vehículo/equipo indicado
+  // (o del primero si no se especifica); si no hay color, el color por estado
+  // (ámbar abierto / verde realizado)
+  const estiloEvento = (s, vehiculo) => {
+    const v = vehiculo !== undefined ? vehiculo : primerVehiculo(s);
+    const color = coloresVehiculo[v];
     if (color) {
       return { style: { backgroundColor: color, color: textoSobre(color) }, className: "" };
     }
@@ -333,7 +352,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
   // Franja de servicios sin hora en la vista de semana (misma altura en las 7
   // columnas para que la rejilla horaria quede alineada)
   const ALTO_SIN_HORA = 18; // px por fila de servicio sin hora
-  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (porDia[iso] || []).filter((s) => !s.hora_inicio).length));
+  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) => expandir((porDia[iso] || []).filter((s) => !s.hora_inicio)).length));
   const alturaSinHoraSemana = maxSinHoraSemana * ALTO_SIN_HORA;
 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
@@ -386,8 +405,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
               .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
             const esHoy = iso === hoy();
             const seleccionado = iso === fecha;
-            const visibles = svs.slice(0, 3);
-            const extra = svs.length - visibles.length;
+            const entradas = expandir(svs); // una por vehículo, con su color
+            const visibles = entradas.slice(0, 3);
+            const extra = entradas.length - visibles.length;
             return (
               <button
                 key={iso}
@@ -406,12 +426,12 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                 }`}>
                   {dia}
                 </span>
-                {visibles.map((s) => {
-                  const ev = estiloEvento(s);
+                {visibles.map(({ s, vehiculo }, vi) => {
+                  const ev = estiloEvento(s, vehiculo);
                   const hecho = (s.estado || "abierto") === "realizado";
                   return (
                     <span
-                      key={s.id}
+                      key={`${s.id}-${vehiculo || vi}`}
                       style={ev.style}
                       className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${ev.className}`}
                     >
@@ -515,17 +535,18 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
             <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-3">
               <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Sin hora asignada</p>
               <div className="flex flex-wrap gap-2">
-                {sinHora.map((s) => {
-                  const ev = estiloEvento(s);
+                {expandir(sinHora).map(({ s, vehiculo }, vi) => {
+                  const ev = estiloEvento(s, vehiculo);
                   const albaran = albaranes.find((a) => a.servicio_id === s.id);
+                  const multi = vehiculosDe(s).length > 1;
                   return (
                     <button
-                      key={s.id}
+                      key={`${s.id}-${vehiculo || vi}`}
                       onClick={() => setServicioSeleccionado(s)}
                       style={ev.style}
                       className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
                     >
-                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
+                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{multi && vehiculo ? ` · ${vehiculo}` : ""}{albaran ? " 📝" : ""}
                     </button>
                   );
                 })}
@@ -561,16 +582,17 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                 ))}
 
                 {/* Bloques de servicios con hora */}
-                {conHora.map((bloque) => {
-                  const { s, ini, fin, col, cols } = bloque;
+                {conHora.map((bloque, bi) => {
+                  const { s, vehiculo, ini, fin, col, cols } = bloque;
                   const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                   const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
-                  const ev = estiloEvento(s);
+                  const ev = estiloEvento(s, vehiculo);
                   const albaran = albaranes.find((a) => a.servicio_id === s.id);
                   const hecho = (s.estado || "abierto") === "realizado";
+                  const multi = vehiculosDe(s).length > 1;
                   return (
                     <button
-                      key={s.id}
+                      key={`${s.id}-${vehiculo || bi}`}
                       onClick={() => { if (justDraggedRef.current) return; setServicioSeleccionado(s); }}
                       {...propsArrastre(bloque, fecha)}
                       style={{
@@ -589,6 +611,9 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                       <p className="text-[11px] font-bold leading-tight truncate">
                         {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
                       </p>
+                      {multi && vehiculo && (
+                        <p className="text-[10px] font-bold leading-tight truncate">🚛 {vehiculo}</p>
+                      )}
                       {s.descripcion && (
                         <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
                       )}
@@ -654,7 +679,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
               {diasDeLaSemana.map((iso, idx) => {
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
-                const sinHoraDia = svsDia.filter((s) => !s.hora_inicio);
+                const sinHoraDia = expandir(svsDia.filter((s) => !s.hora_inicio));
                 const bloques = bloquesDe(svsDia);
                 const esHoy = iso === hoy();
                 const seleccionado = iso === fecha;
@@ -695,17 +720,18 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                     {/* Franja de servicios sin hora asignada (tocar abre el panel) */}
                     {alturaSinHoraSemana > 0 && (
                       <div className="border-t border-zinc-100 overflow-hidden" style={{ height: alturaSinHoraSemana }}>
-                        {sinHoraDia.map((s) => {
-                          const ev = estiloEvento(s);
+                        {sinHoraDia.map(({ s, vehiculo }, vi) => {
+                          const ev = estiloEvento(s, vehiculo);
+                          const multi = vehiculosDe(s).length > 1;
                           return (
                             <button
-                              key={s.id}
+                              key={`${s.id}-${vehiculo || vi}`}
                               onClick={() => setServicioSeleccionado(s)}
-                              title={s.cliente || "Sin nombre"}
+                              title={`${s.cliente || "Sin nombre"}${multi && vehiculo ? ` · ${vehiculo}` : ""}`}
                               style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
                               className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className}`}
                             >
-                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{multi && vehiculo ? vehiculo : (s.cliente || "Sin nombre")}
                             </button>
                           );
                         })}
@@ -723,14 +749,15 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                           style={{ height: 30 * PX_POR_MINUTO }}
                         />
                       ))}
-                      {bloques.map((bloque) => {
-                        const { s, ini, fin, col, cols } = bloque;
+                      {bloques.map((bloque, bi) => {
+                        const { s, vehiculo, ini, fin, col, cols } = bloque;
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
-                        const ev = estiloEvento(s);
+                        const ev = estiloEvento(s, vehiculo);
+                        const multi = vehiculosDe(s).length > 1;
                         return (
                           <button
-                            key={s.id}
+                            key={`${s.id}-${vehiculo || bi}`}
                             onClick={() => { if (justDraggedRef.current) return; setServicioSeleccionado(s); }}
                             {...propsArrastre(bloque, iso)}
                             style={{
@@ -744,8 +771,8 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                             className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                           >
                             <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
-                            <p className="text-[9px] font-bold leading-tight truncate">{s.cliente || "Sin nombre"}</p>
-                            {s.descripcion && (
+                            <p className="text-[9px] font-bold leading-tight truncate">{multi && vehiculo ? `🚛 ${vehiculo}` : (s.cliente || "Sin nombre")}</p>
+                            {!multi && s.descripcion && (
                               <p className="text-[8px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
                             )}
                           </button>
