@@ -18,17 +18,21 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const filtered = solicitudes.filter((b) => {
-    const matchEstado = filtroEstado === "todos" || (b.estado || "pendiente") === filtroEstado;
-    return matchEstado;
-  });
+  // Orden por número descendente (el S- más alto arriba). El número es texto
+  // tipo "S-012": se ordena por su valor numérico real, no como texto.
+  const numDe = (x) => parseInt(String(x.numero || "").replace(/\D/g, ""), 10) || 0;
+  const porNumero = (a, b) => numDe(b) - numDe(a);
+
+  const filtered = solicitudes
+    .filter((b) => filtroEstado === "todos" || (b.estado || "pendiente") === filtroEstado)
+    .sort(porNumero);
 
   const searchResults = q.trim() === "" ? [] : solicitudes.filter((b) => {
     const notasText = (b.notas_seguimiento || []).map((n) => n.texto).join(" ");
     const vehiculosStr = Array.isArray(b.vehiculo) ? b.vehiculo.join(" ") : (b.vehiculo || "");
     return [b.cliente, b.descripcion, b.numero, b.tipo, vehiculosStr, b.direccion, b.origen, b.destino, b.estado, notasText]
       .join(" ").toLowerCase().includes(q.toLowerCase());
-  });
+  }).sort(porNumero);
 
   const conteo = Object.fromEntries(
     Object.keys(ESTADOS).map((e) => [e, solicitudes.filter((b) => (b.estado || "pendiente") === e).length])

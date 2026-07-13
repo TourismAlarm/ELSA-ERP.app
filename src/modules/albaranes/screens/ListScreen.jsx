@@ -24,15 +24,20 @@ const ListScreen = ({ albaranes, servicios = [], onNew, onView, onEdit, onDelete
     return vs.filter(Boolean).join(", ");
   };
 
-  const filtered = albaranes.filter((a) => {
-    return filtroEstado === "todos" || (a.estado || "borrador") === filtroEstado;
-  });
+  // Orden por número descendente (el ALB- más alto arriba). El número es texto
+  // tipo "ALB-012": se ordena por su valor numérico real, no como texto.
+  const numDe = (x) => parseInt(String(x.numero || "").replace(/\D/g, ""), 10) || 0;
+  const porNumero = (a, b) => numDe(b) - numDe(a);
+
+  const filtered = albaranes
+    .filter((a) => filtroEstado === "todos" || (a.estado || "borrador") === filtroEstado)
+    .sort(porNumero);
 
   const searchResults = q.trim() === "" ? [] : albaranes.filter((a) => {
     const lineasText = (a.lineas || []).map((l) => [l.concepto, l.observaciones].filter(Boolean).join(" ")).join(" ");
     return [a.cliente, a.descripcion, a.numero, a.firmado_por, a.estado, lineasText]
       .join(" ").toLowerCase().includes(q.toLowerCase());
-  });
+  }).sort(porNumero);
 
   const conteo = Object.fromEntries(
     Object.keys(ESTADOS).map((e) => [e, albaranes.filter((a) => (a.estado || "borrador") === e).length])
