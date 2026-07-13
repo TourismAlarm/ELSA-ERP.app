@@ -9,10 +9,20 @@ const ESTADOS = {
 const formatFecha = (fecha) =>
   fecha ? new Date(fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
-const ListScreen = ({ albaranes, onNew, onView, onEdit, onDelete, onConfig, loading }) => {
+const ListScreen = ({ albaranes, servicios = [], onNew, onView, onEdit, onDelete, onConfig, loading }) => {
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Vehículo/equipo de un albarán: se coge del servicio vinculado (como en el
+  // detalle). Devuelve el array unido por comas, o "" si no hay servicio/vehículo.
+  const vehiculosDe = (a) => {
+    if (!a.servicio_id) return "";
+    const servicio = servicios.find((s) => s.id === a.servicio_id);
+    if (!servicio) return "";
+    const vs = Array.isArray(servicio.vehiculo) ? servicio.vehiculo : (servicio.vehiculo ? [servicio.vehiculo] : []);
+    return vs.filter(Boolean).join(", ");
+  };
 
   const filtered = albaranes.filter((a) => {
     return filtroEstado === "todos" || (a.estado || "borrador") === filtroEstado;
@@ -101,6 +111,7 @@ const ListScreen = ({ albaranes, onNew, onView, onEdit, onDelete, onConfig, load
             const estado = a.estado || "borrador";
             const cfg = ESTADOS[estado] || ESTADOS.borrador;
             const numLineas = (a.lineas || []).length;
+            const vehiculos = vehiculosDe(a);
             return (
               <div key={a.id} className={`bg-white border-2 border-zinc-200 rounded-xl overflow-hidden hover:border-zinc-400 transition-colors border-l-4 ${cfg.border}`}>
                 <div className="p-5">
@@ -121,6 +132,7 @@ const ListScreen = ({ albaranes, onNew, onView, onEdit, onDelete, onConfig, load
                       </div>
                       <p className="font-black text-zinc-900 text-lg leading-tight truncate">{a.cliente || "Sin nombre"}</p>
                       {a.firmado_por && <p className="text-xs text-zinc-500 mt-0.5">✍️ Firmado por {a.firmado_por}</p>}
+                      {vehiculos && <p className="text-xs text-zinc-500 mt-0.5 truncate">🚛 {vehiculos}</p>}
                       {a.descripcion && <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{a.descripcion}</p>}
                     </div>
                   </div>

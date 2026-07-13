@@ -532,6 +532,7 @@ export default function App() {
       {screen === "albaranesList" && (
         <AlbaranesListScreen
           albaranes={albaranes}
+          servicios={servicios}
           loading={loadingData}
           onNew={handleAlbaranNew}
           onView={handleAlbaranView}
