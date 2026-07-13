@@ -15,24 +15,21 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Orden por fecha del servicio, más reciente primero; sin fecha, al final
-  const porFecha = (a, b) => {
-    if (!a.fecha_servicio && !b.fecha_servicio) return 0;
-    if (!a.fecha_servicio) return 1;
-    if (!b.fecha_servicio) return -1;
-    return b.fecha_servicio.localeCompare(a.fecha_servicio);
-  };
+  // Orden por número descendente (el SRV- más alto arriba). El número es texto
+  // tipo "SRV-012": se ordena por su valor numérico real, no como texto.
+  const numDe = (x) => parseInt(String(x.numero || "").replace(/\D/g, ""), 10) || 0;
+  const porNumero = (a, b) => numDe(b) - numDe(a);
 
   const filtered = servicios
     .filter((s) => filtroEstado === "todos" || (s.estado || "abierto") === filtroEstado)
-    .sort(porFecha);
+    .sort(porNumero);
 
   const searchResults = q.trim() === "" ? [] : servicios.filter((s) => {
     const notasText = (s.notas || []).map((n) => n.texto).join(" ");
     const vehiculosStr = Array.isArray(s.vehiculo) ? s.vehiculo.join(" ") : (s.vehiculo || "");
     return [s.cliente, s.descripcion, s.numero, vehiculosStr, s.origen, s.destino, s.estado, notasText]
       .join(" ").toLowerCase().includes(q.toLowerCase());
-  }).sort(porFecha);
+  }).sort(porNumero);
 
   const conteo = Object.fromEntries(
     Object.keys(ESTADOS).map((e) => [e, servicios.filter((s) => (s.estado || "abierto") === e).length])
