@@ -30,7 +30,7 @@ const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
           <Input value={form.nifCif} onChange={set("nifCif")} placeholder="B12345678" />
         </Field>
         <Field label="Dirección de facturación">
-          <Input value={form.dirFact} onChange={set("dirFact")} placeholder="Calle Mayor 1, 08001 Barcelona" />
+          <Input value={form.dirFact} onChange={set("dirFact")} placeholder="Calle Mayor 1" />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
