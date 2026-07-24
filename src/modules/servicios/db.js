@@ -9,6 +9,7 @@ const sanitize = (s) => {
   // nifCif, dirFact, telCliente y emailCliente son campos del cliente —
   // no existen como columnas en servicios, excluirlos del insert.
   // recurso_id se retira (fusionado en vehiculo/equipo); no persistirlo.
+  // OJO: cliente_id SÍ es columna real (vínculo al cliente), no añadirlo a esta lista.
   const { nifCif, dirFact, fotos, telCliente, emailCliente, recurso_id, ...rest } = s;
 
   const sanitized = {
