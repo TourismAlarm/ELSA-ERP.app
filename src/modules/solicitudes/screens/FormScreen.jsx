@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
+import ClienteForm from "../../../shared/components/ClienteForm";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
@@ -13,6 +14,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
+  const [showClienteModal, setShowClienteModal] = useState(false);
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -57,11 +59,12 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
     setShowSuggestions(false);
   };
 
-  const handleGuardarCliente = async () => {
-    if (!form.cliente.trim()) return;
+  const handleGuardarClienteModal = async (clienteForm) => {
     setSavingCliente(true);
-    await onSaveCliente({ nombre: form.cliente.trim(), nifCif: form.nifCif || "", dirFact: form.dirFact || "", tel: form.telCliente, email: form.emailCliente });
+    await onSaveCliente(clienteForm);
     setSavingCliente(false);
+    setShowClienteModal(false);
+    setForm((f) => ({ ...f, cliente: clienteForm.nombre }));
   };
 
   const handleSave = () => {
@@ -110,11 +113,10 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
             {form.cliente.trim() && !clienteExacto && (
               <button
                 type="button"
-                onClick={handleGuardarCliente}
-                disabled={savingCliente}
-                className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                onClick={() => setShowClienteModal(true)}
+                className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800"
               >
-                {savingCliente ? "Guardando..." : `💾 Guardar "${form.cliente.trim()}" como nuevo cliente`}
+                💾 Guardar "{form.cliente.trim()}" como nuevo cliente
               </button>
             )}
           </div>
@@ -191,6 +193,30 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
           <Btn size="lg" variant="secondary" onClick={onCancel}>Cancelar</Btn>
         </div>
       </div>
+
+      {showClienteModal && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowClienteModal(false)} />
+          <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-zinc-900">Nuevo cliente</h2>
+              <button onClick={() => setShowClienteModal(false)} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
+            </div>
+            <ClienteForm
+              inicial={{
+                nombre: form.cliente.trim(),
+                nifCif: form.nifCif,
+                dirFact: form.dirFact,
+                tel: form.telCliente,
+                email: form.emailCliente,
+              }}
+              onGuardar={handleGuardarClienteModal}
+              onCancelar={() => setShowClienteModal(false)}
+              guardando={savingCliente}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
