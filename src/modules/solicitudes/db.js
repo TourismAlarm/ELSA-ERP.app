@@ -101,7 +101,17 @@ export const dbSaveConfig = async (cfg) => {
 
 export const dbUpdateCliente = async (cliente) => {
   const { error } = await supabase.from("clientes")
-    .update({ nombre: cliente.nombre, nifCif: cliente.nifCif || "", dirFact: cliente.dirFact || "", tel: cliente.tel, email: cliente.email })
+    .update({
+      nombre: cliente.nombre,
+      nifCif: cliente.nifCif || "",
+      dirFact: cliente.dirFact || "",
+      cp: cliente.cp || "",
+      poblacion: cliente.poblacion || "",
+      provincia: cliente.provincia || "",
+      tel: cliente.tel,
+      movil: cliente.movil || "",
+      email: cliente.email,
+    })
     .eq("id", cliente.id);
   if (error) console.error(error);
 };
