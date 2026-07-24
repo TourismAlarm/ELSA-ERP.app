@@ -13,7 +13,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), hora_inicio: initial.hora_inicio || "", hora_fin: initial.hora_fin || "" }
       // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), hora_inicio: prefill?.hora_inicio || "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), hora_inicio: prefill?.hora_inicio || "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -54,6 +54,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
     setForm((f) => ({
       ...f,
       cliente: c.nombre,
+      cliente_id: c.id,
       nifCif: c.nifCif || f.nifCif,
       dirFact: c.dirFact || f.dirFact,
       telCliente: c.tel || f.telCliente,
@@ -64,10 +65,10 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
 
   const handleGuardarClienteModal = async (clienteForm) => {
     setSavingCliente(true);
-    await onSaveCliente(clienteForm);
+    const saved = await onSaveCliente(clienteForm);
     setSavingCliente(false);
     setShowClienteModal(false);
-    setForm((f) => ({ ...f, cliente: clienteForm.nombre }));
+    setForm((f) => ({ ...f, cliente: saved?.nombre || clienteForm.nombre, cliente_id: saved?.id ?? null }));
   };
 
   const handleSave = () => {
@@ -92,7 +93,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
           <div ref={clienteRef} className="relative">
             <Input
               value={form.cliente}
-              onChange={(e) => { set("cliente")(e); setShowSuggestions(true); }}
+              onChange={(e) => { setForm((f) => ({ ...f, cliente: e.target.value, cliente_id: null })); setShowSuggestions(true); }}
               onFocus={() => form.cliente.trim().length >= 1 && setShowSuggestions(true)}
               placeholder="Juan García"
             />

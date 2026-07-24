@@ -10,7 +10,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [] }
-      : { cliente: "", nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "", fotos: [] }
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -51,6 +51,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
     setForm((f) => ({
       ...f,
       cliente: c.nombre,
+      cliente_id: c.id,
       nifCif: c.nifCif || f.nifCif,
       dirFact: c.dirFact || f.dirFact,
       telCliente: c.tel || f.telCliente,
@@ -61,10 +62,10 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
 
   const handleGuardarClienteModal = async (clienteForm) => {
     setSavingCliente(true);
-    await onSaveCliente(clienteForm);
+    const saved = await onSaveCliente(clienteForm);
     setSavingCliente(false);
     setShowClienteModal(false);
-    setForm((f) => ({ ...f, cliente: clienteForm.nombre }));
+    setForm((f) => ({ ...f, cliente: saved?.nombre || clienteForm.nombre, cliente_id: saved?.id ?? null }));
   };
 
   const handleSave = () => {
@@ -89,7 +90,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
           <div ref={clienteRef} className="relative">
             <Input
               value={form.cliente}
-              onChange={(e) => { set("cliente")(e); setShowSuggestions(true); }}
+              onChange={(e) => { setForm((f) => ({ ...f, cliente: e.target.value, cliente_id: null })); setShowSuggestions(true); }}
               onFocus={() => form.cliente.trim().length >= 1 && setShowSuggestions(true)}
               placeholder="Juan García"
             />
