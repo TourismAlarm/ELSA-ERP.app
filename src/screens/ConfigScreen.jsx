@@ -85,6 +85,49 @@ const dbSaveConfig = async (cfg) => {
   if (error) console.error(error);
 };
 
+// Cambio de contraseña del usuario que ya tiene la sesión iniciada
+const CambiarPassword = () => {
+  const [pwd, setPwd] = useState("");
+  const [pwd2, setPwd2] = useState("");
+  const [msg, setMsg] = useState(null); // { tipo: "ok" | "error", texto }
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = async () => {
+    if (pwd.length < 6) return setMsg({ tipo: "error", texto: "La contraseña debe tener al menos 6 caracteres" });
+    if (pwd !== pwd2) return setMsg({ tipo: "error", texto: "Las contraseñas no coinciden" });
+
+    setGuardando(true);
+    const { error } = await supabase.auth.updateUser({ password: pwd });
+    setGuardando(false);
+
+    if (error) return setMsg({ tipo: "error", texto: "No se ha podido cambiar la contraseña" });
+    setPwd("");
+    setPwd2("");
+    setMsg({ tipo: "ok", texto: "Contraseña actualizada" });
+  };
+
+  return (
+    <div className="bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5 flex flex-col gap-4">
+      <div>
+        <p className="text-sm font-black text-zinc-900 mb-1">Contraseña</p>
+        <p className="text-xs text-zinc-400">Cámbiala cuando quieras. La necesitarás la próxima vez que entres.</p>
+      </div>
+      <Field label="Nueva contraseña">
+        <Input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setMsg(null); }} placeholder="••••••••" />
+      </Field>
+      <Field label="Repite la contraseña">
+        <Input type="password" value={pwd2} onChange={(e) => { setPwd2(e.target.value); setMsg(null); }} placeholder="••••••••" />
+      </Field>
+      {msg && (
+        <p className={`text-xs font-semibold ${msg.tipo === "ok" ? "text-green-600" : "text-red-500"}`}>{msg.texto}</p>
+      )}
+      <Btn variant="secondary" onClick={guardar} disabled={guardando || !pwd || !pwd2}>
+        {guardando ? "Guardando..." : "🔐 Cambiar contraseña"}
+      </Btn>
+    </div>
+  );
+};
+
 const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
@@ -145,6 +188,8 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
         <p className="text-xs text-zinc-400 mb-4">Los que se asignan en servicios y solicitudes. Su color identifica el trabajo en el calendario.</p>
         <VehiculosManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
       </div>
+
+      <CambiarPassword />
 
       <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving}>
         {saving ? "Guardando..." : "💾 Guardar configuración"}

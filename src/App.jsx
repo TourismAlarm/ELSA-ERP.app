@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./shared/lib/supabase";
-import { LoginScreen, ConfigScreen, ClientesScreen } from "./screens";
+import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
@@ -16,9 +16,18 @@ import { generatePDF } from "./shared/lib/pdf";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
 
+// El enlace de recuperación del correo vuelve a la app con type=recovery,
+// en el hash (flujo implícito) o en la query (flujo PKCE).
+const esUrlDeRecuperacion = () => {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const query = new URLSearchParams(window.location.search);
+  return hash.get("type") === "recovery" || query.get("type") === "recovery";
+};
+
 export default function App() {
   const [session, setSession]         = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [recovery, setRecovery]       = useState(esUrlDeRecuperacion);
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [servicios, setServicios]     = useState([]);
@@ -39,12 +48,13 @@ export default function App() {
   const [saving, setSaving]           = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession()
+      .then(({ data }) => setSession(data?.session ?? null))
+      .catch(() => setSession(null))
+      .finally(() => setLoadingAuth(false));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      setLoadingAuth(false);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -66,6 +76,23 @@ export default function App() {
       setLoadingData(false);
     })();
   }, [sessionUserId]);
+
+  // Quita los tokens del enlace de recuperación de la barra de direcciones
+  const limpiarUrlRecuperacion = () => {
+    window.history.replaceState({}, "", window.location.pathname);
+  };
+
+  const handleRecoveryDone = () => {
+    limpiarUrlRecuperacion();
+    setRecovery(false);
+  };
+
+  const handleRecoveryCancel = async () => {
+    limpiarUrlRecuperacion();
+    setRecovery(false);
+    await supabase.auth.signOut();
+    setSession(null);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -368,6 +395,8 @@ export default function App() {
       </div>
     );
   }
+
+  if (recovery) return <ResetPasswordScreen onDone={handleRecoveryDone} onCancel={handleRecoveryCancel} />;
 
   if (!session) return <LoginScreen onLogin={(s) => setSession(s)} />;
 
