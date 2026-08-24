@@ -571,7 +571,7 @@ export default function App() {
         />
       )}
       {screen === "albaranForm" && (
-        <AlbaranFormScreen initial={editingAlbaran} clientes={clientes} onSave={handleAlbaranFormSave} onCancel={() => setScreen("albaranesList")} saving={saving} />
+        <AlbaranFormScreen initial={editingAlbaran} clientes={clientes} onSave={handleAlbaranFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("albaranesList")} saving={saving} />
       )}
       {screen === "albaranView" && viewingAlbaran && (
         <AlbaranViewScreen

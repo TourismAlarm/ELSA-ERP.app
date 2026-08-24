@@ -8,6 +8,17 @@ export const buscaCliente = (c, q) => {
   return [c.nombre, c.nombre_comercial].some((n) => (n || "").toLowerCase().includes(term));
 };
 
+// El cliente ya existe si lo escrito coincide con su nombre fiscal o con el comercial;
+// evita ofrecer "guardar como nuevo cliente" y duplicarlo
+export const clienteYaExiste = (clientes, texto) => {
+  const escrito = (texto || "").trim().toLowerCase();
+  if (!escrito) return false;
+  return clientes.some((c) =>
+    (c.nombre || "").trim().toLowerCase() === escrito ||
+    (c.nombre_comercial || "").trim().toLowerCase() === escrito
+  );
+};
+
 // Devuelve el nombre comercial solo si aporta algo distinto al fiscal
 export const comercialDistinto = (c) => {
   const comercial = (c.nombre_comercial || "").trim();
