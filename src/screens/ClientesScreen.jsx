@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { Btn } from "../shared/components/ui";
+import { buscaCliente, comercialDistinto } from "../shared/lib/clientes";
 import ClienteForm from "../shared/components/ClienteForm";
 
 const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [q, setQ] = useState("");
+
+  // Busca por nombre fiscal y por nombre comercial
+  const visibles = q.trim() === "" ? clientes : clientes.filter((c) => buscaCliente(c, q));
 
   const handleNew = async (form) => {
     setGuardando(true);
@@ -43,6 +48,15 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
         </div>
       )}
 
+      {clientes.length > 0 && (
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="🔍 Buscar por nombre o nombre comercial..."
+          className="w-full border-2 border-zinc-200 rounded-md px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-900 transition-colors bg-white mb-4"
+        />
+      )}
+
       {clientes.length === 0 && !showForm ? (
         <div className="text-center py-16 text-zinc-400">
           <div className="text-5xl mb-3">👥</div>
@@ -51,7 +65,10 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {clientes.map((c) => (
+          {visibles.length === 0 && (
+            <p className="text-center text-zinc-400 py-8">Sin resultados para "{q}"</p>
+          )}
+          {visibles.map((c) => (
             <div key={c.id} className="bg-white border-2 border-zinc-200 rounded-xl overflow-hidden">
               {editingId === c.id ? (
                 <div className="p-4">
@@ -65,6 +82,7 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
               ) : (
                 <div className="p-5">
                   <p className="font-black text-zinc-900 text-lg">{c.nombre}</p>
+                  {comercialDistinto(c) && <p className="text-sm text-zinc-500 mt-0.5">🏷 {comercialDistinto(c)}</p>}
                   {c.nifCif && <p className="text-sm text-zinc-500 mt-0.5">🪪 {c.nifCif}</p>}
                   {c.dirFact && <p className="text-sm text-zinc-500 mt-0.5">🏢 {c.dirFact}</p>}
                   {c.tel && <p className="text-sm text-zinc-500 mt-0.5">📞 {c.tel}</p>}

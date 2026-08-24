@@ -104,6 +104,7 @@ export const dbUpdateCliente = async (cliente) => {
   const { error } = await supabase.from("clientes")
     .update({
       nombre: cliente.nombre,
+      nombre_comercial: cliente.nombre_comercial || "",
       nifCif: cliente.nifCif || "",
       dirFact: cliente.dirFact || "",
       cp: cliente.cp || "",
