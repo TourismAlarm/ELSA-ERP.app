@@ -4,6 +4,7 @@ import { Btn, Field, Input } from "./ui";
 const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
   const [form, setForm] = useState({
     nombre: inicial.nombre || "",
+    nombre_comercial: inicial.nombre_comercial || "",
     nifCif: inicial.nifCif || "",
     dirFact: inicial.dirFact || "",
     cp: inicial.cp || "",
@@ -24,6 +25,9 @@ const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
     <div className="bg-zinc-50 border-2 border-zinc-200 rounded-xl p-4 flex flex-col gap-3">
       <Field label="Nombre *">
         <Input value={form.nombre} onChange={set("nombre")} placeholder="Juan García" autoFocus />
+      </Field>
+      <Field label="Nombre comercial">
+        <Input value={form.nombre_comercial} onChange={set("nombre_comercial")} placeholder="Transportes García" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="NIF / CIF">

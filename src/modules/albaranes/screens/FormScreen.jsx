@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
+import { buscaCliente, comercialDistinto } from "../../../shared/lib/clientes";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -28,10 +29,7 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const suggestions = clientes.filter((c) =>
-    form.cliente.trim().length >= 1 &&
-    c.nombre.toLowerCase().includes(form.cliente.toLowerCase())
-  ).slice(0, 6);
+  const suggestions = clientes.filter((c) => buscaCliente(c, form.cliente)).slice(0, 6);
 
   const setLinea = (i, k, v) => {
     setForm((f) => ({
@@ -86,6 +84,7 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
                     className="w-full text-left px-4 py-3 hover:bg-zinc-50 border-b border-zinc-100 last:border-0 transition-colors"
                   >
                     <p className="font-bold text-zinc-900">{c.nombre}</p>
+                    {comercialDistinto(c) && <p className="text-xs text-zinc-600 mt-0.5">🏷 {comercialDistinto(c)}</p>}
                     <p className="text-xs text-zinc-500 mt-0.5">{[c.tel, c.email].filter(Boolean).join(" · ") || "Sin contacto guardado"}</p>
                   </button>
                 ))}
