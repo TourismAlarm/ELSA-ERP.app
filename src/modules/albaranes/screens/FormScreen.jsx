@@ -40,9 +40,12 @@ const FormScreen = ({ initial, clientes = [], onSave, onSaveCliente, onCancel, s
     setSavingCliente(true);
     const saved = await onSaveCliente(clienteForm);
     setSavingCliente(false);
+    // Si no se ha guardado, el modal se queda abierto con lo escrito: cerrarlo
+    // daría por creado un cliente que no existe
+    if (!saved) return;
     setShowClienteModal(false);
     // En el albarán se guarda siempre el nombre fiscal
-    setForm((f) => ({ ...f, cliente: saved?.nombre || clienteForm.nombre }));
+    setForm((f) => ({ ...f, cliente: saved.nombre }));
   };
 
   const setLinea = (i, k, v) => {

@@ -28,8 +28,8 @@ export const generatePDF = (s, config) => {
   doc.setTextColor(20,20,20); doc.setFontSize(22); doc.setFont("helvetica","bold");
   doc.text("SOLICITUD DE SERVICIO", margin, y);
   doc.setFontSize(10); doc.setFont("helvetica","normal"); doc.setTextColor(100,100,100);
-  doc.text(`Nº ${s.numero}`, W - margin, y - 6, { align: "right" });
-  doc.text(`Fecha: ${s.fecha}`, W - margin, y + 1, { align: "right" });
+  doc.text(`Nº ${s.numero || "—"}`, W - margin, y - 6, { align: "right" });
+  doc.text(`Fecha: ${s.fecha || "—"}`, W - margin, y + 1, { align: "right" });
   y += 10;
 
   doc.setDrawColor(220,220,220); doc.setLineWidth(0.5);

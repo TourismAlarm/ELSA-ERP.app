@@ -27,14 +27,26 @@ const sanitize = (s) => {
   return sanitized;
 };
 
+// La fecha de la solicitud no viaja como columna propia en el insert; al releer
+// la fila se reconstruye desde created_at para que la lista, la ficha y el PDF
+// no se queden sin fecha después de recargar la página.
+const fechaDeAlta = (s) =>
+  s.fecha ||
+  (s.created_at
+    ? new Date(s.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : "");
+
 const deserializeSolicitud = (s) => ({
   ...s,
+  fecha: fechaDeAlta(s),
   vehiculo: s.vehiculo ? s.vehiculo.split(", ").filter(Boolean) : [],
 });
 
+// Devuelve null cuando la carga falla, para poder distinguirlo de "no hay nada
+// guardado" y no enseñar una app vacía cuando lo que pasa es que no hay red.
 export const dbLoadSolicitudes = async () => {
   const { data, error } = await supabase.from("solicitudes").select("*").order("id", { ascending: false });
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data.map(deserializeSolicitud);
 };
 
@@ -51,19 +63,21 @@ export const dbSaveSolicitud = async (solicitud) => {
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
   if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return null; }
-  return { ...data, fecha: solicitud.fecha };
+  // Deserializar como en la carga: si no, el vehículo se queda como texto con
+  // comas y al editar la solicitud recién creada los vehículos se fusionan en uno
+  return deserializeSolicitud({ ...data, fecha: solicitud.fecha });
 };
 
 export const dbAddNota = async (id, nota) => {
   const { data: current, error: fetchError } = await supabase
     .from("solicitudes").select("notas_seguimiento").eq("id", id).single();
-  if (fetchError) { console.error(fetchError); return null; }
+  if (fetchError) { console.error(fetchError); alert("Error al guardar la nota: " + fetchError.message); return null; }
   const notas = [...(current.notas_seguimiento || []), nota];
   const now = new Date().toISOString();
   const { error } = await supabase.from("solicitudes")
     .update({ notas_seguimiento: notas, fecha_ultimo_contacto: now })
     .eq("id", id);
-  if (error) { console.error(error); return null; }
+  if (error) { console.error(error); alert("Error al guardar la nota: " + error.message); return null; }
   return { notas_seguimiento: notas, fecha_ultimo_contacto: now };
 };
 
@@ -71,33 +85,41 @@ export const dbCambiarEstado = async (id, estado) => {
   const { error } = await supabase.from("solicitudes")
     .update({ estado, fecha_ultimo_contacto: new Date().toISOString() })
     .eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al cambiar el estado: " + error.message); return false; }
+  return true;
 };
 
 export const dbToggleAvisos = async (id, valor) => {
   const { error } = await supabase.from("solicitudes").update({ avisos_activos: valor }).eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al cambiar los avisos: " + error.message); return false; }
+  return true;
 };
 
 export const dbUpdateSolicitud = async (solicitud) => {
   const { error } = await supabase.from("solicitudes").update(sanitize(solicitud)).eq("id", solicitud.id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return false; }
+  return true;
 };
 
 export const dbDeleteSolicitud = async (id) => {
   const { error } = await supabase.from("solicitudes").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar la solicitud: " + error.message); return false; }
+  return true;
 };
 
+// "No hay configuración todavía" y "no se ha podido cargar" llevan a pantallas
+// distintas, así que se devuelven por separado: confundirlos deja guardar una
+// configuración vacía encima de la buena.
 export const dbLoadConfig = async () => {
   const { data, error } = await supabase.from("config").select("*").eq("id", 1).maybeSingle();
-  if (error) { console.error(error); return null; }
-  return data;
+  if (error) { console.error(error); return { config: null, error: true }; }
+  return { config: data, error: false };
 };
 
 export const dbSaveConfig = async (cfg) => {
   const { error } = await supabase.from("config").upsert({ id: 1, ...cfg });
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al guardar la configuración: " + error.message); return false; }
+  return true;
 };
 
 export const dbUpdateCliente = async (cliente) => {
@@ -115,23 +137,25 @@ export const dbUpdateCliente = async (cliente) => {
       email: cliente.email,
     })
     .eq("id", cliente.id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al guardar el cliente: " + error.message); return false; }
+  return true;
 };
 
 export const dbDeleteCliente = async (id) => {
   const { error } = await supabase.from("clientes").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar el cliente: " + error.message); return false; }
+  return true;
 };
 
 
 export const dbLoadClientes = async () => {
   const { data, error } = await supabase.from("clientes").select("*").order("nombre");
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data;
 };
 
 export const dbSaveCliente = async (cliente) => {
   const { data, error } = await supabase.from("clientes").insert([cliente]).select().single();
-  if (error) { console.error(error); return null; }
+  if (error) { console.error(error); alert("Error al guardar el cliente: " + error.message); return null; }
   return data;
 };

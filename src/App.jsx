@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
@@ -46,6 +46,8 @@ export default function App() {
   const [viewingVehiculo, setViewingVehiculo] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
+  const [errorCarga, setErrorCarga]   = useState(false);
+  const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -61,21 +63,30 @@ export default function App() {
 
   const sessionUserId = session?.user?.id;
 
+  // Las cargas devuelven null cuando fallan: hay que distinguir "no hay nada
+  // guardado" de "no se ha podido leer", porque la segunda no debe vaciar la
+  // pantalla en silencio ni llevar a la configuración vacía.
+  const cargarDatos = useCallback(async () => {
+    setLoadingData(true);
+    const [cfgRes, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
+    const falloAlguna = [sols, srvs, albs, vhcs, clts].some((x) => x === null) || cfgRes.error;
+    setConfig(cfgRes.config);
+    setConfigError(cfgRes.error);
+    setErrorCarga(falloAlguna);
+    setSolicitudes(sols ?? []);
+    setServicios(srvs ?? []);
+    setAlbaranes(albs ?? []);
+    setVehiculos(vhcs ?? []);
+    setClientes(clts ?? []);
+    // Solo llevar a Configuración cuando sabemos con certeza que no hay ninguna
+    setScreen(cfgRes.config || cfgRes.error ? "dashboard" : "config");
+    setLoadingData(false);
+  }, []);
+
   useEffect(() => {
     if (!sessionUserId) return;
-    (async () => {
-      setLoadingData(true);
-      const [cfg, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
-      setConfig(cfg);
-      setSolicitudes(sols);
-      setServicios(srvs);
-      setAlbaranes(albs);
-      setVehiculos(vhcs);
-      setClientes(clts);
-      setScreen(cfg ? "dashboard" : "config");
-      setLoadingData(false);
-    })();
-  }, [sessionUserId]);
+    (async () => { await cargarDatos(); })();
+  }, [sessionUserId, cargarDatos]);
 
   // Quita los tokens del enlace de recuperación de la barra de direcciones
   const limpiarUrlRecuperacion = () => {
@@ -102,6 +113,8 @@ export default function App() {
     setServicios([]);
     setAlbaranes([]);
     setVehiculos([]);
+    setErrorCarga(false);
+    setConfigError(false);
     setScreen("dashboard");
   };
 
@@ -111,7 +124,7 @@ export default function App() {
   const handleView       = (b) => { setViewing(b); setScreen("view"); };
 
   const handleCambiarEstado = async (id, nuevoEstado) => {
-    await dbCambiarEstado(id, nuevoEstado);
+    if (!await dbCambiarEstado(id, nuevoEstado)) return false;
     const now = new Date().toISOString();
     setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: now } : b));
     setViewing((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado, fecha_ultimo_contacto: now } : prev);
@@ -119,12 +132,12 @@ export default function App() {
     // Al aceptar una solicitud, crear su servicio vinculado (si no existe ya)
     if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
       const sol = solicitudes.find((b) => b.id === id);
-      if (!sol) return;
+      if (!sol) return true;
       const hoy = new Date().toISOString().slice(0, 10);
       const fecha = prompt("Fecha del servicio (AAAA-MM-DD):", hoy);
       if (!fecha || !fecha.trim()) {
         alert("Solicitud aceptada sin crear servicio. Puedes crearlo a mano desde la pestaña Servicios.");
-        return;
+        return true;
       }
       const saved = await dbSaveServicio({
         cliente: sol.cliente,
@@ -141,6 +154,7 @@ export default function App() {
         alert(`Solicitud aceptada. Servicio ${saved.numero} creado para el ${fecha.trim()}.`);
       }
     }
+    return true;
   };
 
   const handleAddNota = async (id, texto) => {
@@ -160,24 +174,25 @@ export default function App() {
   };
 
   const handleEditCliente = async (id, datos) => {
-    await dbUpdateCliente({ id, ...datos });
+    if (!await dbUpdateCliente({ id, ...datos })) return false;
     setClientes((prev) => prev.map((c) => c.id === id ? { ...c, ...datos } : c));
+    return true;
   };
 
   const handleDeleteCliente = async (id) => {
     if (!confirm("¿Eliminar este cliente?")) return;
-    await dbDeleteCliente(id);
+    if (!await dbDeleteCliente(id)) return;
     setClientes((prev) => prev.filter((c) => c.id !== id));
   };
 
   const handleToggleAvisos = async (id, valor) => {
-    await dbToggleAvisos(id, valor);
+    if (!await dbToggleAvisos(id, valor)) return;
     setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, avisos_activos: valor } : b));
   };
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar esta solicitud?")) return;
-    await dbDeleteSolicitud(id);
+    if (!await dbDeleteSolicitud(id)) return;
     setSolicitudes((prev) => prev.filter((b) => b.id !== id));
     if (screen === "view") setScreen("dashboard");
   };
@@ -186,9 +201,10 @@ export default function App() {
     setSaving(true);
     if (editing) {
       const updated = { ...editing, ...form };
-      await dbUpdateSolicitud(updated);
-      setSolicitudes((prev) => prev.map((b) => b.id === editing.id ? updated : b));
+      const ok = await dbUpdateSolicitud(updated);
       setSaving(false);
+      if (!ok) return; // el aviso ya se ha mostrado; se queda en el formulario
+      setSolicitudes((prev) => prev.map((b) => b.id === editing.id ? updated : b));
       setEditing(null);
       handleView(updated);
     } else {
@@ -220,15 +236,16 @@ export default function App() {
   // Mover un servicio arrastrándolo en el calendario (cambia fecha y/u horas)
   const handleMoverServicio = async (servicio, fecha_servicio, hora_inicio, hora_fin) => {
     const updated = { ...servicio, fecha_servicio, hora_inicio, hora_fin };
-    await dbUpdateServicio(updated);
+    if (!await dbUpdateServicio(updated)) return;
     setServicios((prev) => prev.map((s) => s.id === servicio.id ? updated : s));
     setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, fecha_servicio, hora_inicio, hora_fin } : prev);
   };
 
   const handleServicioCambiarEstado = async (id, nuevoEstado) => {
-    await dbCambiarEstadoServicio(id, nuevoEstado);
+    if (!await dbCambiarEstadoServicio(id, nuevoEstado)) return false;
     setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
     setViewingServicio((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado } : prev);
+    return true;
   };
 
   const handleServicioAddNota = async (id, texto) => {
@@ -265,9 +282,10 @@ export default function App() {
     setSaving(true);
     if (editingServicio) {
       const updated = { ...editingServicio, ...form };
-      await dbUpdateServicio(updated);
-      setServicios((prev) => prev.map((s) => s.id === editingServicio.id ? updated : s));
+      const ok = await dbUpdateServicio(updated);
       setSaving(false);
+      if (!ok) return;
+      setServicios((prev) => prev.map((s) => s.id === editingServicio.id ? updated : s));
       setEditingServicio(null);
       handleServicioView(updated);
     } else {
@@ -309,7 +327,7 @@ export default function App() {
 
   const handleAlbaranDelete = async (id) => {
     if (!confirm("¿Eliminar este albarán?")) return;
-    await dbDeleteAlbaran(id);
+    if (!await dbDeleteAlbaran(id)) return;
     setAlbaranes((prev) => prev.filter((a) => a.id !== id));
     if (screen === "albaranView") setScreen("albaranesList");
   };
@@ -336,7 +354,7 @@ export default function App() {
 
   const handleVehiculoDelete = async (id) => {
     if (!confirm("¿Eliminar este vehículo?")) return;
-    await dbDeleteVehiculo(id);
+    if (!await dbDeleteVehiculo(id)) return;
     setVehiculos((prev) => prev.filter((v) => v.id !== id));
     if (screen === "vehiculoView") setScreen("flota");
   };
@@ -345,9 +363,10 @@ export default function App() {
     setSaving(true);
     if (editingVehiculo) {
       const updated = { ...editingVehiculo, ...form };
-      await dbUpdateVehiculo(updated);
-      setVehiculos((prev) => prev.map((v) => v.id === editingVehiculo.id ? updated : v).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
+      const ok = await dbUpdateVehiculo(updated);
       setSaving(false);
+      if (!ok) return;
+      setVehiculos((prev) => prev.map((v) => v.id === editingVehiculo.id ? updated : v).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
       setEditingVehiculo(null);
       handleVehiculoView(updated);
     } else {
@@ -367,9 +386,10 @@ export default function App() {
     setSaving(true);
     if (editingAlbaran) {
       const updated = { ...editingAlbaran, ...form };
-      await dbUpdateAlbaran(updated);
-      setAlbaranes((prev) => prev.map((a) => a.id === editingAlbaran.id ? updated : a));
+      const ok = await dbUpdateAlbaran(updated);
       setSaving(false);
+      if (!ok) return;
+      setAlbaranes((prev) => prev.map((a) => a.id === editingAlbaran.id ? updated : a));
       setEditingAlbaran(null);
       handleAlbaranView(updated);
     } else {
@@ -405,6 +425,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50" style={{ backgroundImage: "radial-gradient(circle, #d4d4d4 1px, transparent 1px)", backgroundSize: "24px 24px" }}>
+      {/* Aviso de datos no cargados: sin esto una lista vacía por falta de red
+          parece una lista vacía de verdad, y se acaba duplicando el trabajo */}
+      {errorCarga && !loadingData && (
+        <div className="max-w-2xl mx-auto px-4 pt-6">
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <span className="text-xl leading-none">⚠️</span>
+            <div className="flex-1">
+              <p className="text-sm font-black text-red-800">No se han podido cargar todos los datos</p>
+              <p className="text-xs text-red-700 mt-0.5">Puede faltar información en las listas. No crees nada nuevo hasta que se recupere, o lo duplicarás.</p>
+            </div>
+            <button
+              onClick={() => cargarDatos()}
+              className="text-xs font-black text-red-800 hover:text-red-950 underline underline-offset-2 shrink-0 pt-0.5"
+            >
+              Reintentar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navegación principal */}
       {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario" || screen === "flota") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
@@ -452,7 +492,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {screen === "config" && <ConfigScreen initial={config} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
+      {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
       {screen === "dashboard" && (
         <DashboardScreen

@@ -14,15 +14,17 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
 
   const handleNew = async (form) => {
     setGuardando(true);
-    await onNew(form);
+    const saved = await onNew(form);
     setGuardando(false);
+    if (!saved) return; // el aviso ya se ha mostrado; no cerrar y perder lo escrito
     setShowForm(false);
   };
 
   const handleEdit = async (id, form) => {
     setGuardando(true);
-    await onEdit(id, form);
+    const ok = await onEdit(id, form);
     setGuardando(false);
+    if (!ok) return;
     setEditingId(null);
   };
 

@@ -18,9 +18,10 @@ const sanitize = (v) => {
   return sanitized;
 };
 
+// null cuando la carga falla, para distinguirlo de "no hay vehículos"
 export const dbLoadVehiculos = async () => {
   const { data, error } = await supabase.from("vehiculos").select("*").order("nombre");
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data;
 };
 
@@ -34,12 +35,14 @@ export const dbSaveVehiculo = async (vehiculo) => {
 export const dbUpdateVehiculo = async (vehiculo) => {
   const { id, created_at, updated_at, ...campos } = sanitize(vehiculo);
   const { error } = await supabase.from("vehiculos").update(campos).eq("id", vehiculo.id);
-  if (error) { console.error(error); alert("Error al guardar el vehículo: " + error.message); }
+  if (error) { console.error(error); alert("Error al guardar el vehículo: " + error.message); return false; }
+  return true;
 };
 
 export const dbDeleteVehiculo = async (id) => {
   const { error } = await supabase.from("vehiculos").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar el vehículo: " + error.message); return false; }
+  return true;
 };
 
 // ---- Mantenimientos y reparaciones ----
@@ -49,7 +52,7 @@ export const dbLoadMantenimientos = async (vehiculoId) => {
     .from("mantenimientos").select("*")
     .eq("vehiculo_id", vehiculoId)
     .order("fecha", { ascending: false });
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data;
 };
 
@@ -67,5 +70,6 @@ export const dbSaveMantenimiento = async (m) => {
 
 export const dbDeleteMantenimiento = async (id) => {
   const { error } = await supabase.from("mantenimientos").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar el mantenimiento: " + error.message); return false; }
+  return true;
 };

@@ -63,8 +63,11 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
     setSavingCliente(true);
     const saved = await onSaveCliente(clienteForm);
     setSavingCliente(false);
+    // Si no se ha guardado, el modal se queda abierto con lo escrito: cerrarlo
+    // daría por creado un cliente que no existe
+    if (!saved) return;
     setShowClienteModal(false);
-    setForm((f) => ({ ...f, cliente: saved?.nombre || clienteForm.nombre, cliente_id: saved?.id ?? null }));
+    setForm((f) => ({ ...f, cliente: saved.nombre, cliente_id: saved.id ?? null }));
   };
 
   const handleSave = () => {
