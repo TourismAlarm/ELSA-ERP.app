@@ -25,9 +25,13 @@ const expandir = (lista) => lista.flatMap(porVehiculo);
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
-// --- Rejilla horaria del día seleccionado (07:00 a 21:00, franjas de 30 min) ---
-const HORA_MIN = 7;
-const HORA_MAX = 21;
+// --- Rejilla horaria del día seleccionado (06:00 a 22:00, franjas de 30 min) ---
+// Un servicio fuera de esta franja no desaparece, pero se dibuja pegado al
+// borde: la etiqueta sigue diciendo su hora real, aunque la posición engañe.
+// 6 a 22 cubre las horas de trabajo reales; antes iba de 7 a 21 y un servicio
+// a primera hora se pintaba mal.
+const HORA_MIN = 6;
+const HORA_MAX = 22;
 const PX_POR_MINUTO = 1; // 60px por hora
 const TOTAL_MINUTOS = (HORA_MAX - HORA_MIN) * 60;
 

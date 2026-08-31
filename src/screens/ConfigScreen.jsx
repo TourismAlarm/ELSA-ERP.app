@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { supabase } from "../shared/lib/supabase";
 import { dbSaveConfig } from "../modules/solicitudes/db";
 import { Btn, Field, Input, ColorPicker } from "../shared/components/ui";
-import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../shared/lib/constants";
+import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
@@ -153,8 +153,9 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     ...initial,
-    vehicles:  normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
-    workTypes: initial?.workTypes ?? DEFAULT_WORK_TYPES,
+    vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
+    adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
+    adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
   }));
   const [saving, setSaving] = useState(false);
   const [estadoBackup, setEstadoBackup] = useState(null);
@@ -221,6 +222,21 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         <p className="text-sm font-black text-zinc-900 mb-1">Vehículos / Equipos</p>
         <p className="text-xs text-zinc-400 mb-4">Los que se asignan en servicios y solicitudes. Su color identifica el trabajo en el calendario.</p>
         <VehiculosManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
+      </div>
+
+      <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+        <div>
+          <p className="text-sm font-black text-zinc-900 mb-1">Administración</p>
+          <p className="text-xs text-zinc-400">
+            A dónde llegan los botones «Enviar a administración» de las solicitudes, los servicios y los albaranes.
+          </p>
+        </div>
+        <Field label="WhatsApp de administración">
+          <Input value={form.adminWhatsapp} onChange={set("adminWhatsapp")} placeholder="34600000000" />
+        </Field>
+        <Field label="Email de administración">
+          <Input type="email" value={form.adminEmail} onChange={set("adminEmail")} placeholder="administracion@empresa.com" />
+        </Field>
       </div>
 
       <CambiarPassword />

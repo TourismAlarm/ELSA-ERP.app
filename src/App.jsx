@@ -13,8 +13,17 @@ import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } f
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { generatePDF } from "./shared/lib/pdf";
+import { FechaServicioModal } from "./shared/components/ui";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
+
+const PESTANAS = [
+  { id: "dashboard",     emoji: "📋", texto: "Solicitudes" },
+  { id: "servicios",     emoji: "🔧", texto: "Servicios" },
+  { id: "albaranesList", emoji: "📝", texto: "Albaranes" },
+  { id: "calendario",    emoji: "📅", texto: "Calendario" },
+  { id: "flota",         emoji: "🚚", texto: "Flota" },
+];
 
 // El enlace de recuperación del correo vuelve a la app con type=recovery,
 // en el hash (flujo implícito) o en la query (flujo PKCE).
@@ -47,6 +56,7 @@ export default function App() {
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
   const [errorCarga, setErrorCarga]   = useState(false);
+  const [pidiendoFechaServicio, setPidiendoFechaServicio] = useState(null);
   const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
@@ -132,29 +142,32 @@ export default function App() {
     // Al aceptar una solicitud, crear su servicio vinculado (si no existe ya)
     if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
       const sol = solicitudes.find((b) => b.id === id);
-      if (!sol) return true;
-      const hoy = new Date().toISOString().slice(0, 10);
-      const fecha = prompt("Fecha del servicio (AAAA-MM-DD):", hoy);
-      if (!fecha || !fecha.trim()) {
-        alert("Solicitud aceptada sin crear servicio. Puedes crearlo a mano desde la pestaña Servicios.");
-        return true;
-      }
-      const saved = await dbSaveServicio({
-        cliente: sol.cliente,
-        vehiculo: sol.vehiculo,
-        origen: sol.origen,
-        destino: sol.destino,
-        descripcion: sol.descripcion,
-        precio: sol.precio,
-        fecha_servicio: fecha.trim(),
-        solicitud_id: id,
-      });
-      if (saved) {
-        setServicios((prev) => [saved, ...prev]);
-        alert(`Solicitud aceptada. Servicio ${saved.numero} creado para el ${fecha.trim()}.`);
-      }
+      // El diálogo pide la fecha con un calendario de verdad, en vez del
+      // prompt() del navegador, que en el móvil es incómodo y no valida nada
+      if (sol) setPidiendoFechaServicio(sol);
     }
     return true;
+  };
+
+  const crearServicioDesdeSolicitud = async (fecha) => {
+    const sol = pidiendoFechaServicio;
+    setPidiendoFechaServicio(null);
+    if (!sol) return;
+    const saved = await dbSaveServicio({
+      cliente: sol.cliente,
+      cliente_id: sol.cliente_id ?? null,
+      vehiculo: sol.vehiculo,
+      origen: sol.origen,
+      destino: sol.destino,
+      descripcion: sol.descripcion,
+      precio: sol.precio,
+      fecha_servicio: fecha,
+      solicitud_id: sol.id,
+    });
+    if (saved) {
+      setServicios((prev) => [saved, ...prev]);
+      handleServicioView(saved);
+    }
   };
 
   const handleAddNota = async (id, texto) => {
@@ -453,50 +466,37 @@ export default function App() {
         </div>
       )}
 
-      {/* Navegación principal */}
+      {pidiendoFechaServicio && (
+        <FechaServicioModal
+          solicitud={pidiendoFechaServicio}
+          onConfirmar={crearServicioDesdeSolicitud}
+          onCancelar={() => setPidiendoFechaServicio(null)}
+        />
+      )}
+
+      {/* Navegación principal. Cinco pestañas con texto no caben en un móvil de
+          375px, así que en pantalla estrecha se queda el icono y el texto solo
+          aparece en la pestaña activa. */}
       {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario" || screen === "flota") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
-          <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
-            <button
-              onClick={() => setScreen("dashboard")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "dashboard" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📋 Solicitudes
-            </button>
-            <button
-              onClick={() => setScreen("servicios")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "servicios" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              🔧 Servicios
-            </button>
-            <button
-              onClick={() => setScreen("albaranesList")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "albaranesList" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📝 Albaranes
-            </button>
-            <button
-              onClick={() => setScreen("calendario")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "calendario" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📅 Calendario
-            </button>
-            <button
-              onClick={() => setScreen("flota")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "flota" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              🚚 Flota
-            </button>
+          <div className="flex gap-1 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
+            {PESTANAS.map((p) => {
+              const activa = screen === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setScreen(p.id)}
+                  aria-label={p.texto}
+                  aria-current={activa ? "page" : undefined}
+                  className={`flex items-center justify-center gap-1.5 py-3.5 px-2 text-base font-black rounded-lg transition-colors ${
+                    activa ? "bg-zinc-900 text-white flex-[2]" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 flex-1"
+                  }`}
+                >
+                  <span aria-hidden="true">{p.emoji}</span>
+                  <span className={activa ? "text-sm" : "hidden sm:inline text-sm"}>{p.texto}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

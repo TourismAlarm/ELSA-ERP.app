@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { ADMIN_EMAIL } from "../../shared/lib/constants";
+import { emailAdmin } from "../../shared/lib/constants";
 
 const formatFecha = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
@@ -193,7 +193,7 @@ export const shareAlbaranPDF = async (a, config, servicio = null) => {
     `(El PDF ${nombreArchivo} se acaba de descargar — adjúntalo a este correo.)`,
   ].join("\n");
   window.open(
-    `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`Albarán ${a.numero} – ${a.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(body)}`,
+    `mailto:${emailAdmin(config)}?subject=${encodeURIComponent(`Albarán ${a.numero} – ${a.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(body)}`,
     "_blank"
   );
 };
