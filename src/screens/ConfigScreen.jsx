@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { supabase } from "../shared/lib/supabase";
 import { dbSaveConfig } from "../modules/solicitudes/db";
 import { Btn, Field, Input, ColorPicker } from "../shared/components/ui";
-import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../shared/lib/constants";
+import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
@@ -66,19 +66,44 @@ const VehiculosManager = ({ items, onChange }) => {
   );
 };
 
-const downloadBackup = async () => {
-  const [{ data: sols }, { data: cfg }] = await Promise.all([
-    supabase.from("solicitudes").select("*").order("id", { ascending: false }),
+// Vuelca TODAS las tablas, no solo solicitudes: una copia que se deja fuera
+// los clientes, los albaranes firmados o la flota no es una copia de seguridad.
+const TABLAS_BACKUP = ["solicitudes", "servicios", "albaranes", "clientes", "vehiculos", "mantenimientos"];
+
+const downloadBackup = async (onEstado) => {
+  onEstado("Descargando...");
+
+  const [{ data: cfg, error: errorCfg }, ...resultados] = await Promise.all([
     supabase.from("config").select("*").eq("id", 1).maybeSingle(),
+    ...TABLAS_BACKUP.map((t) => supabase.from(t).select("*")),
   ]);
-  const backup = { fecha: new Date().toISOString(), config: cfg, solicitudes: sols };
+
+  // Si falla cualquier tabla no se descarga nada: una copia incompleta que
+  // parece completa es peor que no tener copia
+  const fallos = TABLAS_BACKUP.filter((_, i) => resultados[i].error);
+  if (errorCfg || fallos.length > 0) {
+    const detalle = [errorCfg ? "config" : null, ...fallos].filter(Boolean).join(", ");
+    console.error(errorCfg, ...resultados.map((r) => r.error).filter(Boolean));
+    alert(`No se ha podido descargar la copia: falló la lectura de ${detalle}.\n\nNo se ha guardado nada para no dejarte una copia incompleta. Inténtalo de nuevo.`);
+    onEstado(null);
+    return;
+  }
+
+  const datos = Object.fromEntries(TABLAS_BACKUP.map((t, i) => [t, resultados[i].data || []]));
+  const total = Object.values(datos).reduce((n, filas) => n + filas.length, 0);
+
+  const backup = { fecha: new Date().toISOString(), version: 2, config: cfg, ...datos };
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ELSA_backup_${new Date().toLocaleDateString("es-ES").replace(/\//g, "-")}.json`;
+  a.download = `ELSA_backup_${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+
+  onEstado(null);
+  const resumen = TABLAS_BACKUP.map((t) => `${datos[t].length} ${t}`).join("\n");
+  alert(`Copia descargada con ${total} registros:\n\n${resumen}`);
 };
 
 // Cambio de contraseña del usuario que ya tiene la sesión iniciada
@@ -128,10 +153,12 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     ...initial,
-    vehicles:  normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
-    workTypes: initial?.workTypes ?? DEFAULT_WORK_TYPES,
+    vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
+    adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
+    adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
   }));
   const [saving, setSaving] = useState(false);
+  const [estadoBackup, setEstadoBackup] = useState(null);
   const fileRef = useRef();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -197,6 +224,21 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         <VehiculosManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
       </div>
 
+      <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+        <div>
+          <p className="text-sm font-black text-zinc-900 mb-1">Administración</p>
+          <p className="text-xs text-zinc-400">
+            A dónde llegan los botones «Enviar a administración» de las solicitudes, los servicios y los albaranes.
+          </p>
+        </div>
+        <Field label="WhatsApp de administración">
+          <Input value={form.adminWhatsapp} onChange={set("adminWhatsapp")} placeholder="34600000000" />
+        </Field>
+        <Field label="Email de administración">
+          <Input type="email" value={form.adminEmail} onChange={set("adminEmail")} placeholder="administracion@empresa.com" />
+        </Field>
+      </div>
+
       <CambiarPassword />
 
       <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving || cargaFallida}>
@@ -205,8 +247,8 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
       <Btn size="md" variant="secondary" className="w-full" onClick={onClientes}>
         👥 Gestionar clientes
       </Btn>
-      <Btn size="md" variant="secondary" className="w-full" onClick={downloadBackup}>
-        📥 Descargar copia de seguridad
+      <Btn size="md" variant="secondary" className="w-full" onClick={() => downloadBackup(setEstadoBackup)} disabled={!!estadoBackup}>
+        {estadoBackup || "📥 Descargar copia de seguridad"}
       </Btn>
     </div>
   );

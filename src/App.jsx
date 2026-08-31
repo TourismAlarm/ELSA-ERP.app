@@ -1,20 +1,27 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./shared/lib/supabase";
-import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen } from "./screens";
+import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen, ImportarClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
-import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { generatePDF } from "./shared/lib/pdf";
+import { FechaServicioModal } from "./shared/components/ui";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
+
+const PESTANAS = [
+  { id: "dashboard",     emoji: "📋", texto: "Solicitudes" },
+  { id: "servicios",     emoji: "🔧", texto: "Servicios" },
+  { id: "albaranesList", emoji: "📝", texto: "Albaranes" },
+  { id: "calendario",    emoji: "📅", texto: "Calendario" },
+  { id: "flota",         emoji: "🚚", texto: "Flota" },
+];
 
 // El enlace de recuperación del correo vuelve a la app con type=recovery,
 // en el hash (flujo implícito) o en la query (flujo PKCE).
@@ -47,6 +54,7 @@ export default function App() {
   const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving]           = useState(false);
   const [errorCarga, setErrorCarga]   = useState(false);
+  const [pidiendoFechaServicio, setPidiendoFechaServicio] = useState(null);
   const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
@@ -118,6 +126,25 @@ export default function App() {
     setScreen("dashboard");
   };
 
+  // El generador de PDF (jspdf) son unos 700 KB que solo hacen falta cuando
+  // alguien pulsa el botón, así que se carga en ese momento y no en el arranque
+  const pdfSolicitud = async (s) => {
+    const { generatePDF } = await import("./shared/lib/pdf");
+    generatePDF(s, config);
+  };
+
+  const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
+
+  const pdfAlbaran = async (a) => {
+    const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
+    generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
+  };
+
+  const compartirAlbaran = async (a) => {
+    const { shareAlbaranPDF } = await import("./modules/albaranes/pdf");
+    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
+  };
+
   const handleConfigSave = (cfg) => { setConfig(cfg); setScreen("dashboard"); };
   const handleNew        = () => { setEditing(null); setScreen("form"); };
   const handleEdit       = (b) => { setEditing(b); setScreen("form"); };
@@ -132,29 +159,32 @@ export default function App() {
     // Al aceptar una solicitud, crear su servicio vinculado (si no existe ya)
     if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
       const sol = solicitudes.find((b) => b.id === id);
-      if (!sol) return true;
-      const hoy = new Date().toISOString().slice(0, 10);
-      const fecha = prompt("Fecha del servicio (AAAA-MM-DD):", hoy);
-      if (!fecha || !fecha.trim()) {
-        alert("Solicitud aceptada sin crear servicio. Puedes crearlo a mano desde la pestaña Servicios.");
-        return true;
-      }
-      const saved = await dbSaveServicio({
-        cliente: sol.cliente,
-        vehiculo: sol.vehiculo,
-        origen: sol.origen,
-        destino: sol.destino,
-        descripcion: sol.descripcion,
-        precio: sol.precio,
-        fecha_servicio: fecha.trim(),
-        solicitud_id: id,
-      });
-      if (saved) {
-        setServicios((prev) => [saved, ...prev]);
-        alert(`Solicitud aceptada. Servicio ${saved.numero} creado para el ${fecha.trim()}.`);
-      }
+      // El diálogo pide la fecha con un calendario de verdad, en vez del
+      // prompt() del navegador, que en el móvil es incómodo y no valida nada
+      if (sol) setPidiendoFechaServicio(sol);
     }
     return true;
+  };
+
+  const crearServicioDesdeSolicitud = async (fecha) => {
+    const sol = pidiendoFechaServicio;
+    setPidiendoFechaServicio(null);
+    if (!sol) return;
+    const saved = await dbSaveServicio({
+      cliente: sol.cliente,
+      cliente_id: sol.cliente_id ?? null,
+      vehiculo: sol.vehiculo,
+      origen: sol.origen,
+      destino: sol.destino,
+      descripcion: sol.descripcion,
+      precio: sol.precio,
+      fecha_servicio: fecha,
+      solicitud_id: sol.id,
+    });
+    if (saved) {
+      setServicios((prev) => [saved, ...prev]);
+      handleServicioView(saved);
+    }
   };
 
   const handleAddNota = async (id, texto) => {
@@ -177,6 +207,14 @@ export default function App() {
     if (!await dbUpdateCliente({ id, ...datos })) return false;
     setClientes((prev) => prev.map((c) => c.id === id ? { ...c, ...datos } : c));
     return true;
+  };
+
+  const handleImportarClientes = async (nuevos) => {
+    const { creados, fallidos } = await dbImportarClientes(nuevos);
+    if (creados.length > 0) {
+      setClientes((prev) => [...prev, ...creados].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    }
+    return { creados: creados.length, fallidos };
   };
 
   const handleDeleteCliente = async (id) => {
@@ -445,55 +483,43 @@ export default function App() {
         </div>
       )}
 
-      {/* Navegación principal */}
+      {pidiendoFechaServicio && (
+        <FechaServicioModal
+          solicitud={pidiendoFechaServicio}
+          onConfirmar={crearServicioDesdeSolicitud}
+          onCancelar={() => setPidiendoFechaServicio(null)}
+        />
+      )}
+
+      {/* Navegación principal. Cinco pestañas con texto no caben en un móvil de
+          375px, así que en pantalla estrecha se queda el icono y el texto solo
+          aparece en la pestaña activa. */}
       {(screen === "dashboard" || screen === "servicios" || screen === "albaranesList" || screen === "calendario" || screen === "flota") && (
         <div className="max-w-2xl mx-auto px-4 pt-6 -mb-4">
-          <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
-            <button
-              onClick={() => setScreen("dashboard")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "dashboard" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📋 Solicitudes
-            </button>
-            <button
-              onClick={() => setScreen("servicios")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "servicios" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              🔧 Servicios
-            </button>
-            <button
-              onClick={() => setScreen("albaranesList")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "albaranesList" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📝 Albaranes
-            </button>
-            <button
-              onClick={() => setScreen("calendario")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "calendario" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              📅 Calendario
-            </button>
-            <button
-              onClick={() => setScreen("flota")}
-              className={`flex-1 py-3.5 text-base font-black rounded-lg transition-colors ${
-                screen === "flota" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-              }`}
-            >
-              🚚 Flota
-            </button>
+          <div className="flex gap-1 bg-white border-2 border-zinc-200 rounded-xl p-1.5">
+            {PESTANAS.map((p) => {
+              const activa = screen === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setScreen(p.id)}
+                  aria-label={p.texto}
+                  aria-current={activa ? "page" : undefined}
+                  className={`flex items-center justify-center gap-1.5 py-3.5 px-2 text-base font-black rounded-lg transition-colors ${
+                    activa ? "bg-zinc-900 text-white flex-[2]" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 flex-1"
+                  }`}
+                >
+                  <span aria-hidden="true">{p.emoji}</span>
+                  <span className={activa ? "text-sm" : "hidden sm:inline text-sm"}>{p.texto}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
       {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
-      {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
+      {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} onImportar={() => setScreen("importarClientes")} />}
+      {screen === "importarClientes" && <ImportarClientesScreen clientes={clientes} onImportar={handleImportarClientes} onBack={() => setScreen("clientes")} />}
       {screen === "dashboard" && (
         <DashboardScreen
           solicitudes={solicitudes}
@@ -521,7 +547,7 @@ export default function App() {
           onBack={() => setScreen("dashboard")}
           onSendWhatsApp={(s) => sendWhatsApp(s, config)}
           onSendEmail={(s) => sendEmail(s, config)}
-          onGeneratePDF={(s) => generatePDF(s, config)}
+          onGeneratePDF={pdfSolicitud}
           onCambiarEstado={handleCambiarEstado}
           onAddNota={handleAddNota}
         />
@@ -625,8 +651,8 @@ export default function App() {
           onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
-          onGeneratePDF={(a) => generateAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
-          onEnviarEmail={(a) => shareAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
+          onGeneratePDF={pdfAlbaran}
+          onEnviarEmail={compartirAlbaran}
         />
       )}
     </div>

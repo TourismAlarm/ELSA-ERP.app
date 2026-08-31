@@ -7,7 +7,7 @@ import ClienteForm from "../../../shared/components/ClienteForm";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
-  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
+  const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [] }

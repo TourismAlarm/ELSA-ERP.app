@@ -9,7 +9,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 
 const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
-  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
+  const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), hora_inicio: initial.hora_inicio || "", hora_fin: initial.hora_fin || "" }

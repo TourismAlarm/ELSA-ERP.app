@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useUrlsFotos } from "../../lib/fotos";
 
 const PhotoGallery = ({ photos = [] }) => {
   const [viewingIndex, setViewingIndex] = useState(null);
+  const urlDe = useUrlsFotos(photos);
 
   useEffect(() => {
     if (viewingIndex === null) return;
@@ -34,7 +36,7 @@ const PhotoGallery = ({ photos = [] }) => {
             className="relative overflow-hidden rounded-lg border-2 border-zinc-200 hover:border-zinc-400 transition-colors"
           >
             <img
-              src={foto.url}
+              src={urlDe(foto)}
               alt="Foto del servicio"
               className="w-full h-32 object-cover hover:opacity-75 transition-opacity"
             />
@@ -53,7 +55,7 @@ const PhotoGallery = ({ photos = [] }) => {
         >
           <div className="relative max-w-3xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <img
-              src={photos[viewingIndex].url}
+              src={urlDe(photos[viewingIndex])}
               alt="Foto del servicio"
               className="w-full h-full object-contain rounded-lg"
             />

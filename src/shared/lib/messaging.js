@@ -1,4 +1,4 @@
-import { ADMIN_WHATSAPP, ADMIN_EMAIL } from "./constants";
+import { whatsappAdmin, emailAdmin } from "./constants";
 import { dbAddNota } from "../../modules/solicitudes/db";
 
 export const buildMessage = (s, config) => {
@@ -34,7 +34,7 @@ export const buildMessage = (s, config) => {
 };
 
 export const sendWhatsApp = async (s, config) => {
-  window.open(`https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(buildMessage(s, config))}`, "_blank");
+  window.open(`https://wa.me/${whatsappAdmin(config)}?text=${encodeURIComponent(buildMessage(s, config))}`, "_blank");
   if (s.id) {
     await dbAddNota(s.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: "Enviado por WhatsApp" });
   }
@@ -42,7 +42,7 @@ export const sendWhatsApp = async (s, config) => {
 
 export const sendEmail = async (s, config) => {
   window.open(
-    `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`Solicitud ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildMessage(s, config))}`,
+    `mailto:${emailAdmin(config)}?subject=${encodeURIComponent(`Solicitud ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildMessage(s, config))}`,
     "_blank"
   );
   if (s.id) {

@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 node_modules/
 dist/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example

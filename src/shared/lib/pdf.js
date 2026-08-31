@@ -12,7 +12,9 @@ export const generatePDF = (s, config) => {
     try {
       const fmt = config.logo.startsWith("data:image/png") ? "PNG" : "JPEG";
       doc.addImage(config.logo, fmt, margin, 8, 28, 28);
-    } catch {}
+    } catch (e) {
+      console.error("No se ha podido pintar el logo en el PDF:", e);
+    }
     doc.setTextColor(255,255,255); doc.setFontSize(16); doc.setFont("helvetica","bold");
     doc.text(config.nombre || "Mi Empresa", margin + 34, 22);
     doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.setTextColor(180,180,180);

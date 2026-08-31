@@ -1,4 +1,4 @@
-import { ADMIN_EMAIL } from "../../shared/lib/constants";
+import { emailAdmin } from "../../shared/lib/constants";
 import { dbAddNotaServicio } from "./db";
 
 const formatFecha = (f) =>
@@ -28,7 +28,7 @@ export const buildServicioMessage = (s, config) => {
 
 export const sendServicioEmail = async (s, config) => {
   window.open(
-    `mailto:${ADMIN_EMAIL}?subject=${encodeURIComponent(`Confirmación de trabajo ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildServicioMessage(s, config))}`,
+    `mailto:${emailAdmin(config)}?subject=${encodeURIComponent(`Confirmación de trabajo ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildServicioMessage(s, config))}`,
     "_blank"
   );
   if (s.id) {

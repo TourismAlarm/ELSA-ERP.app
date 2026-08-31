@@ -3,7 +3,7 @@ import { Btn } from "../shared/components/ui";
 import { buscaCliente, comercialDistinto } from "../shared/lib/clientes";
 import ClienteForm from "../shared/components/ClienteForm";
 
-const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
+const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete, onImportar }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -39,9 +39,16 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete }) => {
       </div>
 
       {!showForm && (
-        <Btn size="lg" className="w-full mb-6" onClick={() => { setEditingId(null); setShowForm(true); }}>
-          ➕ Nuevo cliente
-        </Btn>
+        <div className="flex flex-col gap-2 mb-6">
+          <Btn size="lg" className="w-full" onClick={() => { setEditingId(null); setShowForm(true); }}>
+            ➕ Nuevo cliente
+          </Btn>
+          {onImportar && (
+            <Btn size="md" variant="secondary" className="w-full" onClick={onImportar}>
+              📄 Importar desde Excel
+            </Btn>
+          )}
+        </div>
       )}
 
       {showForm && (
