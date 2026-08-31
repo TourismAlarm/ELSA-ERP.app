@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { supabase } from "../shared/lib/supabase";
+import { dbSaveConfig } from "../modules/solicitudes/db";
 import { Btn, Field, Input, ColorPicker } from "../shared/components/ui";
 import { DEFAULT_VEHICLES, DEFAULT_WORK_TYPES } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
@@ -80,11 +81,6 @@ const downloadBackup = async () => {
   URL.revokeObjectURL(url);
 };
 
-const dbSaveConfig = async (cfg) => {
-  const { error } = await supabase.from("config").upsert({ id: 1, ...cfg });
-  if (error) console.error(error);
-};
-
 // Cambio de contraseña del usuario que ya tiene la sesión iniciada
 const CambiarPassword = () => {
   const [pwd, setPwd] = useState("");
@@ -128,10 +124,9 @@ const CambiarPassword = () => {
   );
 };
 
-const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
+const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
-    workTypes: DEFAULT_WORK_TYPES,
     ...initial,
     vehicles:  normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     workTypes: initial?.workTypes ?? DEFAULT_WORK_TYPES,
@@ -148,11 +143,14 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
     reader.readAsDataURL(file);
   };
 
+  // Con la configuración sin cargar, el formulario está vacío y guardarlo
+  // machacaría la buena: se bloquea el guardado hasta que se pueda leer.
   const handleSave = async () => {
+    if (cargaFallida) return;
     setSaving(true);
-    await dbSaveConfig(form);
-    onSave(form);
+    const ok = await dbSaveConfig(form);
     setSaving(false);
+    if (ok) onSave(form);
   };
 
   return (
@@ -164,6 +162,16 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
         </div>
         <Btn variant="ghost" size="sm" onClick={onLogout}>🔒 Cerrar sesión</Btn>
       </div>
+
+      {cargaFallida && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-5">
+          <p className="text-sm font-black text-red-800">⚠️ No se ha podido cargar la configuración</p>
+          <p className="text-xs text-red-700 mt-0.5">
+            Este formulario está vacío porque no se han podido leer tus datos, no porque no existan.
+            Guardar ahora los borraría, así que está bloqueado. Recarga la página cuando vuelvas a tener conexión.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
         <p className="text-sm font-black text-zinc-900">Empresa</p>
@@ -191,7 +199,7 @@ const ConfigScreen = ({ onSave, initial, onLogout, onClientes }) => {
 
       <CambiarPassword />
 
-      <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving}>
+      <Btn size="lg" className="w-full" onClick={handleSave} disabled={saving || cargaFallida}>
         {saving ? "Guardando..." : "💾 Guardar configuración"}
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={onClientes}>

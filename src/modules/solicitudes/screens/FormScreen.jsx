@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
-import { buscaCliente, comercialDistinto } from "../../../shared/lib/clientes";
+import { buscaCliente, comercialDistinto, clienteYaExiste } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
@@ -41,9 +41,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
 
   const suggestions = clientes.filter((c) => buscaCliente(c, form.cliente)).slice(0, 6);
 
-  const clienteExacto = clientes.some(
-    (c) => c.nombre.toLowerCase() === form.cliente.trim().toLowerCase()
-  );
+  const clienteExacto = clienteYaExiste(clientes, form.cliente);
 
   const selectCliente = (c) => {
     setForm((f) => ({
@@ -62,8 +60,11 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
     setSavingCliente(true);
     const saved = await onSaveCliente(clienteForm);
     setSavingCliente(false);
+    // Si no se ha guardado, el modal se queda abierto con lo escrito: cerrarlo
+    // daría por creado un cliente que no existe
+    if (!saved) return;
     setShowClienteModal(false);
-    setForm((f) => ({ ...f, cliente: saved?.nombre || clienteForm.nombre, cliente_id: saved?.id ?? null }));
+    setForm((f) => ({ ...f, cliente: saved.nombre, cliente_id: saved.id ?? null }));
   };
 
   const handleSave = () => {

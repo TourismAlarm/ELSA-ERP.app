@@ -36,7 +36,7 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
   const notas = [...(srv.notas || [])].reverse();
 
   const handleCambioEstado = async (nuevoEstado) => {
-    await onCambiarEstado(srv.id, nuevoEstado);
+    if (!await onCambiarEstado(srv.id, nuevoEstado)) return;
     setSrv((prev) => ({ ...prev, estado: nuevoEstado }));
   };
 
@@ -44,9 +44,10 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
     if (!nuevaNota.trim()) return;
     setAddingNota(true);
     const updated = await onAddNota(srv.id, nuevaNota.trim());
-    if (updated) setSrv((prev) => ({ ...prev, ...updated }));
-    setNuevaNota("");
     setAddingNota(false);
+    if (!updated) return; // se conserva lo escrito para poder reintentar
+    setSrv((prev) => ({ ...prev, ...updated }));
+    setNuevaNota("");
   };
 
   return (

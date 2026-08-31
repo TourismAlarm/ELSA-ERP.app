@@ -33,9 +33,10 @@ const deserializeServicio = (s) => ({
   vehiculo: s.vehiculo ? s.vehiculo.split(", ").filter(Boolean) : [],
 });
 
+// null cuando la carga falla, para distinguirlo de "no hay servicios"
 export const dbLoadServicios = async () => {
   const { data, error } = await supabase.from("servicios").select("*").order("created_at", { ascending: false });
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data.map(deserializeServicio);
 };
 
@@ -55,7 +56,8 @@ export const dbSaveServicio = async (servicio) => {
 export const dbUpdateServicio = async (servicio) => {
   const { id, numero, created_at, updated_at, ...campos } = sanitize(servicio);
   const { error } = await supabase.from("servicios").update(campos).eq("id", servicio.id);
-  if (error) { console.error(error); alert("Error al guardar el servicio: " + error.message); }
+  if (error) { console.error(error); alert("Error al guardar el servicio: " + error.message); return false; }
+  return true;
 };
 
 export const dbDeleteServicio = async (id) => {
@@ -66,15 +68,16 @@ export const dbDeleteServicio = async (id) => {
 
 export const dbCambiarEstadoServicio = async (id, estado) => {
   const { error } = await supabase.from("servicios").update({ estado }).eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al cambiar el estado: " + error.message); return false; }
+  return true;
 };
 
 export const dbAddNotaServicio = async (id, nota) => {
   const { data: current, error: fetchError } = await supabase
     .from("servicios").select("notas").eq("id", id).single();
-  if (fetchError) { console.error(fetchError); return null; }
+  if (fetchError) { console.error(fetchError); alert("Error al guardar la nota: " + fetchError.message); return null; }
   const notas = [...(current.notas || []), nota];
   const { error } = await supabase.from("servicios").update({ notas }).eq("id", id);
-  if (error) { console.error(error); return null; }
+  if (error) { console.error(error); alert("Error al guardar la nota: " + error.message); return null; }
   return { notas };
 };

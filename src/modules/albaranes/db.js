@@ -18,9 +18,10 @@ const sanitize = (a) => {
   return sanitized;
 };
 
+// null cuando la carga falla, para distinguirlo de "no hay albaranes"
 export const dbLoadAlbaranes = async () => {
   const { data, error } = await supabase.from("albaranes").select("*").order("created_at", { ascending: false });
-  if (error) { console.error(error); return []; }
+  if (error) { console.error(error); return null; }
   return data;
 };
 
@@ -40,7 +41,8 @@ export const dbSaveAlbaran = async (albaran) => {
 export const dbUpdateAlbaran = async (albaran) => {
   const { id, numero, created_at, updated_at, ...campos } = sanitize(albaran);
   const { error } = await supabase.from("albaranes").update(campos).eq("id", albaran.id);
-  if (error) { console.error(error); alert("Error al guardar el albarán: " + error.message); }
+  if (error) { console.error(error); alert("Error al guardar el albarán: " + error.message); return false; }
+  return true;
 };
 
 // Desvincula del servicio los albaranes que apuntan a él (no los borra).
@@ -53,7 +55,8 @@ export const dbDesvincularAlbaranesDeServicio = async (servicioId) => {
 
 export const dbDeleteAlbaran = async (id) => {
   const { error } = await supabase.from("albaranes").delete().eq("id", id);
-  if (error) console.error(error);
+  if (error) { console.error(error); alert("Error al borrar el albarán: " + error.message); return false; }
+  return true;
 };
 
 export const dbFirmarAlbaran = async (id, firmaBase64, firmadoPor) => {

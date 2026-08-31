@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
-import { buscaCliente, comercialDistinto } from "../../../shared/lib/clientes";
+import { buscaCliente, comercialDistinto, clienteYaExiste } from "../../../shared/lib/clientes";
+import ClienteForm from "../../../shared/components/ClienteForm";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
 const lineaVacia = () => ({ concepto: "", cantidad: "", observaciones: "" });
 
-const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
+const FormScreen = ({ initial, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
@@ -14,6 +15,8 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
       : { cliente: "", fecha: hoy(), descripcion: "", lineas: [lineaVacia()], fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [savingCliente, setSavingCliente] = useState(false);
+  const [showClienteModal, setShowClienteModal] = useState(false);
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -30,6 +33,20 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
   }, []);
 
   const suggestions = clientes.filter((c) => buscaCliente(c, form.cliente)).slice(0, 6);
+
+  const clienteExacto = clienteYaExiste(clientes, form.cliente);
+
+  const handleGuardarClienteModal = async (clienteForm) => {
+    setSavingCliente(true);
+    const saved = await onSaveCliente(clienteForm);
+    setSavingCliente(false);
+    // Si no se ha guardado, el modal se queda abierto con lo escrito: cerrarlo
+    // daría por creado un cliente que no existe
+    if (!saved) return;
+    setShowClienteModal(false);
+    // En el albarán se guarda siempre el nombre fiscal
+    setForm((f) => ({ ...f, cliente: saved.nombre }));
+  };
 
   const setLinea = (i, k, v) => {
     setForm((f) => ({
@@ -90,6 +107,16 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
                 ))}
               </div>
             )}
+            {/* Botón guardar cliente nuevo */}
+            {onSaveCliente && form.cliente.trim() && !clienteExacto && (
+              <button
+                type="button"
+                onClick={() => setShowClienteModal(true)}
+                className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800"
+              >
+                💾 Guardar "{form.cliente.trim()}" como nuevo cliente
+              </button>
+            )}
           </div>
         </Field>
 
@@ -147,6 +174,24 @@ const FormScreen = ({ initial, clientes = [], onSave, onCancel, saving }) => {
           <Btn size="lg" variant="secondary" onClick={onCancel}>Cancelar</Btn>
         </div>
       </div>
+
+      {showClienteModal && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowClienteModal(false)} />
+          <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-zinc-900">Nuevo cliente</h2>
+              <button onClick={() => setShowClienteModal(false)} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
+            </div>
+            <ClienteForm
+              inicial={{ nombre: form.cliente.trim() }}
+              onGuardar={handleGuardarClienteModal}
+              onCancelar={() => setShowClienteModal(false)}
+              guardando={savingCliente}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

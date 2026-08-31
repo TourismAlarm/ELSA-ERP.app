@@ -30,6 +30,7 @@ const ViewScreen = ({ vehiculo, onEdit, onDelete, onBack }) => {
   const v = vehiculo;
   const [mantenimientos, setMantenimientos] = useState([]);
   const [loadingMant, setLoadingMant] = useState(true);
+  const [errorMant, setErrorMant] = useState(false);
   const [nuevoMant, setNuevoMant] = useState(mantenimientoVacio());
   const [mostrarFormMant, setMostrarFormMant] = useState(false);
   const [guardandoMant, setGuardandoMant] = useState(false);
@@ -37,7 +38,10 @@ const ViewScreen = ({ vehiculo, onEdit, onDelete, onBack }) => {
   useEffect(() => {
     let vivo = true;
     dbLoadMantenimientos(v.id).then((m) => {
-      if (vivo) { setMantenimientos(m); setLoadingMant(false); }
+      if (!vivo) return;
+      setMantenimientos(m ?? []);
+      setErrorMant(m === null);
+      setLoadingMant(false);
     });
     return () => { vivo = false; };
   }, [v.id]);
@@ -58,7 +62,7 @@ const ViewScreen = ({ vehiculo, onEdit, onDelete, onBack }) => {
 
   const handleDeleteMantenimiento = async (id) => {
     if (!confirm("¿Eliminar este mantenimiento?")) return;
-    await dbDeleteMantenimiento(id);
+    if (!await dbDeleteMantenimiento(id)) return;
     setMantenimientos((prev) => prev.filter((m) => m.id !== id));
   };
 
@@ -118,6 +122,8 @@ const ViewScreen = ({ vehiculo, onEdit, onDelete, onBack }) => {
 
           {loadingMant ? (
             <p className="text-sm text-zinc-400 mb-3">Cargando historial...</p>
+          ) : errorMant ? (
+            <p className="text-sm text-red-600 mb-3">No se ha podido cargar el historial. Recarga la página.</p>
           ) : mantenimientos.length === 0 ? (
             <p className="text-sm text-zinc-400 mb-3">Sin mantenimientos registrados aún</p>
           ) : (

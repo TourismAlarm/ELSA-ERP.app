@@ -30,7 +30,7 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
   const notas = [...(sol.notas_seguimiento || [])].reverse();
 
   const handleCambioEstado = async (nuevoEstado) => {
-    await onCambiarEstado(sol.id, nuevoEstado);
+    if (!await onCambiarEstado(sol.id, nuevoEstado)) return;
     setSol((prev) => ({ ...prev, estado: nuevoEstado, fecha_ultimo_contacto: new Date().toISOString() }));
   };
 
@@ -38,9 +38,10 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
     if (!nuevaNota.trim()) return;
     setAddingNota(true);
     const updated = await onAddNota(sol.id, nuevaNota.trim());
-    if (updated) setSol((prev) => ({ ...prev, ...updated }));
-    setNuevaNota("");
     setAddingNota(false);
+    if (!updated) return; // se conserva lo escrito para poder reintentar
+    setSol((prev) => ({ ...prev, ...updated }));
+    setNuevaNota("");
   };
 
   return (
