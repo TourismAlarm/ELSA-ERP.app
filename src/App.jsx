@@ -135,14 +135,19 @@ export default function App() {
 
   const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
 
+  // El albarán guarda el nombre del cliente, no su id, así que la ficha se
+  // busca por nombre para poder poner el nº de cliente en el PDF
+  const clienteDeAlbaran = (a) =>
+    clientes.find((c) => (c.nombre || "").trim().toLowerCase() === (a.cliente || "").trim().toLowerCase()) || null;
+
   const pdfAlbaran = async (a) => {
     const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
-    generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
+    generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
   };
 
   const compartirAlbaran = async (a) => {
     const { shareAlbaranPDF } = await import("./modules/albaranes/pdf");
-    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
+    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
   };
 
   const handleConfigSave = (cfg) => { setConfig(cfg); setScreen("dashboard"); };

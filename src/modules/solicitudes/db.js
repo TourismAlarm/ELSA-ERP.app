@@ -125,6 +125,7 @@ export const dbSaveConfig = async (cfg) => {
 export const dbUpdateCliente = async (cliente) => {
   const { error } = await supabase.from("clientes")
     .update({
+      numero: (cliente.numero || "").trim() || null,
       nombre: cliente.nombre,
       nombre_comercial: cliente.nombre_comercial || "",
       nifCif: cliente.nifCif || "",
@@ -165,7 +166,7 @@ export const dbImportarClientes = async (clientes, onProgreso) => {
 
   for (let i = 0; i < clientes.length; i += TAMANO_LOTE) {
     const lote = clientes.slice(i, i + TAMANO_LOTE);
-    const { data, error } = await supabase.from("clientes").insert(lote).select();
+    const { data, error } = await supabase.from("clientes").insert(lote.map(paraGuardar)).select();
     if (error) { console.error(error); fallidos += lote.length; }
     else creados.push(...(data || []));
     if (onProgreso) onProgreso(Math.min(i + TAMANO_LOTE, clientes.length), clientes.length);
@@ -177,8 +178,12 @@ export const dbImportarClientes = async (clientes, onProgreso) => {
   return { creados, fallidos };
 };
 
+// El número vacío se manda como null para que el trigger de la base de datos
+// asigne el siguiente libre; si viene puesto, se respeta.
+const paraGuardar = (c) => ({ ...c, numero: (c.numero || "").trim() || null });
+
 export const dbSaveCliente = async (cliente) => {
-  const { data, error } = await supabase.from("clientes").insert([cliente]).select().single();
+  const { data, error } = await supabase.from("clientes").insert([paraGuardar(cliente)]).select().single();
   if (error) { console.error(error); alert("Error al guardar el cliente: " + error.message); return null; }
   return data;
 };

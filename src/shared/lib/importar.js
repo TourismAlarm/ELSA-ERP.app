@@ -62,6 +62,9 @@ const partirLineas = (texto) => {
 // Campos del cliente y los encabezados que se reconocen para cada uno.
 // Se comparan sin acentos, sin mayúsculas y sin signos.
 export const CAMPOS_CLIENTE = [
+  { clave: "numero",           etiqueta: "Nº de cliente",
+    alias: ["numero", "num", "n", "no", "codigo", "cod", "numero cliente", "n cliente",
+            "codigo cliente", "cod cliente", "id cliente", "ref", "referencia", "clave"] },
   { clave: "nombre",           etiqueta: "Nombre fiscal",     obligatorio: true,
     alias: ["nombre", "cliente", "razon social", "nombre fiscal", "denominacion", "empresa", "nombrecliente"] },
   { clave: "nombre_comercial", etiqueta: "Nombre comercial",  alias: ["nombre comercial", "comercial", "alias", "rotulo", "nombrecomercial"] },
@@ -136,7 +139,12 @@ export const revisarFilas = (filas, columnas, clientesExistentes = []) => {
     if (c.nifCif) yaEnBase.add(normalizar(c.nifCif));
   });
 
+  const numerosEnBase = new Set(
+    clientesExistentes.map((c) => normalizar(c.numero)).filter(Boolean)
+  );
+
   const vistos = new Set();
+  const numerosVistos = new Set();
 
   return filas.map((fila) => {
     const cliente = filaACliente(fila, columnas);
@@ -146,20 +154,31 @@ export const revisarFilas = (filas, columnas, clientesExistentes = []) => {
     let estado = "nuevo";
     let motivo = "";
 
+    // El número se compara aparte: dos clientes distintos con el mismo código
+    // romperían la correspondencia con Factusol, que es justo para lo que sirve
+    const num = normalizar(cliente.numero);
+
     if (!cliente.nombre || !cliente.nombre.trim()) {
       estado = "invalido";
       motivo = "Sin nombre";
     } else if (vistos.has(nombre) || (nif && vistos.has(nif))) {
       estado = "repetido";
       motivo = "Repetido en el fichero";
+    } else if (num && numerosVistos.has(num)) {
+      estado = "repetido";
+      motivo = `Nº ${cliente.numero} repetido en el fichero`;
     } else if (yaEnBase.has(nombre) || (nif && yaEnBase.has(nif))) {
       estado = "duplicado";
       motivo = "Ya está en la base de datos";
+    } else if (num && numerosEnBase.has(num)) {
+      estado = "duplicado";
+      motivo = `El nº ${cliente.numero} ya lo tiene otro cliente`;
     }
 
     if (estado === "nuevo") {
       vistos.add(nombre);
       if (nif) vistos.add(nif);
+      if (num) numerosVistos.add(num);
     }
 
     return { cliente, estado, motivo };

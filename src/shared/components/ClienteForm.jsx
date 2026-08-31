@@ -3,6 +3,7 @@ import { Btn, Field, Input } from "./ui";
 
 const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
   const [form, setForm] = useState({
+    numero: inicial.numero || "",
     nombre: inicial.nombre || "",
     nombre_comercial: inicial.nombre_comercial || "",
     nifCif: inicial.nifCif || "",
@@ -23,6 +24,12 @@ const ClienteForm = ({ inicial = {}, onGuardar, onCancelar, guardando }) => {
 
   return (
     <div className="bg-zinc-50 border-2 border-zinc-200 rounded-xl p-4 flex flex-col gap-3">
+      <Field label="Nº de cliente">
+        <Input value={form.numero} onChange={set("numero")} placeholder="Se asigna solo" inputMode="numeric" />
+        <p className="text-xs text-zinc-400">
+          Déjalo en blanco y se asigna el siguiente libre. Rellénalo solo para que coincida con el código que ya tiene en Factusol.
+        </p>
+      </Field>
       <Field label="Nombre *">
         <Input value={form.nombre} onChange={set("nombre")} placeholder="Juan García" autoFocus />
       </Field>

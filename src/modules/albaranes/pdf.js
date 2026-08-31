@@ -7,7 +7,7 @@ const formatFecha = (f) =>
 const formatFechaHora = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const buildAlbaranDoc = (a, config, servicio = null) => {
+const buildAlbaranDoc = (a, config, servicio = null, cliente = null) => {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, margin = 18;
   let y = 0;
@@ -59,13 +59,21 @@ const buildAlbaranDoc = (a, config, servicio = null) => {
   doc.line(margin, y, W - margin, y);
   y += 10;
 
-  // Cliente
+  // Cliente. El nº de cliente va en el albarán para que al pasarlo a Factusol
+  // se sepa a qué ficha corresponde sin tener que buscarlo por el nombre.
   doc.setFillColor(245, 245, 245);
   doc.roundedRect(margin, y, W - margin * 2, 20, 2, 2, "F");
   doc.setTextColor(100, 100, 100); doc.setFontSize(7); doc.setFont("helvetica", "bold");
   doc.text("CLIENTE", margin + 5, y + 7);
+  if (cliente?.numero) {
+    doc.text(`Nº CLIENTE: ${cliente.numero}`, W - margin - 5, y + 7, { align: "right" });
+  }
   doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
   doc.text(a.cliente || "—", margin + 5, y + 15);
+  if (cliente?.nifCif) {
+    doc.setFontSize(9); doc.setTextColor(80, 80, 80);
+    doc.text(cliente.nifCif, W - margin - 5, y + 15, { align: "right" });
+  }
   y += 28;
 
   // Vehículo / Equipo (del servicio vinculado)
@@ -165,15 +173,15 @@ const buildAlbaranDoc = (a, config, servicio = null) => {
   return doc;
 };
 
-export const generateAlbaranPDF = (a, config, servicio = null) => {
-  buildAlbaranDoc(a, config, servicio).save(`Albaran_${a.numero}.pdf`);
+export const generateAlbaranPDF = (a, config, servicio = null, cliente = null) => {
+  buildAlbaranDoc(a, config, servicio, cliente).save(`Albaran_${a.numero}.pdf`);
 };
 
 // Envía el albarán por email con el PDF adjunto usando la hoja de compartir
 // del sistema (iOS/Android). Si el navegador no soporta compartir archivos,
 // descarga el PDF y abre el correo para adjuntarlo a mano.
-export const shareAlbaranPDF = async (a, config, servicio = null) => {
-  const doc = buildAlbaranDoc(a, config, servicio);
+export const shareAlbaranPDF = async (a, config, servicio = null, cliente = null) => {
+  const doc = buildAlbaranDoc(a, config, servicio, cliente);
   const nombreArchivo = `Albaran_${a.numero}.pdf`;
   const blob = doc.output("blob");
   const file = new File([blob], nombreArchivo, { type: "application/pdf" });
