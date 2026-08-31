@@ -61,7 +61,7 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete, onImportar 
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="🔍 Buscar por nombre o nombre comercial..."
+          placeholder="🔍 Buscar por nombre, nº, NIF, teléfono o email..."
           className="w-full border-2 border-zinc-200 rounded-md px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-900 transition-colors bg-white mb-4"
         />
       )}
@@ -90,7 +90,10 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete, onImportar 
                 </div>
               ) : (
                 <div className="p-5">
-                  <p className="font-black text-zinc-900 text-lg">{c.nombre}</p>
+                  <p className="font-black text-zinc-900 text-lg">
+                    {c.numero && <span className="text-zinc-400 font-mono text-sm mr-2">#{c.numero}</span>}
+                    {c.nombre}
+                  </p>
                   {comercialDistinto(c) && <p className="text-sm text-zinc-500 mt-0.5">🏷 {comercialDistinto(c)}</p>}
                   {c.nifCif && <p className="text-sm text-zinc-500 mt-0.5">🪪 {c.nifCif}</p>}
                   {c.dirFact && <p className="text-sm text-zinc-500 mt-0.5">🏢 {c.dirFact}</p>}

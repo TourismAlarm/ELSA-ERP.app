@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
-import { buscaCliente, comercialDistinto, clienteYaExiste } from "../../../shared/lib/clientes";
+import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente, datosDelCliente } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -47,15 +47,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
   const clienteExacto = clienteYaExiste(clientes, form.cliente);
 
   const selectCliente = (c) => {
-    setForm((f) => ({
-      ...f,
-      cliente: c.nombre,
-      cliente_id: c.id,
-      nifCif: c.nifCif || f.nifCif,
-      dirFact: c.dirFact || f.dirFact,
-      telCliente: c.tel || f.telCliente,
-      emailCliente: c.email || f.emailCliente,
-    }));
+    setForm((f) => ({ ...f, ...datosDelCliente(c, f) }));
     setShowSuggestions(false);
   };
 
@@ -67,7 +59,9 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
     // daría por creado un cliente que no existe
     if (!saved) return;
     setShowClienteModal(false);
-    setForm((f) => ({ ...f, cliente: saved.nombre, cliente_id: saved.id ?? null }));
+    // Se rellena igual que al elegirlo del autocompletado: acabas de escribir
+    // todos sus datos, no tiene sentido que el documento se quede en blanco
+    setForm((f) => ({ ...f, ...datosDelCliente(saved, f) }));
   };
 
   const handleSave = () => {
@@ -106,9 +100,12 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
                     onMouseDown={() => selectCliente(c)}
                     className="w-full text-left px-4 py-3 hover:bg-zinc-50 border-b border-zinc-100 last:border-0 transition-colors"
                   >
-                    <p className="font-bold text-zinc-900">{c.nombre}</p>
+                    <p className="font-bold text-zinc-900">
+                      {c.numero && <span className="text-zinc-400 font-mono text-xs mr-1.5">#{c.numero}</span>}
+                      {c.nombre}
+                    </p>
                     {comercialDistinto(c) && <p className="text-xs text-zinc-600 mt-0.5">🏷 {comercialDistinto(c)}</p>}
-                    <p className="text-xs text-zinc-500 mt-0.5">{[c.tel, c.email].filter(Boolean).join(" · ") || "Sin contacto guardado"}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{detallesCliente(c) || "Sin datos de contacto"}</p>
                   </button>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
-import { buscaCliente, comercialDistinto, clienteYaExiste } from "../../../shared/lib/clientes";
+import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
@@ -100,9 +100,12 @@ const FormScreen = ({ initial, clientes = [], onSave, onSaveCliente, onCancel, s
                     onMouseDown={() => { setForm((f) => ({ ...f, cliente: c.nombre })); setShowSuggestions(false); }}
                     className="w-full text-left px-4 py-3 hover:bg-zinc-50 border-b border-zinc-100 last:border-0 transition-colors"
                   >
-                    <p className="font-bold text-zinc-900">{c.nombre}</p>
+                    <p className="font-bold text-zinc-900">
+                      {c.numero && <span className="text-zinc-400 font-mono text-xs mr-1.5">#{c.numero}</span>}
+                      {c.nombre}
+                    </p>
                     {comercialDistinto(c) && <p className="text-xs text-zinc-600 mt-0.5">🏷 {comercialDistinto(c)}</p>}
-                    <p className="text-xs text-zinc-500 mt-0.5">{[c.tel, c.email].filter(Boolean).join(" · ") || "Sin contacto guardado"}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{detallesCliente(c) || "Sin datos de contacto"}</p>
                   </button>
                 ))}
               </div>
