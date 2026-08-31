@@ -8,7 +8,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 const lineaVacia = () => ({ concepto: "", cantidad: "", observaciones: "" });
 
 const FormScreen = ({ initial, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
-  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
+  const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, fecha: initial.fecha || hoy(), lineas: (initial.lineas && initial.lineas.length > 0 ? initial.lineas : [lineaVacia()]), fotos: initial.fotos || [] }

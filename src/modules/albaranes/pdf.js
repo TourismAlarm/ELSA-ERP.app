@@ -33,7 +33,9 @@ const buildAlbaranDoc = (a, config, servicio = null) => {
     try {
       const fmt = config.logo.startsWith("data:image/png") ? "PNG" : "JPEG";
       doc.addImage(config.logo, fmt, margin, 8, 28, 28);
-    } catch {}
+    } catch (e) {
+      console.error("No se ha podido pintar el logo en el PDF:", e);
+    }
     doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont("helvetica", "bold");
     doc.text(config.nombre || "Mi Empresa", margin + 34, 22);
     doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 180, 180);
@@ -138,7 +140,11 @@ const buildAlbaranDoc = (a, config, servicio = null) => {
   if (a.firma) {
     doc.setDrawColor(220, 220, 220);
     doc.roundedRect(margin, y, 80, 35, 2, 2, "S");
-    try { doc.addImage(a.firma, "PNG", margin + 5, y + 2.5, 70, 30); } catch {}
+    try {
+      doc.addImage(a.firma, "PNG", margin + 5, y + 2.5, 70, 30);
+    } catch (e) {
+      console.error("No se ha podido pintar la firma en el PDF:", e);
+    }
     y += 41;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(30, 30, 30);
     doc.text(`Firmado por: ${a.firmado_por || "—"}`, margin, y);

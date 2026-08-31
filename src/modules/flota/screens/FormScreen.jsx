@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
 
 const FormScreen = ({ initial, onSave, onCancel, saving }) => {
-  const [tempId] = useState(initial?.id || `temp_${Date.now()}`);
+  const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
       ? { ...initial, vencimientos: initial.vencimientos || [], fotos: initial.fotos || [] }

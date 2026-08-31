@@ -8,11 +8,9 @@ import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewSc
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
-import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { generatePDF } from "./shared/lib/pdf";
 import { FechaServicioModal } from "./shared/components/ui";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
@@ -126,6 +124,25 @@ export default function App() {
     setErrorCarga(false);
     setConfigError(false);
     setScreen("dashboard");
+  };
+
+  // El generador de PDF (jspdf) son unos 700 KB que solo hacen falta cuando
+  // alguien pulsa el botón, así que se carga en ese momento y no en el arranque
+  const pdfSolicitud = async (s) => {
+    const { generatePDF } = await import("./shared/lib/pdf");
+    generatePDF(s, config);
+  };
+
+  const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
+
+  const pdfAlbaran = async (a) => {
+    const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
+    generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
+  };
+
+  const compartirAlbaran = async (a) => {
+    const { shareAlbaranPDF } = await import("./modules/albaranes/pdf");
+    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a));
   };
 
   const handleConfigSave = (cfg) => { setConfig(cfg); setScreen("dashboard"); };
@@ -530,7 +547,7 @@ export default function App() {
           onBack={() => setScreen("dashboard")}
           onSendWhatsApp={(s) => sendWhatsApp(s, config)}
           onSendEmail={(s) => sendEmail(s, config)}
-          onGeneratePDF={(s) => generatePDF(s, config)}
+          onGeneratePDF={pdfSolicitud}
           onCambiarEstado={handleCambiarEstado}
           onAddNota={handleAddNota}
         />
@@ -634,8 +651,8 @@ export default function App() {
           onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
-          onGeneratePDF={(a) => generateAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
-          onEnviarEmail={(a) => shareAlbaranPDF(a, config || {}, a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null)}
+          onGeneratePDF={pdfAlbaran}
+          onEnviarEmail={compartirAlbaran}
         />
       )}
     </div>
