@@ -1,47 +1,24 @@
 import { useState, useRef, useEffect } from "react";
-import { supabase } from "../../lib/supabase";
+import { subirFoto, borrarFoto, useUrlsFotos } from "../../lib/fotos";
 
 const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => {
   const [photos, setPhotos] = useState(existingPhotos || []);
   const [uploading, setUploading] = useState(false);
   const [viewingIndex, setViewingIndex] = useState(null);
   const fileInputRef = useRef(null);
+  const urlDe = useUrlsFotos(photos);
 
   const uploadPhoto = async (file) => {
-    try {
-      setUploading(true);
-      const uniqueId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}_${Math.random()}`;
-      const filename = `${Date.now()}_${file.name}`;
-      const filePath = `solicitudes/${solicitudId}/${filename}`;
+    setUploading(true);
+    const nueva = await subirFoto("solicitudes", solicitudId, file);
+    setUploading(false);
+    if (!nueva) return; // el aviso ya se ha mostrado
 
-      const { error: uploadError } = await supabase.storage
-        .from("service-photos")
-        .upload(filePath, file, { upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrl } = supabase.storage
-        .from("service-photos")
-        .getPublicUrl(filePath);
-
-      const newPhoto = {
-        id: uniqueId,
-        url: publicUrl.publicUrl,
-        path: filePath,
-        uploadedAt: new Date().toISOString(),
-      };
-
-      setPhotos((prevPhotos) => {
-        const updatedPhotos = [...prevPhotos, newPhoto];
-        onPhotosChange(updatedPhotos);
-        return updatedPhotos;
-      });
-    } catch (error) {
-      console.error("Error uploading photo:", error);
-      alert("Error al subir la foto. Intenta de nuevo.");
-    } finally {
-      setUploading(false);
-    }
+    setPhotos((prevPhotos) => {
+      const updatedPhotos = [...prevPhotos, nueva];
+      onPhotosChange(updatedPhotos);
+      return updatedPhotos;
+    });
   };
 
   useEffect(() => {
@@ -62,28 +39,29 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
   }, [viewingIndex, photos.length]);
 
   const deletePhoto = async (photo, e) => {
-    if (e) {
-      e.stopPropagation();
-    }
-    try {
-      setUploading(true);
-      const { error } = await supabase.storage
-        .from("service-photos")
-        .remove([photo.path]);
+    if (e) e.stopPropagation();
+    setUploading(true);
+    const ok = await borrarFoto(photo.path);
+    setUploading(false);
+    if (!ok) return;
 
-      if (error) throw error;
+    setPhotos((prevPhotos) => {
+      const updatedPhotos = prevPhotos.filter((p) => p.id !== photo.id);
+      onPhotosChange(updatedPhotos);
+      return updatedPhotos;
+    });
+    setViewingIndex(null);
+  };
 
-      setPhotos((prevPhotos) => {
-        const updatedPhotos = prevPhotos.filter((p) => p.id !== photo.id);
-        onPhotosChange(updatedPhotos);
-        return updatedPhotos;
-      });
-      setViewingIndex(null);
-    } catch (error) {
-      console.error("Error deleting photo:", error);
-      alert("Error al eliminar la foto.");
-    } finally {
-      setUploading(false);
+  // De una en una: varias subidas simultáneas desde el móvil con mala cobertura
+  // se estorban entre ellas y alguna se pierde
+  const subirVarias = async (files) => {
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        alert(`"${file.name}" no es una imagen y no se ha subido.`);
+        continue;
+      }
+      await uploadPhoto(file);
     }
   };
 
@@ -91,15 +69,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
     const files = e.target.files;
     if (!files) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file.type.startsWith("image/")) {
-        alert("Solo se permiten archivos de imagen.");
-        continue;
-      }
-      uploadPhoto(file);
-    }
-
+    subirVarias(Array.from(files));
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -121,7 +91,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
                 className="w-full h-24 rounded-lg border-2 border-zinc-200 overflow-hidden hover:border-zinc-400 transition-colors"
               >
                 <img
-                  src={photo.url}
+                  src={urlDe(photo)}
                   alt="Foto del servicio"
                   className="w-full h-full object-cover group-hover:opacity-75 transition-opacity"
                 />
@@ -147,7 +117,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
         >
           <div className="relative max-w-3xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             <img
-              src={photos[viewingIndex].url}
+              src={urlDe(photos[viewingIndex])}
               alt="Foto del servicio"
               className="w-full h-full object-contain rounded-lg"
             />
@@ -210,11 +180,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
         onDrop={(e) => {
           e.preventDefault();
           e.currentTarget.classList.remove("border-zinc-500");
-          const files = e.dataTransfer.files;
-          for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            if (file.type.startsWith("image/")) uploadPhoto(file);
-          }
+          subirVarias(Array.from(e.dataTransfer.files));
         }}
       >
         <input
@@ -236,7 +202,7 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
           <p className="text-sm font-semibold text-zinc-700">
             {uploading ? "Subiendo..." : "Haz clic o arrastra fotos aquí"}
           </p>
-          <p className="text-xs text-zinc-400 mt-1">PNG, JPG, GIF hasta 10MB</p>
+          <p className="text-xs text-zinc-400 mt-1">Se reducen automáticamente antes de subirlas</p>
         </button>
       </div>
     </div>
