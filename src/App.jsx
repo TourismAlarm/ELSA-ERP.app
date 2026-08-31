@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "./shared/lib/supabase";
-import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen } from "./screens";
+import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen, ImportarClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente } from "./modules/solicitudes/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { generateAlbaranPDF, shareAlbaranPDF } from "./modules/albaranes/pdf";
@@ -177,6 +177,14 @@ export default function App() {
     if (!await dbUpdateCliente({ id, ...datos })) return false;
     setClientes((prev) => prev.map((c) => c.id === id ? { ...c, ...datos } : c));
     return true;
+  };
+
+  const handleImportarClientes = async (nuevos) => {
+    const { creados, fallidos } = await dbImportarClientes(nuevos);
+    if (creados.length > 0) {
+      setClientes((prev) => [...prev, ...creados].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    }
+    return { creados: creados.length, fallidos };
   };
 
   const handleDeleteCliente = async (id) => {
@@ -493,7 +501,8 @@ export default function App() {
         </div>
       )}
       {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
-      {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} />}
+      {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} onImportar={() => setScreen("importarClientes")} />}
+      {screen === "importarClientes" && <ImportarClientesScreen clientes={clientes} onImportar={handleImportarClientes} onBack={() => setScreen("clientes")} />}
       {screen === "dashboard" && (
         <DashboardScreen
           solicitudes={solicitudes}

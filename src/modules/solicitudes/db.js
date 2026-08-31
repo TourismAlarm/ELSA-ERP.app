@@ -154,6 +154,29 @@ export const dbLoadClientes = async () => {
   return data;
 };
 
+// Alta masiva desde el importador. Se inserta por lotes para no mandar
+// cientos de filas en una sola petición, y se cuenta lo que entra de verdad:
+// si un lote falla, los demás siguen y el resumen dice cuántos han quedado
+// fuera, en vez de dar por bueno todo el fichero.
+export const dbImportarClientes = async (clientes, onProgreso) => {
+  const TAMANO_LOTE = 50;
+  const creados = [];
+  let fallidos = 0;
+
+  for (let i = 0; i < clientes.length; i += TAMANO_LOTE) {
+    const lote = clientes.slice(i, i + TAMANO_LOTE);
+    const { data, error } = await supabase.from("clientes").insert(lote).select();
+    if (error) { console.error(error); fallidos += lote.length; }
+    else creados.push(...(data || []));
+    if (onProgreso) onProgreso(Math.min(i + TAMANO_LOTE, clientes.length), clientes.length);
+  }
+
+  if (fallidos > 0) {
+    alert(`Se han importado ${creados.length} clientes, pero ${fallidos} no se han podido guardar. Revisa la lista y vuelve a importar solo los que falten.`);
+  }
+  return { creados, fallidos };
+};
+
 export const dbSaveCliente = async (cliente) => {
   const { data, error } = await supabase.from("clientes").insert([cliente]).select().single();
   if (error) { console.error(error); alert("Error al guardar el cliente: " + error.message); return null; }
