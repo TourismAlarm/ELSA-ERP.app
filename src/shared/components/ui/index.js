@@ -7,3 +7,4 @@ export { default as PhotoGallery } from './PhotoGallery';
 export { default as ColorPicker } from './ColorPicker';
 export { default as MapasModal } from './MapasModal';
 export { default as FechaServicioModal } from './FechaServicioModal';
+export { default as BotonRefrescar } from './BotonRefrescar';

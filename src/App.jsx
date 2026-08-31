@@ -11,7 +11,7 @@ import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFir
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { FechaServicioModal } from "./shared/components/ui";
+import { FechaServicioModal, BotonRefrescar } from "./shared/components/ui";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
 
@@ -55,6 +55,7 @@ export default function App() {
   const [saving, setSaving]           = useState(false);
   const [errorCarga, setErrorCarga]   = useState(false);
   const [pidiendoFechaServicio, setPidiendoFechaServicio] = useState(null);
+  const [refrescando, setRefrescando] = useState(false);
   const [configError, setConfigError] = useState(false);
 
   useEffect(() => {
@@ -74,8 +75,12 @@ export default function App() {
   // Las cargas devuelven null cuando fallan: hay que distinguir "no hay nada
   // guardado" de "no se ha podido leer", porque la segunda no debe vaciar la
   // pantalla en silencio ni llevar a la configuración vacía.
-  const cargarDatos = useCallback(async () => {
-    setLoadingData(true);
+  // `inicial` distingue el arranque del refresco a mano. En el refresco no se
+  // toca `loadingData`, porque las listas se sustituyen por un cargando y se
+  // verían parpadear, ni se cambia de pantalla: te quedas donde estabas.
+  const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
+    if (inicial) setLoadingData(true); else setRefrescando(true);
+
     const [cfgRes, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
     const falloAlguna = [sols, srvs, albs, vhcs, clts].some((x) => x === null) || cfgRes.error;
     setConfig(cfgRes.config);
@@ -86,14 +91,27 @@ export default function App() {
     setAlbaranes(albs ?? []);
     setVehiculos(vhcs ?? []);
     setClientes(clts ?? []);
-    // Solo llevar a Configuración cuando sabemos con certeza que no hay ninguna
-    setScreen(cfgRes.config || cfgRes.error ? "dashboard" : "config");
-    setLoadingData(false);
+
+    // Si estás mirando una ficha, que se actualice también: si no, refrescar
+    // cambiaría la lista pero dejaría delante la versión vieja del documento
+    const refrescaFicha = (lista) => (prev) => (prev ? (lista ?? []).find((x) => x.id === prev.id) || prev : prev);
+    setViewing(refrescaFicha(sols));
+    setViewingServicio(refrescaFicha(srvs));
+    setViewingAlbaran(refrescaFicha(albs));
+    setViewingVehiculo(refrescaFicha(vhcs));
+
+    if (inicial) {
+      // Solo llevar a Configuración cuando sabemos con certeza que no hay ninguna
+      setScreen(cfgRes.config || cfgRes.error ? "dashboard" : "config");
+      setLoadingData(false);
+    } else {
+      setRefrescando(false);
+    }
   }, []);
 
   useEffect(() => {
     if (!sessionUserId) return;
-    (async () => { await cargarDatos(); })();
+    (async () => { await cargarDatos({ inicial: true }); })();
   }, [sessionUserId, cargarDatos]);
 
   // Quita los tokens del enlace de recuperación de la barra de direcciones
@@ -123,6 +141,7 @@ export default function App() {
     setVehiculos([]);
     setErrorCarga(false);
     setConfigError(false);
+    setRefrescando(false);
     setScreen("dashboard");
   };
 
@@ -487,6 +506,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {!loadingData && <BotonRefrescar onRefrescar={() => cargarDatos()} refrescando={refrescando} />}
 
       {pidiendoFechaServicio && (
         <FechaServicioModal
