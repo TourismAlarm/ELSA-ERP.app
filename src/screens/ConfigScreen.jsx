@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
 import { supabase } from "../shared/lib/supabase";
 import { dbSaveConfig } from "../modules/solicitudes/db";
-import { Btn, Field, Input, ColorPicker } from "../shared/components/ui";
+import { Btn, Field, Input, Textarea, ColorPicker } from "../shared/components/ui";
 import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
+import { TEXTOS_PRESUPUESTO } from "../shared/lib/textos";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
 // solicitudes y el calendario). Cada uno es { nombre, color }.
@@ -153,6 +154,12 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     ...initial,
+    // La base de datos devuelve null en las columnas vacías, y un null en un
+    // <input> lo convierte en no controlado y React se queja
+    ...Object.fromEntries(
+      ["contractacion", "web", "formaPago", "observaciones", "conformidad", "legal"]
+        .map((k) => [k, initial?.[k] ?? ""])
+    ),
     vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
     adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
@@ -236,6 +243,46 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         </Field>
         <Field label="Email de administración">
           <Input type="email" value={form.adminEmail} onChange={set("adminEmail")} placeholder="administracion@empresa.com" />
+        </Field>
+      </div>
+
+      <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+        <div>
+          <p className="text-sm font-black text-zinc-900 mb-1">Textos del presupuesto</p>
+          <p className="text-xs text-zinc-400">
+            Lo que sale igual en todos los presupuestos. Se escribe una vez y ya no hay que volver a tocarlo.
+            Si dejas un campo en blanco se usa el texto que trae la aplicación.
+          </p>
+          <p className="text-xs text-zinc-400 mt-1">
+            Puedes usar <b className="text-zinc-600">{"{empresa}"}</b>, <b className="text-zinc-600">{"{email}"}</b>,{" "}
+            <b className="text-zinc-600">{"{tel}"}</b> y <b className="text-zinc-600">{"{direccion}"}</b>: se cambian solos
+            por los datos de arriba.
+          </p>
+        </div>
+
+        <Field label="Teléfonos de contratación">
+          <Input value={form.contractacion} onChange={set("contractacion")} placeholder={TEXTOS_PRESUPUESTO.contractacion} />
+        </Field>
+
+        <Field label="Web">
+          <Input value={form.web} onChange={set("web")} placeholder="gruaselsa.com" />
+        </Field>
+
+        <Field label="Forma de pago por defecto">
+          <Input value={form.formaPago} onChange={set("formaPago")} placeholder={TEXTOS_PRESUPUESTO.formaPago} />
+        </Field>
+
+        <Field label="Observaciones por defecto (una por línea)">
+          <Textarea rows={4} value={form.observaciones} onChange={set("observaciones")} placeholder={TEXTOS_PRESUPUESTO.observaciones} />
+          <p className="text-xs text-zinc-400 mt-1">Aquí va la línea del IVA, que si no el cliente puede pensar que el precio ya lo lleva.</p>
+        </Field>
+
+        <Field label="Texto de conformidad (encima de las firmas)">
+          <Textarea rows={2} value={form.conformidad} onChange={set("conformidad")} placeholder={TEXTOS_PRESUPUESTO.conformidad} />
+        </Field>
+
+        <Field label="Aviso legal del pie">
+          <Textarea rows={5} value={form.legal} onChange={set("legal")} placeholder={TEXTOS_PRESUPUESTO.legal} />
         </Field>
       </div>
 

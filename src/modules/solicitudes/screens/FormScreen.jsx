@@ -4,14 +4,17 @@ import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente, datosDelCliente } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
+import { textoDe } from "../../../shared/lib/textos";
 
 const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [] }
-      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "", fotos: [] }
+      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], formaPago: initial.formaPago || "", observaciones: initial.observaciones || "" }
+      // formaPago y observaciones en blanco quieren decir "usa los de
+      // Configuración"; solo se escriben aquí cuando este presupuesto es distinto
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", metros: "", peso: "", bultos: "", descripcion: "", precio: "", formaPago: "", observaciones: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -177,6 +180,18 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
 
         <Field label="Descripción del servicio"><Textarea value={form.descripcion} onChange={set("descripcion")} placeholder="Descripción del trabajo a realizar..." /></Field>
         <Field label="Precio estimado (€) — opcional"><Input value={form.precio} onChange={set("precio")} placeholder="1500" type="number" min="0" step="0.01" /></Field>
+
+        {/* Lo que sale en el presupuesto. En blanco salen los textos fijos de
+            Configuración, que es lo normal; se escriben solo si este cambia. */}
+        <Field label="Forma de pago — solo si es distinta de la de siempre">
+          <Input value={form.formaPago} onChange={set("formaPago")} placeholder={textoDe(config, "formaPago")} />
+        </Field>
+        <Field label="Observaciones del presupuesto — solo si son distintas">
+          <Textarea rows={4} value={form.observaciones} onChange={set("observaciones")} placeholder={textoDe(config, "observaciones")} />
+          <p className="text-xs text-zinc-400 mt-1">
+            Una por línea. Si lo dejas en blanco salen las de Configuración, con la del IVA incluida.
+          </p>
+        </Field>
 
         <div className="border-t border-zinc-100 pt-4">
           <PhotoUploader

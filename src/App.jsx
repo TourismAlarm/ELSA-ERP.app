@@ -155,7 +155,22 @@ export default function App() {
   // alguien pulsa el botón, así que se carga en ese momento y no en el arranque
   const pdfSolicitud = async (s) => {
     const { generatePDF } = await import("./shared/lib/pdf");
-    generatePDF(s, config);
+    generatePDF({ ...s, ...datosFiscales(s) }, config);
+  };
+
+  // La solicitud no guarda el NIF ni la dirección de facturación: son del
+  // cliente, no del documento. Para el presupuesto se sacan de su ficha, que si
+  // no el PDF sale con el nombre a secas. Lo que ya trae el formulario manda.
+  const datosFiscales = (s) => {
+    const c = s.cliente_id
+      ? clientes.find((x) => x.id === s.cliente_id)
+      : clientes.find((x) => (x.nombre || "").trim().toLowerCase() === (s.cliente || "").trim().toLowerCase());
+    if (!c) return {};
+    return {
+      nifCif:     s.nifCif     || c.nifCif || "",
+      dirFact:    s.dirFact    || c.dirFact || "",
+      telCliente: s.telCliente || c.tel || c.movil || "",
+    };
   };
 
   const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);

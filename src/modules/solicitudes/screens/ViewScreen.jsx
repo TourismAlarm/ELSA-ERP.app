@@ -214,6 +214,18 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
               <p className="text-white font-black text-2xl">{Number(sol.precio).toLocaleString("es-ES", { minimumFractionDigits: 2 })} €</p>
             </div>
           )}
+
+          {/* Solo lo que se ha cambiado en este presupuesto: lo de siempre ya
+              sale en el PDF y no hace falta repetirlo aquí */}
+          {(sol.formaPago || sol.observaciones) && (
+            <div className="border-2 border-amber-200 bg-amber-50 rounded-lg p-4">
+              <p className="text-xs font-bold text-amber-700 tracking-widest uppercase mb-2">Distinto en este presupuesto</p>
+              {sol.formaPago && <p className="text-sm text-zinc-700"><b>Forma de pago:</b> {sol.formaPago}</p>}
+              {sol.observaciones && (
+                <p className="text-sm text-zinc-700 whitespace-pre-wrap mt-1"><b>Observaciones:</b>{"\n"}{sol.observaciones}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
