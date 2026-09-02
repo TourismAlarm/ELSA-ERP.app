@@ -64,18 +64,22 @@ const partirLineas = (texto) => {
 export const CAMPOS_CLIENTE = [
   { clave: "numero",           etiqueta: "Nº de cliente",
     alias: ["numero", "num", "n", "no", "codigo", "cod", "numero cliente", "n cliente",
-            "codigo cliente", "cod cliente", "id cliente", "ref", "referencia", "clave"] },
+            "codigo cliente", "cod cliente", "id cliente", "ref", "referencia", "clave",
+            "codi", "codi client", "num client"] },
   { clave: "nombre",           etiqueta: "Nombre fiscal",     obligatorio: true,
-    alias: ["nombre", "cliente", "razon social", "nombre fiscal", "denominacion", "empresa", "nombrecliente"] },
-  { clave: "nombre_comercial", etiqueta: "Nombre comercial",  alias: ["nombre comercial", "comercial", "alias", "rotulo", "nombrecomercial"] },
-  { clave: "nifCif",           etiqueta: "NIF / CIF",         alias: ["nif", "cif", "nif cif", "nifcif", "dni", "documento", "cifnif"] },
-  { clave: "dirFact",          etiqueta: "Dirección",         alias: ["direccion", "dir", "domicilio", "direccion facturacion", "dirfact", "calle"] },
-  { clave: "cp",               etiqueta: "Código postal",     alias: ["cp", "codigo postal", "codpostal", "cpostal", "zip"] },
-  { clave: "poblacion",        etiqueta: "Población",         alias: ["poblacion", "ciudad", "localidad", "municipio"] },
-  { clave: "provincia",        etiqueta: "Provincia",         alias: ["provincia"] },
-  { clave: "tel",              etiqueta: "Teléfono",          alias: ["tel", "telefono", "tlf", "fijo", "telefono fijo"] },
-  { clave: "movil",            etiqueta: "Móvil",             alias: ["movil", "mobil", "celular", "telefono movil", "whatsapp"] },
-  { clave: "email",            etiqueta: "Email",             alias: ["email", "correo", "mail", "e mail", "correo electronico"] },
+    alias: ["nombre", "cliente", "razon social", "nombre fiscal", "denominacion", "empresa", "nombrecliente",
+            "nom", "client", "rao social", "nom fiscal"] },
+  { clave: "nombre_comercial", etiqueta: "Nombre comercial",  alias: ["nombre comercial", "comercial", "alias", "rotulo", "nombrecomercial",
+            "nom comercial", "retol"] },
+  { clave: "nifCif",           etiqueta: "NIF / CIF",         alias: ["nif", "cif", "nif cif", "nifcif", "dni", "documento", "cifnif", "n i f", "n i f "] },
+  { clave: "dirFact",          etiqueta: "Dirección",         alias: ["direccion", "dir", "domicilio", "direccion facturacion", "dirfact", "calle",
+            "adreca", "adreca fiscal", "carrer"] },
+  { clave: "cp",               etiqueta: "Código postal",     alias: ["cp", "codigo postal", "codpostal", "cpostal", "zip", "c p", "codi postal"] },
+  { clave: "poblacion",        etiqueta: "Población",         alias: ["poblacion", "ciudad", "localidad", "municipio", "poblacio", "ciutat", "municipi"] },
+  { clave: "provincia",        etiqueta: "Provincia",         alias: ["provincia", "comarca"] },
+  { clave: "tel",              etiqueta: "Teléfono",          alias: ["tel", "telefono", "tlf", "fijo", "telefono fijo", "telefon", "tel fon"] },
+  { clave: "movil",            etiqueta: "Móvil",             alias: ["movil", "mobil", "celular", "telefono movil", "whatsapp", "mobil "] },
+  { clave: "email",            etiqueta: "Email",             alias: ["email", "correo", "mail", "e mail", "correo electronico", "correu", "adreca electronica"] },
 ];
 
 export const normalizar = (s) =>
@@ -130,15 +134,17 @@ export const filaACliente = (fila, columnas) => {
   return cliente;
 };
 
-// Marca cada fila con lo que pasa con ella: si le falta el nombre, si ya
-// existe ese cliente, o si está repetida dentro del propio fichero.
+// Marca cada fila con lo que pasa con ella. El número de cliente manda cuando
+// lo hay: es la clave con la que el cliente está dado de alta en Factusol, así
+// que dos fichas con el mismo NIF pero distinto número son dos clientes
+// distintos y hay que crear los dos. Saltarse uno dejaría su código sin cliente
+// al que apuntar, que es justo lo que el número existe para evitar.
 export const revisarFilas = (filas, columnas, clientesExistentes = []) => {
-  const yaEnBase = new Set();
+  const nombresEnBase = new Set();
   clientesExistentes.forEach((c) => {
-    if (c.nombre) yaEnBase.add(normalizar(c.nombre));
-    if (c.nifCif) yaEnBase.add(normalizar(c.nifCif));
+    if (c.nombre) nombresEnBase.add(normalizar(c.nombre));
+    if (c.nifCif) nombresEnBase.add(normalizar(c.nifCif));
   });
-
   const numerosEnBase = new Set(
     clientesExistentes.map((c) => normalizar(c.numero)).filter(Boolean)
   );
@@ -150,32 +156,37 @@ export const revisarFilas = (filas, columnas, clientesExistentes = []) => {
     const cliente = filaACliente(fila, columnas);
     const nombre = normalizar(cliente.nombre);
     const nif = normalizar(cliente.nifCif);
+    const num = normalizar(cliente.numero);
+
+    const repiteNombre = vistos.has(nombre) || (nif && vistos.has(nif));
+    const yaExiste     = nombresEnBase.has(nombre) || (nif && nombresEnBase.has(nif));
 
     let estado = "nuevo";
     let motivo = "";
 
-    // El número se compara aparte: dos clientes distintos con el mismo código
-    // romperían la correspondencia con Factusol, que es justo para lo que sirve
-    const num = normalizar(cliente.numero);
-
     if (!cliente.nombre || !cliente.nombre.trim()) {
       estado = "invalido";
       motivo = "Sin nombre";
-    } else if (vistos.has(nombre) || (nif && vistos.has(nif))) {
-      estado = "repetido";
-      motivo = "Repetido en el fichero";
     } else if (num && numerosVistos.has(num)) {
       estado = "repetido";
-      motivo = `Nº ${cliente.numero} repetido en el fichero`;
-    } else if (yaEnBase.has(nombre) || (nif && yaEnBase.has(nif))) {
-      estado = "duplicado";
-      motivo = "Ya está en la base de datos";
+      motivo = `El nº ${cliente.numero} sale dos veces en el fichero`;
     } else if (num && numerosEnBase.has(num)) {
       estado = "duplicado";
       motivo = `El nº ${cliente.numero} ya lo tiene otro cliente`;
+    } else if (num && (repiteNombre || yaExiste)) {
+      // Tiene número propio: se crea, pero conviene mirarlo
+      estado = "revisar";
+      motivo = "Mismo nombre o NIF que otro, pero con su propio nº";
+    } else if (!num && repiteNombre) {
+      estado = "repetido";
+      motivo = "Repetido en el fichero";
+    } else if (!num && yaExiste) {
+      estado = "duplicado";
+      motivo = "Ya está en la base de datos";
     }
 
-    if (estado === "nuevo") {
+    // Los que van a entrar reservan su nombre y su número para las filas siguientes
+    if (estado === "nuevo" || estado === "revisar") {
       vistos.add(nombre);
       if (nif) vistos.add(nif);
       if (num) numerosVistos.add(num);
@@ -184,3 +195,6 @@ export const revisarFilas = (filas, columnas, clientesExistentes = []) => {
     return { cliente, estado, motivo };
   });
 };
+
+// Filas que se van a crear de verdad
+export const SE_IMPORTAN = ["nuevo", "revisar"];

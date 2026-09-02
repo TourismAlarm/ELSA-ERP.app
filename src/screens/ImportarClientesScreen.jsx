@@ -1,9 +1,10 @@
 import { useState, useRef, useMemo } from "react";
 import { Btn } from "../shared/components/ui";
-import { leerCSV, revisarFilas, CAMPOS_CLIENTE } from "../shared/lib/importar";
+import { leerCSV, revisarFilas, CAMPOS_CLIENTE, SE_IMPORTAN } from "../shared/lib/importar";
 
 const ESTADOS = {
   nuevo:     { etiqueta: "Se creará",  clase: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  revisar:   { etiqueta: "Se creará ⚠", clase: "bg-sky-50 text-sky-700 border-sky-200" },
   duplicado: { etiqueta: "Ya existe",  clase: "bg-amber-50 text-amber-700 border-amber-200" },
   repetido:  { etiqueta: "Repetido",   clase: "bg-amber-50 text-amber-700 border-amber-200" },
   invalido:  { etiqueta: "Sin nombre", clase: "bg-red-50 text-red-700 border-red-200" },
@@ -22,7 +23,7 @@ const ImportarClientesScreen = ({ clientes = [], onImportar, onBack }) => {
     [datos, columnas, clientes]
   );
 
-  const nuevos = revision.filter((r) => r.estado === "nuevo");
+  const nuevos = revision.filter((r) => SE_IMPORTAN.includes(r.estado));
   const hayNombre = columnas.includes("nombre");
 
   const elegirFichero = async (e) => {
@@ -168,14 +169,20 @@ const ImportarClientesScreen = ({ clientes = [], onImportar, onBack }) => {
                 })}
               </div>
               <p className="text-xs text-zinc-500">
-                Solo se crean los que salen como «Se creará». Los que ya existen y los repetidos se dejan tal cual: no se toca ni se sobrescribe ningún cliente que ya tengas.
+                Se crean los marcados como «Se creará». Los que ya existen y los repetidos se dejan tal cual: no se toca ni se sobrescribe ningún cliente que ya tengas.
               </p>
+              {revision.some((r) => r.estado === "revisar") && (
+                <p className="text-xs text-sky-700 mt-2">
+                  Los marcados con ⚠ comparten nombre o NIF con otro, pero traen su propio nº de cliente, así que se crean igualmente: en tu programa de facturación son fichas distintas y saltarse una dejaría su código sin cliente al que apuntar. Míralos después por si alguno sobra.
+                </p>
+              )}
 
               <div className="overflow-x-auto mt-4 -mx-5 px-5">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="text-left text-xs text-zinc-400 uppercase tracking-widest">
                       <th className="py-2 pr-3 font-bold">Estado</th>
+                      <th className="py-2 pr-3 font-bold">Nº</th>
                       <th className="py-2 pr-3 font-bold">Nombre</th>
                       <th className="py-2 pr-3 font-bold">NIF</th>
                       <th className="py-2 font-bold">Contacto</th>
@@ -184,11 +191,13 @@ const ImportarClientesScreen = ({ clientes = [], onImportar, onBack }) => {
                   <tbody>
                     {revision.slice(0, 50).map((r, i) => (
                       <tr key={i} className="border-t border-zinc-100">
-                        <td className="py-2 pr-3 whitespace-nowrap">
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${ESTADOS[r.estado].clase}`}>
+                        <td className="py-2 pr-3">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border whitespace-nowrap ${ESTADOS[r.estado].clase}`}>
                             {ESTADOS[r.estado].etiqueta}
                           </span>
+                          {r.motivo && <span className="block text-[11px] text-zinc-400 mt-1">{r.motivo}</span>}
                         </td>
+                        <td className="py-2 pr-3 font-mono text-xs text-zinc-500">{r.cliente.numero || "—"}</td>
                         <td className="py-2 pr-3 font-semibold text-zinc-900">
                           {r.cliente.nombre || <span className="text-zinc-300">—</span>}
                           {r.cliente.nombre_comercial && <span className="block text-xs font-normal text-zinc-500">🏷 {r.cliente.nombre_comercial}</span>}
