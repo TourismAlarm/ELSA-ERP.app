@@ -247,6 +247,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
           valor={form.fecha_servicio}
           servicios={servicios}
           eventos={eventos}
+          vehiculos={vehicles}
           onElegir={(fecha) => setForm((f) => ({ ...f, fecha_servicio: fecha }))}
           onCancelar={() => setVerCalendario(false)}
         />

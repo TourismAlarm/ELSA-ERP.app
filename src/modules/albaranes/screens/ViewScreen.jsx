@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, PhotoGallery } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, ClienteBloque } from "../../../shared/components/ui";
 
 const ESTADOS = {
   borrador: { label: "Borrador", emoji: "🟠", summary: "bg-amber-50 border-amber-200 text-amber-700",       badge: "bg-amber-100 text-amber-700" },
@@ -12,7 +12,7 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   fechaISO ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
+const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
   const [alb, setAlb] = useState(albaran);
   const [firmante, setFirmante] = useState("");
   const [firmando, setFirmando] = useState(false);
@@ -155,11 +155,7 @@ const ViewScreen = ({ albaran, config, servicioVinculado, onVerServicio, solicit
             </div>
           )}
 
-          {/* Cliente */}
-          <div className="bg-zinc-50 rounded-lg p-4">
-            <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
-            <p className="font-black text-zinc-900 text-xl">{alb.cliente}</p>
-          </div>
+          <ClienteBloque doc={alb} cliente={cliente} />
 
           {/* Vehículo / Equipo (del servicio vinculado) */}
           {(() => {

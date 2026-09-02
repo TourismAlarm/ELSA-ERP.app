@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import Btn from "./Btn";
 import { festivoDe, esFinDeSemana } from "../../lib/festivos";
-import { diasDelEvento, tipoDe } from "../../../modules/eventos/db";
+import { diasDelEvento, tipoDe, colorDe } from "../../../modules/eventos/db";
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
@@ -9,11 +8,21 @@ const iso = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 const hoy = () => iso(new Date());
+const hhmm = (h) => (h ? String(h).slice(0, 5) : "");
+
+const vehiculosDe = (s) => {
+  const a = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
+  return a.filter(Boolean);
+};
 
 // Mientras se crea un servicio hace falta saber si el día está libre. Antes
 // había que salir de la ficha, mirar el calendario y volver, con lo escrito a
-// medias. Esto enseña el mes con la carga de cada día sin salir de la ficha.
-const MiniCalendario = ({ valor, servicios = [], eventos = [], onElegir, onCancelar }) => {
+// medias. Esto enseña el mes entero sin salir de la ficha.
+//
+// Todo va apretado a propósito: en un mes caben 42 días y con la letra grande
+// no entraban en la pantalla del móvil, así que había que ir haciendo scroll
+// para ver la semana de abajo y se perdía justo lo que se venía a mirar.
+const MiniCalendario = ({ valor, servicios = [], eventos = [], vehiculos = [], onElegir, onCancelar }) => {
   const inicial = valor || hoy();
   const [mes, setMes] = useState(() => ({
     year: Number(inicial.slice(0, 4)),
@@ -49,37 +58,38 @@ const MiniCalendario = ({ valor, servicios = [], eventos = [], onElegir, onCance
   const irAHoy = () => {
     const d = new Date();
     setMes({ year: d.getFullYear(), month: d.getMonth() });
+    onElegir(hoy());
   };
 
   const labelMes = primerDia.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
   const detalle = ocupacion[valor];
+  const delDia = detalle ? [...detalle.servicios] : [];
+  delDia.sort((a, b) => (a.hora_inicio || "").localeCompare(b.hora_inicio || ""));
+
+  // Qué camiones están cogidos el día elegido
+  const ocupados = new Set(delDia.flatMap(vehiculosDe));
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/40" onClick={onCancelar} />
-      <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-black text-zinc-900">Elegir el día</h2>
-          <button onClick={onCancelar} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
-        </div>
-        <p className="text-sm text-zinc-500 mb-4">Toca un día para ponerlo en el servicio. Los números dicen lo que ya hay apuntado.</p>
+      <div className="relative bg-white rounded-t-2xl px-4 pt-3 pb-5 max-h-[92vh] overflow-y-auto">
 
-        <div className="flex items-center justify-between mb-3">
-          <button onClick={() => mover(-1)} className="w-9 h-9 rounded-lg border-2 border-zinc-200 font-black text-zinc-600 hover:border-zinc-900">‹</button>
-          <div className="text-center">
-            <p className="font-black text-zinc-900 capitalize">{labelMes}</p>
-            <button onClick={irAHoy} className="text-xs font-bold text-blue-600 hover:text-blue-800">Ir a hoy</button>
-          </div>
-          <button onClick={() => mover(1)} className="w-9 h-9 rounded-lg border-2 border-zinc-200 font-black text-zinc-600 hover:border-zinc-900">›</button>
+        {/* Cabecera: mes y navegación en una sola línea */}
+        <div className="flex items-center gap-2 mb-2">
+          <button onClick={() => mover(-1)} className="w-8 h-8 shrink-0 rounded-lg bg-zinc-100 text-zinc-600 font-black hover:bg-zinc-900 hover:text-white transition-colors">‹</button>
+          <p className="flex-1 text-center text-sm font-black text-zinc-900 capitalize leading-none">{labelMes}</p>
+          <button onClick={() => mover(1)} className="w-8 h-8 shrink-0 rounded-lg bg-zinc-100 text-zinc-600 font-black hover:bg-zinc-900 hover:text-white transition-colors">›</button>
+          <button onClick={irAHoy} className="shrink-0 text-[11px] font-bold text-blue-600 hover:text-blue-800 px-1">Hoy</button>
+          <button onClick={onCancelar} className="shrink-0 w-8 h-8 rounded-lg text-zinc-400 hover:text-zinc-900 text-xl leading-none">×</button>
         </div>
 
-        <div className="grid grid-cols-7 gap-1 mb-1">
+        <div className="grid grid-cols-7 gap-px mb-px">
           {DIAS_SEMANA.map((d) => (
-            <div key={d} className="text-center text-[11px] font-black text-zinc-400 py-1">{d}</div>
+            <div key={d} className="text-center text-[10px] font-black text-zinc-300 leading-none py-1">{d}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-px">
           {celdas.map((dia, i) => {
             if (!dia) return <div key={`v${i}`} />;
             const festivo = festivoDe(dia);
@@ -88,71 +98,93 @@ const MiniCalendario = ({ valor, servicios = [], eventos = [], onElegir, onCance
             const nEventos = carga?.eventos.length || 0;
             const elegido = dia === valor;
             const esHoy = dia === hoy();
-            const libre = !nServicios && !nEventos && !festivo && !esFinDeSemana(dia);
+            const finde = esFinDeSemana(dia);
 
             return (
               <button
                 key={dia}
                 type="button"
                 onClick={() => onElegir(dia)}
-                title={festivo || undefined}
+                title={[festivo, nServicios ? `${nServicios} servicio(s)` : null].filter(Boolean).join(" · ") || undefined}
                 className={[
-                  "aspect-square rounded-lg border-2 flex flex-col items-center justify-center transition-all",
-                  elegido ? "border-zinc-900 bg-zinc-900 text-white"
-                    : festivo ? "border-rose-200 bg-rose-50 text-rose-600"
-                    : esFinDeSemana(dia) ? "border-zinc-100 bg-zinc-50 text-zinc-400"
-                    : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-900",
+                  "h-11 rounded flex flex-col items-center justify-center gap-px transition-colors",
+                  elegido ? "bg-zinc-900 text-white"
+                    : festivo ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                    : finde ? "bg-zinc-50 text-zinc-400 hover:bg-zinc-100"
+                    : "text-zinc-800 hover:bg-zinc-100",
                 ].join(" ")}
               >
-                <span className={`text-sm font-black leading-none ${esHoy && !elegido ? "underline decoration-2 underline-offset-2" : ""}`}>
+                <span className={`text-xs font-black leading-none ${esHoy && !elegido ? "underline decoration-2 underline-offset-2" : ""}`}>
                   {Number(dia.slice(8, 10))}
                 </span>
-                <span className="flex items-center gap-0.5 h-3 mt-0.5">
-                  {nServicios > 0 && (
-                    <span className={`text-[9px] font-black leading-none px-1 rounded ${elegido ? "bg-white/25" : "bg-zinc-900 text-white"}`}>
-                      {nServicios}
-                    </span>
-                  )}
-                  {nEventos > 0 && (
-                    <span className={`text-[9px] leading-none ${elegido ? "opacity-90" : ""}`}>●</span>
-                  )}
-                  {libre && !elegido && <span className="text-[9px] text-emerald-500 leading-none">·</span>}
+                {/* Un punto por servicio, hasta cuatro: se lee la carga del día
+                    sin tener que poner un número que no se ve en el móvil */}
+                <span className="flex items-center gap-px h-1.5">
+                  {Array.from({ length: Math.min(nServicios, 4) }).map((_, k) => (
+                    <span key={k} className={`w-1 h-1 rounded-full ${elegido ? "bg-white" : "bg-zinc-800"}`} />
+                  ))}
+                  {nServicios > 4 && <span className={`text-[7px] font-black leading-none ${elegido ? "text-white" : "text-zinc-800"}`}>+</span>}
+                  {nEventos > 0 && <span className={`w-1 h-1 rounded-full ${elegido ? "bg-white/70" : "bg-teal-500"}`} />}
                 </span>
               </button>
             );
           })}
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-[11px] text-zinc-500">
-          <span><b className="text-zinc-900">3</b> servicios ese día</span>
-          <span>● otra cosa apuntada</span>
-          <span className="text-rose-500">festivo</span>
-        </div>
-
-        {valor && (
-          <div className="mt-4 border-t border-zinc-100 pt-3">
-            <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-2">
-              {new Date(valor + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
-              {festivoDe(valor) && <span className="text-rose-500 normal-case tracking-normal"> · {festivoDe(valor)}</span>}
+        {/* Lo que hay el día elegido */}
+        <div className="mt-3 border-t border-zinc-100 pt-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className="text-xs font-black text-zinc-900 capitalize">
+              {valor
+                ? new Date(valor + "T00:00:00").toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })
+                : "Elige un día"}
             </p>
-            {!detalle && <p className="text-sm text-zinc-400">Ese día no hay nada apuntado.</p>}
-            {detalle?.servicios.map((s) => (
-              <p key={s.id} className="text-sm text-zinc-700 truncate">
-                <span className="font-mono text-xs text-zinc-400 mr-1.5">{(s.hora_inicio || "").slice(0, 5) || "--:--"}</span>
-                {s.cliente || "Sin cliente"}
+            {festivoDe(valor) && <span className="text-[11px] font-bold text-rose-500">🔴 {festivoDe(valor)}</span>}
+          </div>
+
+          {/* Camiones libres y cogidos ese día */}
+          {vehiculos.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {vehiculos.map((v) => {
+                const cogido = ocupados.has(v.nombre);
+                return (
+                  <span
+                    key={v.nombre}
+                    style={cogido ? { backgroundColor: v.color, color: "#fff" } : undefined}
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${cogido ? "" : "bg-zinc-50 text-zinc-400 line-through"}`}
+                  >
+                    {v.nombre}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-1.5 max-h-28 overflow-y-auto">
+            {delDia.length === 0 && (detalle?.eventos.length || 0) === 0 && (
+              <p className="text-[11px] text-zinc-400">Nada apuntado. Día libre.</p>
+            )}
+            {delDia.map((s) => (
+              <p key={s.id} className="text-[11px] text-zinc-700 truncate leading-snug">
+                <span className="font-mono text-zinc-400">{hhmm(s.hora_inicio) || "--:--"}</span>
+                {" "}{vehiculosDe(s).join(", ") || "sin camión"}
+                <span className="text-zinc-400"> · </span>{s.cliente || "sin cliente"}
               </p>
             ))}
             {detalle?.eventos.map((e) => (
-              <p key={e.id} className="text-sm text-zinc-700 truncate">
-                <span className="mr-1.5">{tipoDe(e).emoji}</span>{e.titulo}
+              <p key={e.id} className="text-[11px] truncate leading-snug" style={{ color: colorDe(e) }}>
+                {tipoDe(e).emoji} {e.titulo}
               </p>
             ))}
           </div>
-        )}
-
-        <div className="flex gap-2 mt-5">
-          <Btn size="lg" className="flex-1" onClick={onCancelar}>Listo</Btn>
         </div>
+
+        <button
+          onClick={onCancelar}
+          className="w-full mt-3 py-2.5 bg-zinc-900 text-white text-sm font-black rounded-lg hover:bg-zinc-700 transition-colors"
+        >
+          Usar este día
+        </button>
       </div>
     </div>
   );
