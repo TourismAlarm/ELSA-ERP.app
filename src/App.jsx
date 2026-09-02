@@ -9,9 +9,10 @@ import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitu
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
+import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { FechaServicioModal, BotonRefrescar } from "./shared/components/ui";
+import { FechaServicioModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
 import { mapaColoresVehiculo } from "./shared/lib/color";
 import { today } from "./shared/lib/utils";
 
@@ -49,6 +50,9 @@ export default function App() {
   const [editingAlbaran, setEditingAlbaran] = useState(null);
   const [viewingAlbaran, setViewingAlbaran] = useState(null);
   const [vehiculos, setVehiculos] = useState([]);
+  const [eventos, setEventos] = useState([]);
+  // Evento del calendario que se está creando o editando: { evento?, fecha }
+  const [editandoEvento, setEditandoEvento] = useState(null);
   const [editingVehiculo, setEditingVehiculo] = useState(null);
   const [viewingVehiculo, setViewingVehiculo] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -81,8 +85,8 @@ export default function App() {
   const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
     if (inicial) setLoadingData(true); else setRefrescando(true);
 
-    const [cfgRes, sols, srvs, albs, vhcs, clts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes()]);
-    const falloAlguna = [sols, srvs, albs, vhcs, clts].some((x) => x === null) || cfgRes.error;
+    const [cfgRes, sols, srvs, albs, vhcs, clts, evts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos()]);
+    const falloAlguna = [sols, srvs, albs, vhcs, clts, evts].some((x) => x === null) || cfgRes.error;
     setConfig(cfgRes.config);
     setConfigError(cfgRes.error);
     setErrorCarga(falloAlguna);
@@ -91,6 +95,7 @@ export default function App() {
     setAlbaranes(albs ?? []);
     setVehiculos(vhcs ?? []);
     setClientes(clts ?? []);
+    setEventos(evts ?? []);
 
     // Si estás mirando una ficha, que se actualice también: si no, refrescar
     // cambiaría la lista pero dejaría delante la versión vieja del documento
@@ -139,6 +144,7 @@ export default function App() {
     setServicios([]);
     setAlbaranes([]);
     setVehiculos([]);
+    setEventos([]);
     setErrorCarga(false);
     setConfigError(false);
     setRefrescando(false);
@@ -149,7 +155,22 @@ export default function App() {
   // alguien pulsa el botón, así que se carga en ese momento y no en el arranque
   const pdfSolicitud = async (s) => {
     const { generatePDF } = await import("./shared/lib/pdf");
-    generatePDF(s, config);
+    generatePDF({ ...s, ...datosFiscales(s) }, config);
+  };
+
+  // La solicitud no guarda el NIF ni la dirección de facturación: son del
+  // cliente, no del documento. Para el presupuesto se sacan de su ficha, que si
+  // no el PDF sale con el nombre a secas. Lo que ya trae el formulario manda.
+  const datosFiscales = (s) => {
+    const c = s.cliente_id
+      ? clientes.find((x) => x.id === s.cliente_id)
+      : clientes.find((x) => (x.nombre || "").trim().toLowerCase() === (s.cliente || "").trim().toLowerCase());
+    if (!c) return {};
+    return {
+      nifCif:     s.nifCif     || c.nifCif || "",
+      dirFact:    s.dirFact    || c.dirFact || "",
+      telCliente: s.telCliente || c.tel || c.movil || "",
+    };
   };
 
   const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
@@ -190,7 +211,7 @@ export default function App() {
     return true;
   };
 
-  const crearServicioDesdeSolicitud = async (fecha) => {
+  const crearServicioDesdeSolicitud = async ({ fecha, hora_inicio, hora_fin }) => {
     const sol = pidiendoFechaServicio;
     setPidiendoFechaServicio(null);
     if (!sol) return;
@@ -203,6 +224,8 @@ export default function App() {
       descripcion: sol.descripcion,
       precio: sol.precio,
       fecha_servicio: fecha,
+      hora_inicio,
+      hora_fin,
       solicitud_id: sol.id,
     });
     if (saved) {
@@ -409,6 +432,25 @@ export default function App() {
     }
   };
 
+  // ---- Eventos del calendario (lo que no es un servicio) ----
+  const handleGuardarEvento = async (evento) => {
+    if (evento.id) {
+      if (!await dbUpdateEvento(evento)) return;
+      setEventos((prev) => prev.map((e) => e.id === evento.id ? { ...e, ...evento } : e));
+    } else {
+      const saved = await dbSaveEvento(evento);
+      if (!saved) return;
+      setEventos((prev) => [...prev, saved]);
+    }
+    setEditandoEvento(null);
+  };
+
+  const handleBorrarEvento = async (id) => {
+    if (!await dbDeleteEvento(id)) return;
+    setEventos((prev) => prev.filter((e) => e.id !== id));
+    setEditandoEvento(null);
+  };
+
   // ---- Flota ----
   const handleVehiculoNew  = () => { setEditingVehiculo(null); setScreen("vehiculoForm"); };
   const handleVehiculoEdit = (v) => { setEditingVehiculo(v); setScreen("vehiculoForm"); };
@@ -509,9 +551,22 @@ export default function App() {
 
       {!loadingData && <BotonRefrescar onRefrescar={() => cargarDatos()} refrescando={refrescando} />}
 
+      {editandoEvento && (
+        <EventoModal
+          inicial={editandoEvento.evento}
+          fecha={editandoEvento.fecha}
+          vehiculos={vehiculos}
+          onGuardar={handleGuardarEvento}
+          onBorrar={handleBorrarEvento}
+          onCancelar={() => setEditandoEvento(null)}
+        />
+      )}
+
       {pidiendoFechaServicio && (
         <FechaServicioModal
           solicitud={pidiendoFechaServicio}
+          servicios={servicios}
+          eventos={eventos}
           onConfirmar={crearServicioDesdeSolicitud}
           onCancelar={() => setPidiendoFechaServicio(null)}
         />
@@ -592,7 +647,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
@@ -616,6 +671,9 @@ export default function App() {
         <CalendarScreen
           servicios={servicios}
           albaranes={albaranes}
+          eventos={eventos}
+          onNuevoEvento={(fecha) => setEditandoEvento({ fecha })}
+          onEditarEvento={(evento) => setEditandoEvento({ evento, fecha: evento.fecha })}
           coloresVehiculo={coloresVehiculo}
           flota={vehiculos}
           onVerVehiculo={handleVehiculoView}

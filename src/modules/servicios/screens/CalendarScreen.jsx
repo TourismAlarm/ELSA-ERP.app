@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
+import { festivoDe } from "../../../shared/lib/festivos";
+import { tipoDe, colorDe, diasDelEvento } from "../../eventos/db";
 
 // Lista de vehículos/equipos de un servicio (normaliza array/string)
 const vehiculosDe = (s) => {
@@ -119,7 +121,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onMoverServicio, onAddNota, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig }) => {
   // Estilo de la etiqueta de un servicio: color del vehículo/equipo indicado
   // (o del primero si no se especifica); si no hay color, el color por estado
   // (ámbar abierto / verde realizado)
@@ -349,6 +351,25 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
     añade(v.seguro_vencimiento, "Seguro");
     (v.vencimientos || []).forEach((x) => añade(x.fecha, x.nombre || "Vencimiento"));
   });
+  // Eventos que no son servicios (visitas, ausencias, taller...). Los de varios
+  // días aparecen en cada uno de los días que ocupan.
+  const eventosPorDia = {};
+  (eventos || []).forEach((e) => {
+    diasDelEvento(e).forEach((iso) => {
+      (eventosPorDia[iso] = eventosPorDia[iso] || []).push(e);
+    });
+  });
+  // Los de todo el día van a la franja de arriba; los que tienen hora, a la rejilla
+  const eventosDelDia = eventosPorDia[fecha] || [];
+  const eventosSinHora = eventosDelDia.filter((e) => e.todo_el_dia || !e.hora_inicio);
+  const eventosConHora = eventosDelDia
+    .filter((e) => !e.todo_el_dia && e.hora_inicio)
+    .map((e) => ({
+      e,
+      ini: aMinutosDesdeInicio(e.hora_inicio),
+      fin: e.hora_fin ? aMinutosDesdeInicio(e.hora_fin) : aMinutosDesdeInicio(e.hora_inicio) + 60,
+    }));
+
   const ALTO_AVISO = 18; // px por fila de aviso en la vista de semana
   const maxAvisosSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (avisosPorDia[iso] || []).length));
   const alturaAvisosSemana = maxAvisosSemana * ALTO_AVISO;
@@ -356,7 +377,10 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
   // Franja de servicios sin hora en la vista de semana (misma altura en las 7
   // columnas para que la rejilla horaria quede alineada)
   const ALTO_SIN_HORA = 18; // px por fila de servicio sin hora
-  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) => expandir((porDia[iso] || []).filter((s) => !s.hora_inicio)).length));
+  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) =>
+    expandir((porDia[iso] || []).filter((s) => !s.hora_inicio)).length +
+    (eventosPorDia[iso] || []).filter((e) => e.todo_el_dia || !e.hora_inicio).length
+  ));
   const alturaSinHoraSemana = maxSinHoraSemana * ALTO_SIN_HORA;
 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
@@ -409,27 +433,48 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
               .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
             const esHoy = iso === hoy();
             const seleccionado = iso === fecha;
+            const festivo = festivoDe(iso);
+            const evs = eventosPorDia[iso] || [];
             const entradas = expandir(svs); // una por vehículo, con su color
-            const visibles = entradas.slice(0, 3);
+            // Los eventos van primero: un día libre o una visita condicionan
+            // lo que se puede meter ese día
+            const visibles = entradas.slice(0, Math.max(1, 3 - evs.length));
             const extra = entradas.length - visibles.length;
             return (
               <button
                 key={iso}
                 onClick={() => setFecha(iso)}
+                title={festivo || undefined}
                 className={`relative min-h-[72px] rounded-lg border-2 flex flex-col items-stretch gap-0.5 p-1 text-left transition-colors ${
                   seleccionado
                     ? "bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900"
-                    : "bg-white border-zinc-200 hover:border-zinc-400"
+                    : festivo
+                      ? "bg-rose-50 border-rose-200 hover:border-rose-400"
+                      : "bg-white border-zinc-200 hover:border-zinc-400"
                 }`}
               >
                 {(avisosPorDia[iso] || []).length > 0 && (
                   <span className="absolute top-0.5 right-0.5 text-[9px] leading-none" title="Vencimiento de flota">⚠️</span>
                 )}
                 <span className={`self-center text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
-                  esHoy ? "bg-zinc-900 text-white" : "text-zinc-700"
+                  esHoy ? "bg-zinc-900 text-white" : festivo ? "text-rose-600" : "text-zinc-700"
                 }`}>
                   {dia}
                 </span>
+                {festivo && (
+                  <span className="block w-full truncate px-1 text-[8px] font-bold text-rose-500 leading-tight">
+                    {festivo}
+                  </span>
+                )}
+                {evs.slice(0, 2).map((e) => (
+                  <span
+                    key={e.id}
+                    style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
+                    className="block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight"
+                  >
+                    {tipoDe(e).emoji} {e.titulo}
+                  </span>
+                ))}
                 {visibles.map(({ s, vehiculo }, vi) => {
                   const ev = estiloEvento(s, vehiculo);
                   const hecho = (s.estado || "abierto") === "realizado";
@@ -506,7 +551,14 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
         </button>
       </div>
 
-      <Btn size="lg" className="w-full mb-1.5" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Nuevo servicio</Btn>
+      <div className="flex gap-2 mb-1.5">
+        <Btn size="lg" className="flex-1" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Servicio</Btn>
+        {onNuevoEvento && (
+          <Btn size="lg" variant="secondary" className="flex-1" onClick={() => onNuevoEvento(fecha)}>
+            📅 Otra cosa
+          </Btn>
+        )}
+      </div>
       <p className="text-[11px] text-zinc-400 text-center mb-4">
         Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
       </p>
@@ -514,7 +566,30 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
       {vistaHoras === "dia" ? (
         <>
           {/* Día seleccionado */}
-          <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-4">{labelDia}</p>
+          <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-1">{labelDia}</p>
+          {festivoDe(fecha) && (
+            <p className="text-center text-sm font-black text-rose-600 mb-3">🎉 {festivoDe(fecha)}</p>
+          )}
+          {!festivoDe(fecha) && <div className="mb-3" />}
+
+          {/* Eventos del día que no son servicios */}
+          {eventosSinHora.length > 0 && (
+            <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-3">
+              <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Todo el día</p>
+              <div className="flex flex-wrap gap-2">
+                {eventosSinHora.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => onEditarEvento && onEditarEvento(e)}
+                    style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
+                    className="text-xs font-bold px-3 py-2 rounded-full"
+                  >
+                    {tipoDe(e).emoji} {e.titulo}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Vencimientos de flota del día (informativos, navegan al vehículo) */}
           {(avisosPorDia[fecha] || []).length > 0 && (
@@ -584,6 +659,34 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                     style={{ height: 30 * PX_POR_MINUTO }}
                   />
                 ))}
+
+                {/* Eventos con hora: no se arrastran, tocarlos abre su ficha.
+                    Van al fondo para que un servicio encima siga siendo visible. */}
+                {eventosConHora.map(({ e, ini, fin }) => {
+                  const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
+                  const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
+                  const color = colorDe(e);
+                  return (
+                    <button
+                      key={`ev-${e.id}`}
+                      onClick={() => onEditarEvento && onEditarEvento(e)}
+                      style={{
+                        top: top * PX_POR_MINUTO,
+                        height: alto * PX_POR_MINUTO,
+                        left: "2%", width: "96%",
+                        backgroundColor: color, color: textoSobre(color),
+                      }}
+                      className="absolute rounded-lg px-2 py-1 text-left overflow-hidden border-2 border-white/40"
+                    >
+                      <p className="text-[10px] font-black leading-tight truncate">
+                        {tipoDe(e).emoji} {e.titulo}
+                      </p>
+                      <p className="text-[9px] opacity-80 leading-tight">
+                        {horaCorta(e.hora_inicio)}{e.hora_fin ? ` – ${horaCorta(e.hora_fin)}` : ""}
+                      </p>
+                    </button>
+                  );
+                })}
 
                 {/* Bloques de servicios con hora */}
                 {conHora.map((bloque, bi) => {
@@ -687,6 +790,12 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                 const bloques = bloquesDe(svsDia);
                 const esHoy = iso === hoy();
                 const seleccionado = iso === fecha;
+                const festivoDia = festivoDe(iso);
+                const evsDia = eventosPorDia[iso] || [];
+                const evsSinHoraDia = evsDia.filter((e) => e.todo_el_dia || !e.hora_inicio);
+                const evsConHoraDia = evsDia
+                  .filter((e) => !e.todo_el_dia && e.hora_inicio)
+                  .map((e) => ({ e, ini: aMinutosDesdeInicio(e.hora_inicio), fin: e.hora_fin ? aMinutosDesdeInicio(e.hora_fin) : aMinutosDesdeInicio(e.hora_inicio) + 60 }));
                 return (
                   <div key={iso} className="flex-1 min-w-[72px] border-l border-zinc-100">
                     {/* Cabecera del día */}
@@ -696,7 +805,7 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                         seleccionado ? "bg-zinc-100" : "hover:bg-zinc-50"
                       }`}
                     >
-                      <span className="text-[10px] font-black text-zinc-400">{DIAS_SEMANA[idx]}</span>
+                      <span className={`text-[10px] font-black ${festivoDia ? "text-rose-500" : "text-zinc-400"}`} title={festivoDia || undefined}>{DIAS_SEMANA[idx]}</span>
                       <span className={`text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
                         esHoy ? "bg-zinc-900 text-white" : "text-zinc-800"
                       }`}>
@@ -724,6 +833,17 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
                     {/* Franja de servicios sin hora asignada (tocar abre el panel) */}
                     {alturaSinHoraSemana > 0 && (
                       <div className="border-t border-zinc-100 overflow-hidden" style={{ height: alturaSinHoraSemana }}>
+                        {evsSinHoraDia.map((e) => (
+                          <button
+                            key={`ev-${e.id}`}
+                            onClick={() => onEditarEvento && onEditarEvento(e)}
+                            title={e.titulo}
+                            style={{ height: ALTO_SIN_HORA - 2, backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
+                            className="block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight"
+                          >
+                            {tipoDe(e).emoji} {e.titulo}
+                          </button>
+                        ))}
                         {sinHoraDia.map(({ s, vehiculo }, vi) => {
                           const ev = estiloEvento(s, vehiculo);
                           const multi = vehiculosDe(s).length > 1;
@@ -744,6 +864,23 @@ const CalendarScreen = ({ servicios, albaranes, coloresVehiculo = {}, flota = []
 
                     {/* Área horaria del día */}
                     <div className="relative">
+                      {evsConHoraDia.map(({ e, ini, fin }) => {
+                        const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
+                        const alto = Math.max(20, Math.min(fin, TOTAL_MINUTOS) - top);
+                        const color = colorDe(e);
+                        return (
+                          <button
+                            key={`ev-${e.id}`}
+                            onClick={() => onEditarEvento && onEditarEvento(e)}
+                            title={`${e.titulo} · ${horaCorta(e.hora_inicio)}`}
+                            style={{ top: top * PX_POR_MINUTO, height: alto * PX_POR_MINUTO,
+                                     left: "3%", width: "94%", backgroundColor: color, color: textoSobre(color) }}
+                            className="absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1]"
+                          >
+                            <p className="text-[8px] font-black leading-tight truncate">{tipoDe(e).emoji} {e.titulo}</p>
+                          </button>
+                        );
+                      })}
                       {franjas.map((min) => (
                         <button
                           key={min}

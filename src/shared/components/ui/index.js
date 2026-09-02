@@ -8,3 +8,5 @@ export { default as ColorPicker } from './ColorPicker';
 export { default as MapasModal } from './MapasModal';
 export { default as FechaServicioModal } from './FechaServicioModal';
 export { default as BotonRefrescar } from './BotonRefrescar';
+export { default as EventoModal } from './EventoModal';
+export { default as MiniCalendario } from './MiniCalendario';
