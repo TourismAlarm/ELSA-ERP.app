@@ -13,7 +13,9 @@ import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./m
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { FechaServicioModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
-import { mapaColoresVehiculo } from "./shared/lib/color";
+import { conDatosDelCliente, fichaDelCliente } from "./shared/lib/clientes";
+import { mapaColoresVehiculo, normalizeVehiculos } from "./shared/lib/color";
+import { DEFAULT_VEHICLES } from "./shared/lib/constants";
 import { today } from "./shared/lib/utils";
 
 const PESTANAS = [
@@ -155,23 +157,23 @@ export default function App() {
   // alguien pulsa el botón, así que se carga en ese momento y no en el arranque
   const pdfSolicitud = async (s) => {
     const { generatePDF } = await import("./shared/lib/pdf");
-    generatePDF({ ...s, ...datosFiscales(s) }, config);
+    generatePDF(conCliente(s), config);
   };
 
-  // La solicitud no guarda el NIF ni la dirección de facturación: son del
-  // cliente, no del documento. Para el presupuesto se sacan de su ficha, que si
-  // no el PDF sale con el nombre a secas. Lo que ya trae el formulario manda.
-  const datosFiscales = (s) => {
-    const c = s.cliente_id
-      ? clientes.find((x) => x.id === s.cliente_id)
-      : clientes.find((x) => (x.nombre || "").trim().toLowerCase() === (s.cliente || "").trim().toLowerCase());
-    if (!c) return {};
-    return {
-      nifCif:     s.nifCif     || c.nifCif || "",
-      dirFact:    s.dirFact    || c.dirFact || "",
-      telCliente: s.telCliente || c.tel || c.movil || "",
-    };
+  const pdfServicio = async (s) => {
+    const { generateServicioPDF } = await import("./shared/lib/pdf");
+    generateServicioPDF(conCliente(s), config);
   };
+
+  // Ni solicitudes ni servicios ni albaranes guardan el NIF, la dirección de
+  // facturación, el teléfono ni el email: son del cliente, no del documento, y
+  // no existen como columnas. Se rellenan desde su ficha justo antes de
+  // enseñarlos o imprimirlos, así que ya no se pierden al salir y volver.
+  const conCliente = (doc) => conDatosDelCliente(doc, clientes);
+
+  // La ficha entera del cliente, para el número y el nombre comercial, que el
+  // documento no guarda
+  const fichaCliente = (doc) => fichaDelCliente(doc, clientes);
 
   const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
 
@@ -567,6 +569,7 @@ export default function App() {
           solicitud={pidiendoFechaServicio}
           servicios={servicios}
           eventos={eventos}
+          vehiculos={normalizeVehiculos(config?.vehicles ?? DEFAULT_VEHICLES)}
           onConfirmar={crearServicioDesdeSolicitud}
           onCancelar={() => setPidiendoFechaServicio(null)}
         />
@@ -615,11 +618,12 @@ export default function App() {
         />
       )}
       {screen === "form" && (
-        <FormScreen initial={editing} config={config} clientes={clientes} onSave={handleFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("dashboard")} saving={saving} />
+        <FormScreen initial={conCliente(editing)} config={config} clientes={clientes} onSave={handleFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("dashboard")} saving={saving} />
       )}
       {screen === "view" && viewing && (
         <ViewScreen
-          solicitud={viewing}
+          solicitud={conCliente(viewing)}
+          cliente={fichaCliente(viewing)}
           config={config || {}}
           servicioVinculado={servicios.find((s) => s.solicitud_id === viewing.id) || null}
           onVerServicio={handleServicioView}
@@ -647,11 +651,13 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={conCliente(editingServicio)} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
-          servicio={viewingServicio}
+          servicio={conCliente(viewingServicio)}
+          cliente={fichaCliente(viewingServicio)}
+          onGeneratePDF={pdfServicio}
           config={config || {}}
           solicitudOrigen={viewingServicio.solicitud_id ? solicitudes.find((b) => b.id === viewingServicio.solicitud_id) || null : null}
           onVerSolicitud={handleView}
@@ -721,11 +727,12 @@ export default function App() {
         />
       )}
       {screen === "albaranForm" && (
-        <AlbaranFormScreen initial={editingAlbaran} clientes={clientes} onSave={handleAlbaranFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("albaranesList")} saving={saving} />
+        <AlbaranFormScreen initial={conCliente(editingAlbaran)} clientes={clientes} onSave={handleAlbaranFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("albaranesList")} saving={saving} />
       )}
       {screen === "albaranView" && viewingAlbaran && (
         <AlbaranViewScreen
-          albaran={viewingAlbaran}
+          albaran={conCliente(viewingAlbaran)}
+          cliente={fichaCliente(viewingAlbaran)}
           config={config || {}}
           servicioVinculado={viewingAlbaran.servicio_id ? servicios.find((s) => s.id === viewingAlbaran.servicio_id) || null : null}
           onVerServicio={handleServicioView}

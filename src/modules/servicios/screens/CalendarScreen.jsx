@@ -13,6 +13,13 @@ const vehiculosDe = (s) => {
 // Devuelve el primer vehículo/equipo del servicio (para el color del calendario)
 const primerVehiculo = (s) => vehiculosDe(s)[0] || null;
 
+// El camión que va, escrito. Hasta ahora solo se distinguía por el color, así
+// que un servicio sin vehículo, o con uno que ya no está en Configuración y por
+// tanto sin color, se veía igual que cualquier otro: no había forma de saber
+// qué camiones estaban ocupados. Un servicio sin vehículo lo dice, para poder
+// detectarlo de un vistazo y asignárselo.
+const etiquetaVehiculo = (vehiculo) => (vehiculo ? `🚛 ${vehiculo}` : "🚛 Sin camión");
+
 // Expande un servicio en una entrada por cada vehículo/equipo, para pintar cada
 // camión con su color en el calendario (como se hace a mano en Google Calendar).
 // Sigue siendo UN solo servicio: todas las entradas comparten el mismo `s`.
@@ -386,45 +393,45 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-10">
+    <div className="max-w-2xl mx-auto px-3 py-5">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-8 gap-4">
+      <div className="flex items-start justify-between mb-4 gap-4">
         <div>
           <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-1">Servicios del mes</p>
-          <h1 className="text-3xl font-black text-zinc-900">Calendario</h1>
+          <h1 className="text-2xl font-black text-zinc-900">Calendario</h1>
         </div>
         <Btn variant="ghost" size="sm" onClick={onConfig}>⚙️ Config</Btn>
       </div>
 
       {/* Vista mensual */}
-      <div className="bg-white border-2 border-zinc-200 rounded-xl p-4 mb-6">
+      <div className="bg-white border-2 border-zinc-200 rounded-xl p-3 mb-4">
         {/* Navegación de mes */}
-        <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center justify-between gap-3 mb-2">
           <button
             onClick={() => cambiarMes(-1)}
-            className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+            className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
           >
             ◀
           </button>
-          <p className="text-lg font-black text-zinc-900 capitalize text-center flex-1">{labelMes}</p>
+          <p className="text-base font-black text-zinc-900 capitalize text-center flex-1">{labelMes}</p>
           <button
             onClick={() => cambiarMes(1)}
-            className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+            className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
           >
             ▶
           </button>
         </div>
 
         {/* Cabecera de días de la semana */}
-        <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+        <div className="grid grid-cols-7 gap-0.5 mb-0.5">
           {DIAS_SEMANA.map((d) => (
             <div key={d} className="text-center text-xs font-black text-zinc-400 py-1">{d}</div>
           ))}
         </div>
 
         {/* Rejilla de días (estilo agenda: cada día muestra sus servicios) */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5">
           {celdas.map((dia, i) => {
             if (dia === null) return <div key={`vacio-${i}`} />;
             const iso = toISO(new Date(mes.year, mes.month, dia));
@@ -445,7 +452,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 key={iso}
                 onClick={() => setFecha(iso)}
                 title={festivo || undefined}
-                className={`relative min-h-[72px] rounded-lg border-2 flex flex-col items-stretch gap-0.5 p-1 text-left transition-colors ${
+                className={`relative min-h-[58px] rounded border flex flex-col items-stretch gap-px p-0.5 text-left transition-colors ${
                   seleccionado
                     ? "bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900"
                     : festivo
@@ -456,7 +463,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 {(avisosPorDia[iso] || []).length > 0 && (
                   <span className="absolute top-0.5 right-0.5 text-[9px] leading-none" title="Vencimiento de flota">⚠️</span>
                 )}
-                <span className={`self-center text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
+                <span className={`self-center text-[11px] font-black leading-none rounded-full w-4 h-4 flex items-center justify-center ${
                   esHoy ? "bg-zinc-900 text-white" : festivo ? "text-rose-600" : "text-zinc-700"
                 }`}>
                   {dia}
@@ -482,9 +489,10 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     <span
                       key={`${s.id}-${vehiculo || vi}`}
                       style={ev.style}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${ev.className}`}
+                      title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                     >
-                      {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                      {hecho ? "✓ " : ""}{vehiculo || "Sin camión"} · {s.cliente || "Sin nombre"}
                     </span>
                   );
                 })}
@@ -520,6 +528,41 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
             </>
           )}
         </div>
+
+        {/* Qué camiones están cogidos el día elegido: la pregunta que se hace
+            todo el rato al mirar el calendario */}
+        {Object.keys(coloresVehiculo).length > 0 && (() => {
+          const ocupados = new Set(
+            (porDia[fecha] || []).flatMap((s) => vehiculosDe(s))
+          );
+          const sinCamion = (porDia[fecha] || []).filter((s) => vehiculosDe(s).length === 0).length;
+          return (
+            <div className="mt-3 pt-3 border-t border-zinc-100">
+              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+                <span className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
+                  {new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                </span>
+                {Object.entries(coloresVehiculo).map(([nombre, color]) => {
+                  const ocupado = ocupados.has(nombre);
+                  return (
+                    <span
+                      key={nombre}
+                      style={ocupado ? { backgroundColor: color, color: textoSobre(color) } : undefined}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ocupado ? "" : "bg-zinc-50 text-zinc-400 line-through"}`}
+                    >
+                      {nombre}
+                    </span>
+                  );
+                })}
+                {sinCamion > 0 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-zinc-500 ring-1 ring-zinc-300">
+                    {sinCamion} sin camión
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {(!esMesActual || fecha !== hoy()) && (
           <button
@@ -617,7 +660,6 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 {expandir(sinHora).map(({ s, vehiculo }, vi) => {
                   const ev = estiloEvento(s, vehiculo);
                   const albaran = albaranes.find((a) => a.servicio_id === s.id);
-                  const multi = vehiculosDe(s).length > 1;
                   return (
                     <button
                       key={`${s.id}-${vehiculo || vi}`}
@@ -625,7 +667,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       style={ev.style}
                       className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
                     >
-                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{s.cliente || "Sin nombre"}{multi && vehiculo ? ` · ${vehiculo}` : ""}{albaran ? " 📝" : ""}
+                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{etiquetaVehiculo(vehiculo)} · {s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
                     </button>
                   );
                 })}
@@ -696,7 +738,6 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   const ev = estiloEvento(s, vehiculo);
                   const albaran = albaranes.find((a) => a.servicio_id === s.id);
                   const hecho = (s.estado || "abierto") === "realizado";
-                  const multi = vehiculosDe(s).length > 1;
                   return (
                     <button
                       key={`${s.id}-${vehiculo || bi}`}
@@ -718,9 +759,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       <p className="text-[11px] font-bold leading-tight truncate">
                         {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
                       </p>
-                      {multi && vehiculo && (
-                        <p className="text-[10px] font-bold leading-tight truncate">🚛 {vehiculo}</p>
-                      )}
+                      <p className={`text-[10px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>
+                        {etiquetaVehiculo(vehiculo)}
+                      </p>
                       {s.descripcion && (
                         <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
                       )}
@@ -746,17 +787,17 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
       ) : (
         <>
           {/* Navegación de semana */}
-          <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
             <button
               onClick={() => cambiarSemana(-1)}
-              className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+              className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
             >
               ◀
             </button>
             <p className="text-sm font-black text-zinc-700 text-center flex-1 capitalize">{labelSemana}</p>
             <button
               onClick={() => cambiarSemana(1)}
-              className="w-12 h-12 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-xl text-lg font-black transition-colors"
+              className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
             >
               ▶
             </button>
@@ -846,16 +887,15 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         ))}
                         {sinHoraDia.map(({ s, vehiculo }, vi) => {
                           const ev = estiloEvento(s, vehiculo);
-                          const multi = vehiculosDe(s).length > 1;
-                          return (
+                                  return (
                             <button
                               key={`${s.id}-${vehiculo || vi}`}
                               onClick={() => setServicioSeleccionado(s)}
-                              title={`${s.cliente || "Sin nombre"}${multi && vehiculo ? ` · ${vehiculo}` : ""}`}
+                              title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
                               style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
-                              className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className}`}
+                              className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                             >
-                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{multi && vehiculo ? vehiculo : (s.cliente || "Sin nombre")}
+                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
                             </button>
                           );
                         })}
@@ -895,8 +935,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
                         const ev = estiloEvento(s, vehiculo);
-                        const multi = vehiculosDe(s).length > 1;
-                        return (
+                              return (
                           <button
                             key={`${s.id}-${vehiculo || bi}`}
                             onClick={() => { if (justDraggedRef.current) return; setServicioSeleccionado(s); }}
@@ -912,10 +951,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                           >
                             <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
-                            <p className="text-[9px] font-bold leading-tight truncate">{multi && vehiculo ? `🚛 ${vehiculo}` : (s.cliente || "Sin nombre")}</p>
-                            {!multi && s.descripcion && (
-                              <p className="text-[8px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
-                            )}
+                            <p className={`text-[9px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>{etiquetaVehiculo(vehiculo)}</p>
+                            <p className="text-[9px] leading-tight truncate">{s.cliente || "Sin nombre"}</p>
                           </button>
                         );
                       })}

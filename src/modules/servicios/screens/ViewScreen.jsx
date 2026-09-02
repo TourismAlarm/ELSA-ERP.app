@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery, MapasModal } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal, ClienteBloque } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
@@ -25,7 +25,7 @@ const rangoHoras = (inicio, fin) => {
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onGeneratePDF, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
@@ -137,11 +137,7 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
             </div>
           )}
 
-          {/* Cliente */}
-          <div className="bg-zinc-50 rounded-lg p-4">
-            <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
-            <p className="font-black text-zinc-900 text-xl">{srv.cliente}</p>
-          </div>
+          <ClienteBloque doc={srv} cliente={cliente} />
 
           {(() => {
             const vs = Array.isArray(srv.vehiculo) ? srv.vehiculo : (srv.vehiculo ? [srv.vehiculo] : []);
@@ -234,6 +230,11 @@ const ViewScreen = ({ servicio, config, solicitudOrigen, onVerSolicitud, albaran
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-5 mb-4">
         <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Confirmación de trabajo</p>
         <Btn size="lg" variant="email" className="w-full" onClick={() => onSendEmail(srv)}>✉️ Enviar por email</Btn>
+        {onGeneratePDF && (
+          <Btn size="md" variant="secondary" className="w-full mt-2" onClick={() => onGeneratePDF(srv)}>
+            📄 PDF del servicio
+          </Btn>
+        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">

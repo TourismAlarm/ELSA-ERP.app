@@ -10,6 +10,9 @@
 with esperadas(tabla, columna) as (values
   ('config','nombre'), ('config','tel'), ('config','email'), ('config','direccion'),
   ('config','logo'), ('config','vehicles'), ('config','adminWhatsapp'), ('config','adminEmail'),
+  -- Textos fijos del presupuesto
+  ('config','contractacion'), ('config','web'), ('config','formaPago'),
+  ('config','observaciones'), ('config','conformidad'), ('config','legal'),
 
   ('clientes','numero'), ('clientes','nombre'), ('clientes','nombre_comercial'),
   ('clientes','nifCif'), ('clientes','dirFact'), ('clientes','cp'), ('clientes','poblacion'),
@@ -21,6 +24,7 @@ with esperadas(tabla, columna) as (values
   ('solicitudes','descripcion'), ('solicitudes','precio'), ('solicitudes','fotos'),
   ('solicitudes','estado'), ('solicitudes','fecha_ultimo_contacto'),
   ('solicitudes','notas_seguimiento'), ('solicitudes','avisos_activos'), ('solicitudes','created_at'),
+  ('solicitudes','formaPago'), ('solicitudes','observaciones'),
 
   ('servicios','numero'), ('servicios','cliente'), ('servicios','cliente_id'),
   ('servicios','vehiculo'), ('servicios','origen'), ('servicios','destino'),
@@ -38,7 +42,12 @@ with esperadas(tabla, columna) as (values
   ('vehiculos','notas'), ('vehiculos','vencimientos'), ('vehiculos','fotos'), ('vehiculos','activo'),
 
   ('mantenimientos','vehiculo_id'), ('mantenimientos','fecha'), ('mantenimientos','descripcion'),
-  ('mantenimientos','taller'), ('mantenimientos','coste'), ('mantenimientos','km')
+  ('mantenimientos','taller'), ('mantenimientos','coste'), ('mantenimientos','km'),
+
+  -- Eventos del calendario que no son servicios
+  ('eventos','titulo'), ('eventos','tipo'), ('eventos','fecha'), ('eventos','fecha_fin'),
+  ('eventos','hora_inicio'), ('eventos','hora_fin'), ('eventos','todo_el_dia'),
+  ('eventos','notas'), ('eventos','color'), ('eventos','vehiculo_id')
 )
 select e.tabla, e.columna, 'FALTA EN LA BASE DE DATOS' as problema
 from esperadas e

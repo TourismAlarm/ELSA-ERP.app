@@ -13,7 +13,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 // pedía la fecha con un prompt() del navegador: incómodo en el móvil, sin
 // validar nada, y encima el servicio nacía sin hora, así que no ocupaba sitio
 // en el calendario y no se veía si el día estaba lleno.
-const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], onConfirmar, onCancelar }) => {
+const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], vehiculos = [], onConfirmar, onCancelar }) => {
   const [datos, setDatos] = useState(() =>
     conHorasValidas({ fecha: hoy(), hora_inicio: HORA_INICIO_POR_DEFECTO, hora_fin: "" })
   );
@@ -102,6 +102,7 @@ const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], onConfirm
             valor={datos.fecha}
             servicios={servicios}
             eventos={eventos}
+            vehiculos={vehiculos}
             onElegir={(fecha) => setDatos((d) => ({ ...d, fecha }))}
             onCancelar={() => setVerCalendario(false)}
           />

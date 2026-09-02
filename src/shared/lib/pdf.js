@@ -1,10 +1,12 @@
 import { jsPDF } from "jspdf";
 import { textoDe, lineasObservaciones } from "./textos";
 
-// El presupuesto que se envía al cliente. Copia el formato del que la empresa
-// venía mandando a mano, para que el de la aplicación no desentone: mismo
-// encabezado, misma tabla de documento, mismos bloques de IMPORT, FORMA DE
-// PAGAMENT y OBSERVACIONS, y los mismos textos fijos del pie.
+// Los documentos que se envían al cliente: el presupuesto y la hoja del
+// servicio. Los dos copian el formato del presupuesto que la empresa venía
+// mandando a mano, para que no desentonen: mismo encabezado, misma tabla de
+// documento, mismos bloques y los mismos textos fijos del pie. Solo cambia lo
+// de en medio, así que la plantilla es una sola y cada documento pone su
+// contenido.
 
 const W = 210, H = 297;
 const MARGEN = 16;          // margen exterior de la hoja
@@ -13,8 +15,10 @@ const CAJA_DER = W - MARGEN;
 const TEXTO_X = CAJA_X + 4;
 const ANCHO_TEXTO = CAJA_DER - TEXTO_X - 4;
 
-// Alto reservado al pie fijo (conformidad, firmas y aviso legal)
-const PIE = 62;
+// Hueco del logo arriba a la derecha, donde el original no pone nada. El logo
+// se mete dentro respetando su proporción, así que uno apaisado usa todo el
+// ancho y uno cuadrado se queda en 30x30.
+const LOGO = { x: CAJA_DER - 54, y: 8, ancho: 54, alto: 30 };
 
 const NEGRO = [20, 20, 20];
 const GRIS = [110, 110, 110];
@@ -22,7 +26,7 @@ const LINEA = [190, 190, 190];
 
 // useGrouping "always": en es-ES los números de cuatro cifras no llevan punto
 // por defecto y el presupuesto de siempre pone "2.778 €"
-const eur = (n) =>
+export const eur = (n) =>
   `${Number(n).toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: "always" })} €`;
 
 // dd/mm/aaaa a partir de un "2026-06-17"; si no lo parece, se deja tal cual
@@ -30,6 +34,8 @@ const fechaES = (iso) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
   return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || "");
 };
+
+const hhmm = (h) => (h ? String(h).slice(0, 5) : "");
 
 // La dirección de una sola línea se parte por la última coma, que es donde
 // suele estar el código postal: "C/ Josep Castella 10, 08301 Mataró"
@@ -40,9 +46,40 @@ const partirDireccion = (dir) => {
   return i > 0 ? [t.slice(0, i).trim(), t.slice(i + 1).trim()] : [t];
 };
 
-const generatePDF = (s, config = {}) => {
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+const vehiculosDe = (d) => {
+  const arr = Array.isArray(d.vehiculo) ? d.vehiculo : (d.vehiculo ? [d.vehiculo] : []);
+  return arr.filter(Boolean);
+};
+
+// El logo, lo más grande que quepa en su hueco sin deformarse
+const pintarLogo = (doc, logo) => {
+  if (!logo) return;
+  try {
+    const fmt = logo.startsWith("data:image/png") ? "PNG" : "JPEG";
+    let { ancho, alto } = LOGO;
+    // Si no se puede leer el tamaño real se usa el hueco entero, que es lo que
+    // se hacía antes: peor un logo algo estirado que ningún logo
+    try {
+      const props = doc.getImageProperties(logo);
+      if (props?.width && props?.height) {
+        const escala = Math.min(LOGO.ancho / props.width, LOGO.alto / props.height);
+        ancho = props.width * escala;
+        alto = props.height * escala;
+      }
+    } catch { /* sin propiedades: se usa el hueco entero */ }
+    // Pegado a la derecha y centrado en vertical dentro del hueco
+    doc.addImage(logo, fmt, LOGO.x + (LOGO.ancho - ancho), LOGO.y + (LOGO.alto - alto) / 2, ancho, alto, undefined, "FAST");
+  } catch (e) {
+    console.error("No se ha podido pintar el logo en el PDF:", e);
+  }
+};
+
+// Construye el documento: encabezado, pie y las ayudas para ir escribiendo el
+// cuerpo sin pisar el pie ni salirse de la hoja.
+const plantilla = ({ doc, config, documento, numero, fecha, cliente, conFirmas }) => {
   const pagina = { n: 1 };
+  // Alto reservado al pie: con firmas hace falta bastante más sitio
+  const PIE = conFirmas ? 62 : 24;
 
   const fuente = (estilo, tam, color = NEGRO) => {
     doc.setFont("helvetica", estilo);
@@ -50,17 +87,8 @@ const generatePDF = (s, config = {}) => {
     doc.setTextColor(...color);
   };
 
-  // ---------------------------------------------------------------- cabecera
   const cabecera = () => {
-    if (config.logo) {
-      try {
-        const fmt = config.logo.startsWith("data:image/png") ? "PNG" : "JPEG";
-        // El logo va arriba a la derecha, donde el original no pone nada
-        doc.addImage(config.logo, fmt, CAJA_DER - 32, 11, 32, 22, undefined, "FAST");
-      } catch (e) {
-        console.error("No se ha podido pintar el logo en el PDF:", e);
-      }
-    }
+    pintarLogo(doc, config.logo);
 
     fuente("bold", 11);
     doc.text(config.nombre || "", MARGEN, 17);
@@ -84,12 +112,12 @@ const generatePDF = (s, config = {}) => {
       doc.text(web, xValor, 47);
     }
 
-    // ------------------------------------------------------------- cliente
-    const datos = [s.nifCif, s.dirFact, s.telCliente].filter(Boolean);
+    // Ficha del cliente
+    const datos = [cliente.nifCif, cliente.dirFact, cliente.tel].filter(Boolean);
     fuente("bold", 10);
     // En el documento va siempre el nombre fiscal, nunca el comercial. Un
     // nombre largo se parte en dos líneas antes que quedarse a medias.
-    const nombre = doc.splitTextToSize(s.cliente || "—", 84).slice(0, 2);
+    const nombre = doc.splitTextToSize(cliente.nombre || "—", 84).slice(0, 2);
     const alto = 7 + nombre.length * 5 + datos.length * 5;
     doc.setDrawColor(...LINEA); doc.setLineWidth(0.3);
     doc.rect(MARGEN, 54, 92, alto);
@@ -98,13 +126,13 @@ const generatePDF = (s, config = {}) => {
     datos.forEach((d, i) =>
       doc.text(doc.splitTextToSize(d, 84)[0], MARGEN + 4, 60.5 + nombre.length * 5 + i * 5));
 
-    // --------------------------------------------- tabla del documento
+    // Tabla del documento
     const cols = [
-      { etiq: "DOCUMENTO", valor: "PRESUPUESTO", x: 115, w: 30 },
-      { etiq: "NÚMERO",    valor: s.numero || "—", x: 145, w: 20 },
+      { etiq: "DOCUMENTO", valor: documento, x: 115, w: 30 },
+      { etiq: "NÚMERO",    valor: numero || "—", x: 145, w: 20 },
       { etiq: "PÁGINA",    valor: String(pagina.n), x: 165, w: 10 },
       // La fecha necesita su hueco: con menos se parte en dos líneas
-      { etiq: "FECHA",     valor: fechaES(s.fecha), x: 175, w: 19 },
+      { etiq: "FECHA",     valor: fechaES(fecha), x: 175, w: 19 },
     ];
     const yTabla = 76;
     doc.setFillColor(240, 240, 240);
@@ -123,11 +151,10 @@ const generatePDF = (s, config = {}) => {
     return yTabla + 14 + 12;
   };
 
-  // ------------------------------------------------------------------- pie
   // El aviso legal va en todas las hojas; las firmas solo en la última, que
   // firmar la primera de cuatro no querría decir nada
   const pieDePagina = (ultima) => {
-    if (ultima) {
+    if (conFirmas && ultima) {
       let y = H - PIE + 10;
 
       fuente("bold", 8, [40, 40, 40]);
@@ -135,7 +162,6 @@ const generatePDF = (s, config = {}) => {
       doc.text(conf, TEXTO_X, y);
       y += conf.length * 4 + 8;
 
-      // Las dos firmas, cada una con su raya
       fuente("bold", 8);
       doc.text(config.nombre || "", TEXTO_X, y);
       doc.text("CONFORME CLIENTE", TEXTO_X + 82, y);
@@ -168,7 +194,6 @@ const generatePDF = (s, config = {}) => {
   };
 
   const parrafo = (texto, y, estilo = "bold") => {
-    fuente(estilo, 8.5);
     const lineas = doc.splitTextToSize(texto, ANCHO_TEXTO);
     let ny = y;
     lineas.forEach((linea) => {
@@ -180,56 +205,137 @@ const generatePDF = (s, config = {}) => {
     return ny;
   };
 
-  // ----------------------------------------------------------------- cuerpo
-  let y = cabecera();
+  const linea = (texto, y, tam = 8.5) => {
+    const ny = cabe(8, y);
+    fuente("bold", tam);
+    doc.text(texto, TEXTO_X, ny);
+    return ny + 8;
+  };
 
-  y = titulo("DESCRIPCIÓ DEL SERVEI", y);
-  y = parrafo(s.descripcion?.trim() || "—", y);
+  return { fuente, cabecera, pieDePagina, cabe, titulo, parrafo, linea };
+};
 
-  // Lo que en el presupuesto de siempre se escribía a mano dentro de la
-  // descripción, aquí ya está en campos aparte: se añade debajo si lo hay
+// Lo que en el presupuesto de siempre se escribía a mano dentro de la
+// descripción, aquí ya está en campos aparte: se añade debajo si lo hay
+const extrasDe = (d) => {
   const extras = [
-    s.origen && `Origen: ${s.origen}`,
-    s.destino && `Destí: ${s.destino}`,
-    !s.origen && !s.destino && s.direccion && `Adreça: ${s.direccion}`,
-    s.metros && `Metres de descàrrega: ${s.metros} m`,
-    s.peso && `Pes: ${s.peso} kg`,
-    s.bultos && `Bultos: ${s.bultos}`,
+    d.origen && `Origen: ${d.origen}`,
+    d.destino && `Destí: ${d.destino}`,
+    !d.origen && !d.destino && d.direccion && `Adreça: ${d.direccion}`,
+    d.metros && `Metres de descàrrega: ${d.metros} m`,
+    d.peso && `Pes: ${d.peso} kg`,
+    d.bultos && `Bultos: ${d.bultos}`,
   ].filter(Boolean);
-  const equipos = (Array.isArray(s.vehiculo) ? s.vehiculo : [s.vehiculo]).filter(Boolean);
+  const equipos = vehiculosDe(d);
   if (equipos.length) extras.push(`Equip: ${equipos.join(", ")}`);
+  return extras;
+};
+
+// La única observación que sigue valiendo en una hoja de trabajo
+const IVA_APARTE = "*A aquest import s'incrementarà l'IVA corresponent.";
+
+const tienePrecio = (p) => p !== "" && p !== null && p !== undefined && !Number.isNaN(Number(p));
+
+// --------------------------------------------------------------- presupuesto
+export const generatePDF = (s, config = {}) => {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const t = plantilla({
+    doc, config,
+    documento: "PRESUPUESTO",
+    numero: s.numero,
+    fecha: s.fecha,
+    cliente: { nombre: s.cliente, nifCif: s.nifCif, dirFact: s.dirFact, tel: s.telCliente },
+    conFirmas: true,
+  });
+
+  let y = t.cabecera();
+  y = t.titulo("DESCRIPCIÓ DEL SERVEI", y);
+  y = t.parrafo(s.descripcion?.trim() || "—", y);
+
+  const extras = extrasDe(s);
   if (extras.length) {
     y += 2;
-    extras.forEach((e) => { y = parrafo(e, y, "normal"); });
+    extras.forEach((e) => { y = t.parrafo(e, y, "normal"); });
   }
 
   y += 6;
-  if (s.precio !== "" && s.precio !== null && s.precio !== undefined && !Number.isNaN(Number(s.precio))) {
-    y = cabe(10, y);
-    fuente("bold", 9);
-    doc.text(`IMPORT   . . . . . . . . . . . . . . . .    ${eur(s.precio)}`, TEXTO_X, y);
-    y += 10;
+  if (tienePrecio(s.precio)) {
+    y = t.linea(`IMPORT   . . . . . . . . . . . . . . . .    ${eur(s.precio)}`, y, 9);
+    y += 2;
   }
 
   const formaPago = (s.formaPago || "").trim() || textoDe(config, "formaPago");
-  if (formaPago) {
-    y = cabe(8, y);
-    fuente("bold", 8.5);
-    doc.text(`FORMA DE PAGAMENT:   ${formaPago}`, TEXTO_X, y);
-    y += 12;
-  }
+  if (formaPago) y = t.linea(`FORMA DE PAGAMENT:   ${formaPago}`, y) + 4;
 
   const observaciones = lineasObservaciones(
     (s.observaciones || "").trim() || textoDe(config, "observaciones")
   );
   if (observaciones.length) {
-    y = titulo("OBSERVACIONS", y);
-    observaciones.forEach((linea) => { y = parrafo(linea, y); });
+    y = t.titulo("OBSERVACIONS", y);
+    observaciones.forEach((l) => { y = t.parrafo(l, y); });
   }
 
-  pieDePagina(true);
+  t.pieDePagina(true);
   doc.save(`Presupuesto_${s.numero || "sin_numero"}.pdf`);
 };
 
-export { generatePDF };
+// ------------------------------------------------------------------ servicio
+// La hoja del trabajo, para mandársela al cliente: cuándo se hace, con qué
+// equipo y de dónde a dónde. Sin el texto de "devuélvanos esto firmado", que
+// es del presupuesto y aquí no pinta nada.
+export const generateServicioPDF = (s, config = {}) => {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const t = plantilla({
+    doc, config,
+    documento: "SERVICIO",
+    numero: s.numero,
+    fecha: s.fecha_servicio,
+    cliente: { nombre: s.cliente, nifCif: s.nifCif, dirFact: s.dirFact, tel: s.telCliente },
+    conFirmas: false,
+  });
+
+  let y = t.cabecera();
+
+  // Cuándo: lo primero que mira quien recibe la hoja
+  const dia = fechaES(s.fecha_servicio);
+  const ini = hhmm(s.hora_inicio), fin = hhmm(s.hora_fin);
+  const horas = ini && fin ? `${ini} - ${fin}` : ini ? `a partir de les ${ini}` : "";
+  if (dia || horas) {
+    y = t.titulo("DIA I HORA", y);
+    y = t.linea([dia, horas].filter(Boolean).join("   ·   "), y, 11);
+    y += 2;
+  }
+
+  y = t.titulo("DESCRIPCIÓ DEL SERVEI", y);
+  y = t.parrafo(s.descripcion?.trim() || "—", y);
+
+  const extras = extrasDe(s);
+  if (extras.length) {
+    y += 2;
+    extras.forEach((e) => { y = t.parrafo(e, y, "normal"); });
+  }
+
+  if (tienePrecio(s.precio)) {
+    y += 6;
+    y = t.linea(`IMPORT   . . . . . . . . . . . . . . . .    ${eur(s.precio)}`, y, 9);
+  }
+
+  // Las observaciones de fábrica son del presupuesto ("Pressupost orientatiu",
+  // "en espera de saber les mides") y en una hoja de trabajo ya cerrada no
+  // pintan nada. Si la empresa ha escrito las suyas se ponen; si no, solo la
+  // del IVA, y únicamente cuando hay importe.
+  const propias = lineasObservaciones((config.observaciones || "").trim());
+  const observaciones = propias.length
+    ? propias
+    : (tienePrecio(s.precio) ? [IVA_APARTE] : []);
+  if (observaciones.length) {
+    y += 4;
+    y = t.titulo("OBSERVACIONS", y);
+    observaciones.forEach((l) => { y = t.parrafo(l, y); });
+  }
+
+  t.pieDePagina(true);
+  doc.save(`Servicio_${s.numero || "sin_numero"}.pdf`);
+};
+
 export default generatePDF;

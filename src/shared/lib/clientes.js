@@ -69,3 +69,40 @@ export const datosDelCliente = (c, actual = {}) => ({
   telCliente: c.tel || c.movil || actual.telCliente || "",
   emailCliente: c.email || actual.emailCliente || "",
 });
+
+// Encuentra la ficha del cliente de un documento. Primero por cliente_id, que
+// es el vínculo de verdad; si no lo tiene (documentos antiguos), por nombre.
+export const fichaDelCliente = (doc, clientes = []) => {
+  if (!doc) return null;
+  if (doc.cliente_id) {
+    const porId = clientes.find((c) => c.id === doc.cliente_id);
+    if (porId) return porId;
+  }
+  const nombre = texto(doc.cliente);
+  if (!nombre) return null;
+  return clientes.find((c) => texto(c.nombre) === nombre) || null;
+};
+
+// Rellena el NIF, la dirección de facturación, el teléfono y el email desde la
+// ficha del cliente.
+//
+// Ni solicitudes ni servicios ni albaranes tienen columnas para estos campos:
+// se escriben en el formulario, se ven durante un rato y al guardar se tiran.
+// Por eso al volver a entrar el cliente aparecía a medias y había que
+// rellenarlo otra vez. Ahora salen siempre de la ficha, que es donde viven.
+//
+// Lo que ya trae el documento manda: si alguien escribió a mano un teléfono
+// distinto para ese trabajo, no se le pisa.
+export const conDatosDelCliente = (doc, clientes = []) => {
+  if (!doc) return doc;
+  const c = fichaDelCliente(doc, clientes);
+  if (!c) return doc;
+  return {
+    ...doc,
+    cliente_id: doc.cliente_id ?? c.id ?? null,
+    nifCif:       doc.nifCif     || c.nifCif || "",
+    dirFact:      doc.dirFact    || c.dirFact || "",
+    telCliente:   doc.telCliente || c.tel || c.movil || "",
+    emailCliente: doc.emailCliente || c.email || "",
+  };
+};

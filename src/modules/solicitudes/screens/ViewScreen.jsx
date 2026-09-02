@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery, MapasModal } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal, ClienteBloque } from "../../../shared/components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", summary: "bg-amber-50 border-amber-200 text-amber-700",    badge: "bg-amber-100 text-amber-700" },
@@ -18,7 +18,7 @@ const diasDesde = (fechaISO) => {
 const formatFecha = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdit, onDelete, onBack, onSendWhatsApp, onSendEmail, onGeneratePDF, onCambiarEstado, onAddNota }) => {
+const ViewScreen = ({ solicitud, config, cliente, servicioVinculado, onVerServicio, onEdit, onDelete, onBack, onSendWhatsApp, onSendEmail, onGeneratePDF, onCambiarEstado, onAddNota }) => {
   const [sol, setSol] = useState(solicitud);
   const [nuevaNota, setNuevaNota] = useState("");
   const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
@@ -112,15 +112,7 @@ const ViewScreen = ({ solicitud, config, servicioVinculado, onVerServicio, onEdi
             </div>
           )}
 
-          {/* Cliente */}
-          <div className="bg-zinc-50 rounded-lg p-4">
-            <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Cliente</p>
-            <p className="font-black text-zinc-900 text-xl">{sol.cliente}</p>
-            {sol.nifCif && <p className="text-zinc-500 text-sm mt-1">🪪 {sol.nifCif}</p>}
-            {sol.dirFact && <p className="text-zinc-500 text-sm mt-0.5">🏢 {sol.dirFact}</p>}
-            {sol.telCliente && <p className="text-zinc-500 text-sm mt-1">📞 {sol.telCliente}</p>}
-            {sol.emailCliente && <p className="text-zinc-500 text-sm mt-0.5">✉️ {sol.emailCliente}</p>}
-          </div>
+          <ClienteBloque doc={sol} cliente={cliente} />
 
           {(() => {
             const vs = Array.isArray(sol.vehiculo) ? sol.vehiculo : (sol.vehiculo ? [sol.vehiculo] : []);
