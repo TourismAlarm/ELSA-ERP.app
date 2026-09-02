@@ -1,4 +1,5 @@
 import { supabase } from "../../shared/lib/supabase";
+import { conHorasValidas } from "../../shared/lib/horas";
 
 const sanitize = (s) => {
   // vehiculo se guarda como string separado por comas para compatibilidad con columna text
@@ -41,8 +42,11 @@ export const dbLoadServicios = async () => {
 };
 
 export const dbSaveServicio = async (servicio) => {
-  // numero lo asigna un trigger de la base de datos en el propio insert — no enviarlo
-  const { id, numero, created_at, updated_at, ...rest } = sanitize(servicio);
+  // numero lo asigna un trigger de la base de datos en el propio insert — no enviarlo.
+  // Las horas se completan aquí y no solo en el formulario, para que un servicio
+  // nazca con hora venga de donde venga: del formulario, del calendario o de
+  // aceptar una solicitud.
+  const { id, numero, created_at, updated_at, ...rest } = sanitize(conHorasValidas(servicio));
   const toInsert = {
     ...rest,
     estado: servicio.estado || "abierto",

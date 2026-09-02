@@ -4,17 +4,23 @@ import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente, datosDelCliente } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
+import { HORA_INICIO_POR_DEFECTO, conHorasValidas, alCambiarInicio, avisoDuracion } from "../../../shared/lib/horas";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
+
+// Un servicio nuevo ya trae hora: la que venga del calendario si se ha creado
+// tocando una franja, o las 08:00. El fin, una hora después.
+const horasIniciales = (prefill) =>
+  conHorasValidas({ hora_inicio: prefill?.hora_inicio || HORA_INICIO_POR_DEFECTO, hora_fin: "" });
 
 const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? { ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), hora_inicio: initial.hora_inicio || "", hora_fin: initial.hora_fin || "" }
+      ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy() })
       // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
-      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), hora_inicio: prefill?.hora_inicio || "", hora_fin: "", descripcion: "", precio: "", fotos: [] }
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -66,7 +72,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
 
   const handleSave = () => {
     if (!form.cliente.trim()) { alert("El nombre del cliente es obligatorio."); return; }
-    onSave(form);
+    onSave(conHorasValidas(form));
   };
 
   return (
@@ -146,14 +152,18 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Hora inicio">
-            <Input type="time" value={form.hora_inicio || ""} onChange={set("hora_inicio")} />
+            <Input
+              type="time"
+              value={form.hora_inicio || ""}
+              onChange={(e) => setForm((f) => ({ ...f, ...alCambiarInicio(e.target.value, f) }))}
+            />
           </Field>
           <Field label="Hora fin">
             <Input type="time" value={form.hora_fin || ""} onChange={set("hora_fin")} />
           </Field>
         </div>
-        {form.hora_inicio && form.hora_fin && form.hora_fin < form.hora_inicio && (
-          <p className="text-xs text-red-500 -mt-3">La hora de fin es anterior a la de inicio</p>
+        {avisoDuracion(form.hora_inicio, form.hora_fin) && (
+          <p className="text-xs text-amber-600 -mt-3">{avisoDuracion(form.hora_inicio, form.hora_fin)}</p>
         )}
 
         <Field label="Vehículo / Equipo (color en el calendario)">

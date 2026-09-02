@@ -190,7 +190,7 @@ export default function App() {
     return true;
   };
 
-  const crearServicioDesdeSolicitud = async (fecha) => {
+  const crearServicioDesdeSolicitud = async ({ fecha, hora_inicio, hora_fin }) => {
     const sol = pidiendoFechaServicio;
     setPidiendoFechaServicio(null);
     if (!sol) return;
@@ -203,6 +203,8 @@ export default function App() {
       descripcion: sol.descripcion,
       precio: sol.precio,
       fecha_servicio: fecha,
+      hora_inicio,
+      hora_fin,
       solicitud_id: sol.id,
     });
     if (saved) {
