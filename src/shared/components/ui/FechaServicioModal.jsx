@@ -3,6 +3,9 @@ import Btn from "./Btn";
 import Field from "./Field";
 import { Input } from "./Input";
 import { HORA_INICIO_POR_DEFECTO, conHorasValidas, alCambiarInicio, avisoDuracion } from "../../lib/horas";
+import { festivoDe } from "../../lib/festivos";
+import { diasDelEvento } from "../../../modules/eventos/db";
+import MiniCalendario from "./MiniCalendario";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -10,11 +13,12 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 // pedía la fecha con un prompt() del navegador: incómodo en el móvil, sin
 // validar nada, y encima el servicio nacía sin hora, así que no ocupaba sitio
 // en el calendario y no se veía si el día estaba lleno.
-const FechaServicioModal = ({ solicitud, onConfirmar, onCancelar }) => {
+const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], onConfirmar, onCancelar }) => {
   const [datos, setDatos] = useState(() =>
     conHorasValidas({ fecha: hoy(), hora_inicio: HORA_INICIO_POR_DEFECTO, hora_fin: "" })
   );
   const [guardando, setGuardando] = useState(false);
+  const [verCalendario, setVerCalendario] = useState(false);
 
   const set = (k) => (e) => setDatos((d) => ({ ...d, [k]: e.target.value }));
 
@@ -27,6 +31,18 @@ const FechaServicioModal = ({ solicitud, onConfirmar, onCancelar }) => {
   };
 
   const aviso = avisoDuracion(datos.hora_inicio, datos.hora_fin);
+
+  // Lo que ya hay ese día, para no amontonar dos trabajos sin darse cuenta
+  const ocupacion = (() => {
+    const partes = [];
+    const festivo = festivoDe(datos.fecha);
+    if (festivo) partes.push(`🔴 ${festivo}`);
+    const n = servicios.filter((s) => s.fecha_servicio === datos.fecha).length;
+    if (n) partes.push(n === 1 ? "1 servicio ese día" : `${n} servicios ese día`);
+    const e = eventos.filter((ev) => diasDelEvento(ev).includes(datos.fecha)).length;
+    if (e) partes.push(e === 1 ? "1 cosa apuntada" : `${e} cosas apuntadas`);
+    return partes.join(" · ");
+  })();
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -42,7 +58,18 @@ const FechaServicioModal = ({ solicitud, onConfirmar, onCancelar }) => {
 
         <div className="flex flex-col gap-4">
           <Field label="Fecha del servicio">
-            <Input type="date" value={datos.fecha} onChange={set("fecha")} autoFocus />
+            <div className="flex gap-2">
+              <Input type="date" value={datos.fecha} onChange={set("fecha")} autoFocus />
+              <button
+                type="button"
+                onClick={() => setVerCalendario(true)}
+                className="shrink-0 px-3 border-2 border-zinc-200 rounded-md text-sm font-bold text-zinc-600 hover:border-zinc-900 hover:text-zinc-900 transition-colors"
+                title="Ver el calendario"
+              >
+                📅 Ver
+              </button>
+            </div>
+            {ocupacion && <p className="text-xs text-zinc-500 mt-1">{ocupacion}</p>}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -69,6 +96,16 @@ const FechaServicioModal = ({ solicitud, onConfirmar, onCancelar }) => {
         <p className="text-xs text-zinc-400 mt-3 text-center">
           Si lo dejas para luego, la solicitud queda aceptada igualmente y puedes crear el servicio a mano cuando quieras.
         </p>
+
+        {verCalendario && (
+          <MiniCalendario
+            valor={datos.fecha}
+            servicios={servicios}
+            eventos={eventos}
+            onElegir={(fecha) => setDatos((d) => ({ ...d, fecha }))}
+            onCancelar={() => setVerCalendario(false)}
+          />
+        )}
       </div>
     </div>
   );

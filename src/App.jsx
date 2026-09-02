@@ -550,6 +550,8 @@ export default function App() {
       {pidiendoFechaServicio && (
         <FechaServicioModal
           solicitud={pidiendoFechaServicio}
+          servicios={servicios}
+          eventos={eventos}
           onConfirmar={crearServicioDesdeSolicitud}
           onCancelar={() => setPidiendoFechaServicio(null)}
         />
@@ -630,7 +632,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={editingServicio} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen

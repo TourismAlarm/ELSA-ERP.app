@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, Field, Input, Textarea, PhotoUploader } from "../../../shared/components/ui";
+import { Btn, Field, Input, Textarea, PhotoUploader, MiniCalendario } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente, datosDelCliente } from "../../../shared/lib/clientes";
 import ClienteForm from "../../../shared/components/ClienteForm";
 import { HORA_INICIO_POR_DEFECTO, conHorasValidas, alCambiarInicio, avisoDuracion } from "../../../shared/lib/horas";
+import { festivoDe } from "../../../shared/lib/festivos";
+import { diasDelEvento } from "../../eventos/db";
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 
@@ -13,7 +15,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 const horasIniciales = (prefill) =>
   conHorasValidas({ hora_inicio: prefill?.hora_inicio || HORA_INICIO_POR_DEFECTO, hora_fin: "" });
 
-const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCliente, onCancel, saving }) => {
+const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], eventos = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
@@ -25,6 +27,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
   const [showClienteModal, setShowClienteModal] = useState(false);
+  const [verCalendario, setVerCalendario] = useState(false);
   const clienteRef = useRef(null);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -51,6 +54,21 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
   const suggestions = clientes.filter((c) => buscaCliente(c, form.cliente)).slice(0, 6);
 
   const clienteExacto = clienteYaExiste(clientes, form.cliente);
+
+  // Aviso corto bajo la fecha: lo que ya hay ese día, sin abrir nada
+  const ocupacionDelDia = (() => {
+    const dia = form.fecha_servicio;
+    if (!dia) return "";
+    const partes = [];
+    const festivo = festivoDe(dia);
+    if (festivo) partes.push(`🔴 ${festivo}`);
+    // El propio servicio que se está editando no cuenta como ocupación
+    const n = servicios.filter((s) => s.fecha_servicio === dia && s.id !== initial?.id).length;
+    if (n) partes.push(n === 1 ? "1 servicio ese día" : `${n} servicios ese día`);
+    const e = eventos.filter((ev) => diasDelEvento(ev).includes(dia)).length;
+    if (e) partes.push(e === 1 ? "1 cosa apuntada" : `${e} cosas apuntadas`);
+    return partes.join(" · ");
+  })();
 
   const selectCliente = (c) => {
     setForm((f) => ({ ...f, ...datosDelCliente(c, f) }));
@@ -147,7 +165,19 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
         </Field>
 
         <Field label="Fecha del servicio">
-          <Input type="date" value={form.fecha_servicio || ""} onChange={set("fecha_servicio")} />
+          <div className="flex gap-2">
+            <Input type="date" value={form.fecha_servicio || ""} onChange={set("fecha_servicio")} />
+            {/* Para saber si ese día cabe el trabajo sin salir de la ficha */}
+            <button
+              type="button"
+              onClick={() => setVerCalendario(true)}
+              className="shrink-0 px-3 border-2 border-zinc-200 rounded-md text-sm font-bold text-zinc-600 hover:border-zinc-900 hover:text-zinc-900 transition-colors"
+              title="Ver el calendario"
+            >
+              📅 Ver
+            </button>
+          </div>
+          {ocupacionDelDia && <p className="text-xs text-zinc-500 mt-1">{ocupacionDelDia}</p>}
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
@@ -211,6 +241,16 @@ const FormScreen = ({ initial, prefill, config, clientes = [], onSave, onSaveCli
           <Btn size="lg" variant="secondary" onClick={onCancel}>Cancelar</Btn>
         </div>
       </div>
+
+      {verCalendario && (
+        <MiniCalendario
+          valor={form.fecha_servicio}
+          servicios={servicios}
+          eventos={eventos}
+          onElegir={(fecha) => setForm((f) => ({ ...f, fecha_servicio: fecha }))}
+          onCancelar={() => setVerCalendario(false)}
+        />
+      )}
 
       {showClienteModal && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
