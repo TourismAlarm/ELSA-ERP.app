@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 
 const sanitize = (a) => {
   // nifCif, dirFact, telCliente y emailCliente son campos del cliente —
@@ -19,11 +19,7 @@ const sanitize = (a) => {
 };
 
 // null cuando la carga falla, para distinguirlo de "no hay albaranes"
-export const dbLoadAlbaranes = async () => {
-  const { data, error } = await supabase.from("albaranes").select("*").order("created_at", { ascending: false });
-  if (error) { console.error(error); return null; }
-  return data;
-};
+export const dbLoadAlbaranes = async () => cargarTodas("albaranes", { orden: "created_at", ascendente: false });
 
 export const dbSaveAlbaran = async (albaran) => {
   // numero lo asigna el trigger BEFORE INSERT desde el contador persistente,

@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 
 const sanitize = (s) => {
   // vehiculo se guarda como string separado por comas para compatibilidad con columna text
@@ -45,8 +45,8 @@ const deserializeSolicitud = (s) => ({
 // Devuelve null cuando la carga falla, para poder distinguirlo de "no hay nada
 // guardado" y no enseñar una app vacía cuando lo que pasa es que no hay red.
 export const dbLoadSolicitudes = async () => {
-  const { data, error } = await supabase.from("solicitudes").select("*").order("id", { ascending: false });
-  if (error) { console.error(error); return null; }
+  const data = await cargarTodas("solicitudes", { orden: "id", ascendente: false });
+  if (data === null) return null;
   return data.map(deserializeSolicitud);
 };
 
@@ -149,11 +149,9 @@ export const dbDeleteCliente = async (id) => {
 };
 
 
-export const dbLoadClientes = async () => {
-  const { data, error } = await supabase.from("clientes").select("*").order("nombre");
-  if (error) { console.error(error); return null; }
-  return data;
-};
+// null cuando la carga falla, para distinguirlo de "no hay clientes".
+// Por páginas: son más de mil y en una sola petición llegaban recortados.
+export const dbLoadClientes = async () => cargarTodas("clientes", { orden: "nombre" });
 
 // Alta masiva desde el importador. Se inserta por lotes para no mandar
 // cientos de filas en una sola petición, y se cuenta lo que entra de verdad:

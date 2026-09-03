@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 import { conHorasValidas } from "../../shared/lib/horas";
 
 const sanitize = (s) => {
@@ -36,8 +36,8 @@ const deserializeServicio = (s) => ({
 
 // null cuando la carga falla, para distinguirlo de "no hay servicios"
 export const dbLoadServicios = async () => {
-  const { data, error } = await supabase.from("servicios").select("*").order("created_at", { ascending: false });
-  if (error) { console.error(error); return null; }
+  const data = await cargarTodas("servicios", { orden: "created_at", ascendente: false });
+  if (data === null) return null;
   return data.map(deserializeServicio);
 };
 

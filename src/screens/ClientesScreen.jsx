@@ -35,6 +35,14 @@ const ClientesScreen = ({ clientes, onBack, onNew, onEdit, onDelete, onImportar 
         <div>
           <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-0.5">Base de datos</p>
           <h1 className="text-3xl font-black text-zinc-900">Clientes</h1>
+          {/* El total a la vista: si un día no cuadra con el Excel de
+              facturación, se ve aquí sin tener que contar fichas */}
+          {clientes.length > 0 && (
+            <p className="text-sm text-zinc-500 mt-0.5">
+              {clientes.length.toLocaleString("es-ES")} en total
+              {q.trim() !== "" && ` · ${visibles.length.toLocaleString("es-ES")} con "${q.trim()}"`}
+            </p>
+          )}
         </div>
       </div>
 
