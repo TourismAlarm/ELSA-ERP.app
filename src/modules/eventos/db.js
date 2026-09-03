@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 
 // Tipos de evento. El icono y el color salen de aquí, así que un evento sin
 // color propio ya se distingue de un servicio de un vistazo.
@@ -47,11 +47,7 @@ const sanitize = (e) => ({
 });
 
 // null cuando la carga falla, para distinguirlo de "no hay eventos"
-export const dbLoadEventos = async () => {
-  const { data, error } = await supabase.from("eventos").select("*").order("fecha");
-  if (error) { console.error(error); return null; }
-  return data;
-};
+export const dbLoadEventos = async () => cargarTodas("eventos", { orden: "fecha" });
 
 export const dbSaveEvento = async (evento) => {
   const { data, error } = await supabase.from("eventos").insert([sanitize(evento)]).select().single();

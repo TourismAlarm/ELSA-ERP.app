@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 
 const sanitize = (v) => {
   const { fotos, ...rest } = v;
@@ -19,11 +19,7 @@ const sanitize = (v) => {
 };
 
 // null cuando la carga falla, para distinguirlo de "no hay vehículos"
-export const dbLoadVehiculos = async () => {
-  const { data, error } = await supabase.from("vehiculos").select("*").order("nombre");
-  if (error) { console.error(error); return null; }
-  return data;
-};
+export const dbLoadVehiculos = async () => cargarTodas("vehiculos", { orden: "nombre" });
 
 export const dbSaveVehiculo = async (vehiculo) => {
   const { id, created_at, updated_at, ...rest } = sanitize(vehiculo);
