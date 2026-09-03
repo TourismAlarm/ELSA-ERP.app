@@ -26,6 +26,21 @@ const ImportarClientesScreen = ({ clientes = [], onImportar, onBack }) => {
   const nuevos = revision.filter((r) => SE_IMPORTAN.includes(r.estado));
   const hayNombre = columnas.includes("nombre");
 
+  // Columnas del fichero que traen datos pero que no se van a importar. Es la
+  // forma silenciosa de perder información: en la importación de Factusol el
+  // correo se quedó sin asignar y los 1.479 clientes entraron sin email, sin
+  // que nada lo avisara. Solo se cuentan las que llevan algo escrito, para no
+  // dar la lata con las columnas vacías del Excel.
+  const columnasIgnoradas = useMemo(() => {
+    if (!datos) return [];
+    return datos.encabezados
+      .map((titulo, i) => ({ titulo: (titulo || "").trim() || `Columna ${i + 1}`, i }))
+      .filter(({ i }) => !columnas[i] && datos.filas.some((f) => (f[i] || "").trim() !== ""));
+  }, [datos, columnas]);
+
+  // Datos del cliente que ninguna columna rellena: entrarán en blanco
+  const camposVacios = CAMPOS_CLIENTE.filter((c) => !columnas.includes(c.clave));
+
   const elegirFichero = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -149,6 +164,26 @@ const ImportarClientesScreen = ({ clientes = [], onImportar, onBack }) => {
             {!hayNombre && (
               <p className="text-sm text-red-600 font-semibold mt-4">
                 Falta indicar cuál es la columna del <b>Nombre fiscal</b>. Sin ella no se puede importar.
+              </p>
+            )}
+
+            {columnasIgnoradas.length > 0 && (
+              <div className="mt-4 bg-amber-50 border-2 border-amber-200 rounded-lg p-3">
+                <p className="text-sm font-black text-amber-900">
+                  ⚠️ {columnasIgnoradas.length} columna{columnasIgnoradas.length === 1 ? "" : "s"} del fichero con datos que NO se importan
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  {columnasIgnoradas.map((c) => c.titulo).join(" · ")}
+                </p>
+                <p className="text-xs text-amber-700 mt-1.5">
+                  Si alguna es un dato del cliente (el correo, el móvil...), asígnala arriba antes de importar: lo que no se asigna se pierde y luego hay que meterlo a mano.
+                </p>
+              </div>
+            )}
+
+            {hayNombre && camposVacios.length > 0 && (
+              <p className="text-xs text-zinc-500 mt-3">
+                Entrarán en blanco, porque ninguna columna los trae: <b>{camposVacios.map((c) => c.etiqueta).join(", ")}</b>.
               </p>
             )}
           </div>
