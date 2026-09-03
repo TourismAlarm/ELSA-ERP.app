@@ -12,7 +12,7 @@ import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } f
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { FechaServicioModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
+import { FechaServicioModal, ConfirmarAlbaranModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
 import { conDatosDelCliente, fichaDelCliente } from "./shared/lib/clientes";
 import { mapaColoresVehiculo, normalizeVehiculos } from "./shared/lib/color";
 import { DEFAULT_VEHICLES } from "./shared/lib/constants";
@@ -61,6 +61,9 @@ export default function App() {
   const [saving, setSaving]           = useState(false);
   const [errorCarga, setErrorCarga]   = useState(false);
   const [pidiendoFechaServicio, setPidiendoFechaServicio] = useState(null);
+  // Servicio para el que se está a punto de generar un albarán: primero se
+  // piden las horas (previstas al programarlo, quizá no las trabajadas)
+  const [pidiendoAlbaranServicio, setPidiendoAlbaranServicio] = useState(null);
   const [refrescando, setRefrescando] = useState(false);
   const [configError, setConfigError] = useState(false);
 
@@ -332,6 +335,14 @@ export default function App() {
     if (!await dbCambiarEstadoServicio(id, nuevoEstado)) return false;
     setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
     setViewingServicio((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado } : prev);
+
+    // Al marcar un servicio como realizado, si aún no tiene albarán, pedir que
+    // se confirmen las horas y generarlo directamente: antes había que
+    // acordarse de crearlo a mano aparte
+    if (nuevoEstado === "realizado" && !albaranes.some((a) => a.servicio_id === id)) {
+      const srv = servicios.find((s) => s.id === id);
+      if (srv) setPidiendoAlbaranServicio({ ...srv, estado: nuevoEstado });
+    }
     return true;
   };
 
@@ -419,12 +430,44 @@ export default function App() {
     if (screen === "albaranView") setScreen("albaranesList");
   };
 
-  const handleCrearAlbaranDesdeServicio = async (servicio) => {
+  // Pide confirmar las horas del servicio antes de generar su albarán (ver
+  // ConfirmarAlbaranModal más abajo, en el render)
+  const handleCrearAlbaranDesdeServicio = (servicio) => setPidiendoAlbaranServicio(servicio);
+
+  const crearAlbaranConfirmado = async ({ hora_inicio, hora_fin }) => {
+    const servicio = pidiendoAlbaranServicio;
+    setPidiendoAlbaranServicio(null);
+    if (!servicio) return;
+
+    // Si se han corregido las horas al confirmar, son las realmente
+    // trabajadas: guardarlas en el servicio antes de generar el albarán.
+    // Las horas del servicio pueden venir con segundos ("08:00:00") de la
+    // base de datos: comparar recortadas a "HH:MM" para no reescribir cuando
+    // no ha cambiado nada
+    let srv = servicio;
+    if (hora_inicio !== (servicio.hora_inicio || "").slice(0, 5) || hora_fin !== (servicio.hora_fin || "").slice(0, 5)) {
+      srv = { ...servicio, hora_inicio, hora_fin };
+      if (await dbUpdateServicio(srv)) {
+        setServicios((prev) => prev.map((s) => s.id === servicio.id ? srv : s));
+        setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, hora_inicio, hora_fin } : prev);
+      }
+    }
+
+    // El albarán certifica que el trabajo está hecho: si el servicio seguía
+    // abierto (p. ej. se pidió el albarán a mano sin pasar por "Realizado"),
+    // cerrarlo también
+    if ((srv.estado || "abierto") !== "realizado") {
+      if (await dbCambiarEstadoServicio(srv.id, "realizado")) {
+        setServicios((prev) => prev.map((s) => s.id === srv.id ? { ...s, estado: "realizado" } : s));
+        setViewingServicio((prev) => prev && prev.id === srv.id ? { ...prev, estado: "realizado" } : prev);
+      }
+    }
+
     const saved = await dbSaveAlbaran({
-      cliente: servicio.cliente,
-      fecha: servicio.fecha_servicio,
-      descripcion: servicio.descripcion,
-      servicio_id: servicio.id,
+      cliente: srv.cliente,
+      fecha: srv.fecha_servicio,
+      descripcion: srv.descripcion,
+      servicio_id: srv.id,
       lineas: [],
     });
     if (saved) {
@@ -572,6 +615,14 @@ export default function App() {
           vehiculos={normalizeVehiculos(config?.vehicles ?? DEFAULT_VEHICLES)}
           onConfirmar={crearServicioDesdeSolicitud}
           onCancelar={() => setPidiendoFechaServicio(null)}
+        />
+      )}
+
+      {pidiendoAlbaranServicio && (
+        <ConfirmarAlbaranModal
+          servicio={pidiendoAlbaranServicio}
+          onConfirmar={crearAlbaranConfirmado}
+          onCancelar={() => setPidiendoAlbaranServicio(null)}
         />
       )}
 
