@@ -227,6 +227,9 @@ export default function App() {
       origen: sol.origen,
       destino: sol.destino,
       descripcion: sol.descripcion,
+      // La maniobra apuntada en la solicitud sigue haciendo falta el día del
+      // trabajo: se copia al servicio, y sigue sin salir en ningún documento
+      notas_internas: sol.notas_internas || "",
       precio: sol.precio,
       fecha_servicio: fecha,
       hora_inicio,

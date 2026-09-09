@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery, MapasModal, ClienteBloque } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal, ClienteBloque, NotasInternasBloque } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 
 const ESTADOS = {
@@ -181,6 +181,10 @@ const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Descripción del servicio</p>
             <p className="text-zinc-700 text-sm leading-relaxed whitespace-pre-wrap">{srv.descripcion || "—"}</p>
           </div>
+
+          {/* La maniobra: se ve en la ficha, nunca en el PDF ni en lo que se
+              manda fuera */}
+          <NotasInternasBloque texto={srv.notas_internas} />
 
           {srv.fotos && srv.fotos.length > 0 && (
             <div>

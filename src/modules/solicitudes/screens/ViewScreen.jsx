@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Btn, PhotoGallery, MapasModal, ClienteBloque } from "../../../shared/components/ui";
+import { Btn, PhotoGallery, MapasModal, ClienteBloque, NotasInternasBloque } from "../../../shared/components/ui";
 
 const ESTADOS = {
   pendiente:   { label: "Pendiente",      emoji: "🟡", summary: "bg-amber-50 border-amber-200 text-amber-700",    badge: "bg-amber-100 text-amber-700" },
@@ -163,6 +163,10 @@ const ViewScreen = ({ solicitud, config, cliente, servicioVinculado, onVerServic
             <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-2">Descripción del servicio</p>
             <p className="text-zinc-700 text-sm leading-relaxed whitespace-pre-wrap">{sol.descripcion || "—"}</p>
           </div>
+
+          {/* La maniobra: se ve en la ficha, nunca en el PDF ni en lo que se
+              manda fuera */}
+          <NotasInternasBloque texto={sol.notas_internas} />
 
           {sol.fotos && sol.fotos.length > 0 && (
             <div>
