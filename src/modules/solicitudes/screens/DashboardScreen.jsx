@@ -30,7 +30,9 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
   const searchResults = q.trim() === "" ? [] : solicitudes.filter((b) => {
     const notasText = (b.notas_seguimiento || []).map((n) => n.texto).join(" ");
     const vehiculosStr = Array.isArray(b.vehiculo) ? b.vehiculo.join(" ") : (b.vehiculo || "");
-    return [b.cliente, b.descripcion, b.numero, b.tipo, vehiculosStr, b.direccion, b.origen, b.destino, b.estado, notasText]
+    // Las notas internas también se buscan: son de dentro, y muchas veces es
+    // por ahí por donde uno recuerda el trabajo ("el del portón de atrás")
+    return [b.cliente, b.descripcion, b.numero, b.tipo, vehiculosStr, b.direccion, b.origen, b.destino, b.estado, notasText, b.notas_internas || ""]
       .join(" ").toLowerCase().includes(q.toLowerCase());
   }).sort(porNumero);
 

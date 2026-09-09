@@ -27,7 +27,9 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
   const searchResults = q.trim() === "" ? [] : servicios.filter((s) => {
     const notasText = (s.notas || []).map((n) => n.texto).join(" ");
     const vehiculosStr = Array.isArray(s.vehiculo) ? s.vehiculo.join(" ") : (s.vehiculo || "");
-    return [s.cliente, s.descripcion, s.numero, vehiculosStr, s.origen, s.destino, s.estado, notasText]
+    // Las notas internas también se buscan: son de dentro, y muchas veces es
+    // por ahí por donde uno recuerda el trabajo ("el del portón de atrás")
+    return [s.cliente, s.descripcion, s.numero, vehiculosStr, s.origen, s.destino, s.estado, notasText, s.notas_internas || ""]
       .join(" ").toLowerCase().includes(q.toLowerCase());
   }).sort(porNumero);
 

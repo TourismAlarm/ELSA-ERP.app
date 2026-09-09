@@ -25,12 +25,15 @@ with esperadas(tabla, columna) as (values
   ('solicitudes','estado'), ('solicitudes','fecha_ultimo_contacto'),
   ('solicitudes','notas_seguimiento'), ('solicitudes','avisos_activos'), ('solicitudes','created_at'),
   ('solicitudes','formaPago'), ('solicitudes','observaciones'),
+  -- Notas de maniobra que no salen en ningún documento del cliente
+  ('solicitudes','notas_internas'),
 
   ('servicios','numero'), ('servicios','cliente'), ('servicios','cliente_id'),
   ('servicios','vehiculo'), ('servicios','origen'), ('servicios','destino'),
   ('servicios','fecha_servicio'), ('servicios','hora_inicio'), ('servicios','hora_fin'),
   ('servicios','descripcion'), ('servicios','precio'), ('servicios','fotos'),
   ('servicios','estado'), ('servicios','notas'), ('servicios','solicitud_id'),
+  ('servicios','notas_internas'),
 
   ('albaranes','numero'), ('albaranes','cliente'), ('albaranes','fecha'),
   ('albaranes','descripcion'), ('albaranes','lineas'), ('albaranes','fotos'),

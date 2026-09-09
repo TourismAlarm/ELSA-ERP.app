@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Btn, Field, Input, Textarea, PhotoUploader, MiniCalendario } from "../../../shared/components/ui";
+import { Btn, Field, Input, Textarea, PhotoUploader, MiniCalendario, NotasInternasCampo } from "../../../shared/components/ui";
 import { DEFAULT_VEHICLES } from "../../../shared/lib/constants";
 import { textoSobre, normalizeVehiculos } from "../../../shared/lib/color";
 import { buscaCliente, comercialDistinto, clienteYaExiste, detallesCliente, datosDelCliente } from "../../../shared/lib/clientes";
@@ -20,9 +20,9 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
   const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy() })
+      ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), notas_internas: initial.notas_internas || "" })
       // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
-      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", fotos: [] }
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", notas_internas: "", fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -227,6 +227,10 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
 
         <Field label="Descripción del servicio"><Textarea value={form.descripcion} onChange={set("descripcion")} placeholder="Descripción del trabajo realizado..." /></Field>
         <Field label="Precio (€) — opcional"><Input value={form.precio} onChange={set("precio")} placeholder="1500" type="number" min="0" step="0.01" /></Field>
+
+        {/* La maniobra: para quien hace el trabajo, no para el cliente. Fuera
+            de la descripción a propósito, que esa sí se imprime. */}
+        <NotasInternasCampo value={form.notas_internas} onChange={set("notas_internas")} />
 
         <div className="border-t border-zinc-100 pt-4">
           <PhotoUploader
