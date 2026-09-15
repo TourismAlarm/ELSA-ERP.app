@@ -9,14 +9,23 @@
 // documento con el QR ya dentro. Quien lo sube tiene que hacerlo EXACTAMENTE
 // en pdfPath, o el QR apuntará a un fichero que no existe.
 //
+// El número correlativo (DECA-XXX) se reserva ANTES de montar el documento,
+// llamando al mismo contador que usan servicios y albaranes: en papel hace
+// falta un número que se pueda leer por teléfono, y el trigger de la tabla
+// solo asignaría uno después de generar el PDF. Si la subida falla después,
+// ese número queda sin usar: el contador solo sube y nunca reutiliza, y un
+// hueco no es un problema; un número repetido en un documento legal sí.
+//
 // jsPDF y qrcode se cargan con import() al generar, no en el arranque: pesan
-// y solo hacen falta cuando alguien emite un DeCA.
+// y solo hacen falta cuando alguien emite un DeCA. Este módulo entero solo se
+// carga con import() desde db.js, por lo mismo.
 //
 // La cabecera con logo y la paginación están copiadas de albaranes/pdf.js a
 // propósito: unificarlas en un módulo común queda para después del 5 de
 // octubre.
 
-export const BUCKET_DECA = "deca-docs";
+import { supabase } from "../../shared/lib/supabase";
+import { BUCKET_DECA } from "../../shared/lib/constants";
 
 const TITULO = "DOCUMENTO ELECTRÓNICO DE CONTROL ADMINISTRATIVO (DeCA)";
 const LEYENDA_QR = "Documento verificable en línea";
@@ -34,8 +43,9 @@ const kg = (p) => (texto(p) ? `${Number(p).toLocaleString("es-ES")} kg` : "—")
 // tal cual: si mañana cambian el NIF de config o la dirección del cliente, el
 // DeCA de hace tres meses tiene que seguir diciendo lo que decía al emitirlo.
 // Sin notas_internas: son de maniobra y no salen de la empresa.
-const congelarDatos = (servicio, cliente, config, { id, url, emitidoEn }) => ({
+const congelarDatos = (servicio, cliente, config, { id, numero, url, emitidoEn }) => ({
   id,
+  numero,
   url,
   emitido_en: emitidoEn,
   transportista: {
@@ -107,18 +117,16 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
     doc.text([config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), margin, 30);
   }
 
-  // --- Título, identificador y fecha de emisión
+  // --- Título, número y fecha de emisión. El número va grande y a la
+  // derecha, como en el albarán, que es lo que se lee por teléfono.
   y = 54;
   doc.setTextColor(20, 20, 20); doc.setFontSize(13); doc.setFont("helvetica", "bold");
-  const tituloLineas = doc.splitTextToSize(TITULO, anchoUtil);
+  const tituloLineas = doc.splitTextToSize(TITULO, anchoUtil - 40);
   doc.text(tituloLineas, margin, y);
+  doc.setFontSize(16);
+  doc.text(`Nº ${datos.numero}`, W - margin, y, { align: "right" });
   y += tituloLineas.length * 6 + 2;
-  // El número correlativo (DECA-XXX) lo asigna la base de datos al registrar
-  // el documento, después de generar este PDF. Lo que identifica al DeCA de
-  // forma única, y lo que hace verificable el QR, es este identificador.
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 100, 100);
-  doc.text(`Nº DeCA (identificador): ${datos.id}`, margin, y);
-  y += 5;
   doc.text(`Fecha de emisión: ${formatFechaHora(datos.emitido_en)}`, margin, y);
   y += 6;
 
@@ -239,16 +247,21 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
   doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
   doc.text(doc.splitTextToSize("Escanee el código o abra el enlace para descargar este mismo documento.", anchoTexto), xTexto, y + 21);
   doc.setFontSize(7); doc.setTextColor(100, 100, 100);
-  doc.text(doc.splitTextToSize(datos.url, anchoTexto), xTexto, y + 31);
+  doc.text(doc.splitTextToSize(datos.url, anchoTexto), xTexto, y + 28);
+  // El uuid es lo que hace único al fichero y lo que lleva la URL: va en
+  // pequeño, para verificar, no para leerlo en voz alta
+  doc.setFontSize(6.5); doc.setTextColor(140, 140, 140);
+  doc.text(`Identificador de verificación: ${datos.id}`, xTexto, y + 38);
   y += QR + 10;
 
   footer();
   return doc;
 };
 
-// Devuelve { id, pdfPath, url, datos, blob }. Quien lo llame sube blob a
-// BUCKET_DECA en pdfPath (exactamente) y guarda id, pdfPath, url y datos en
-// la tabla deca.
+// Devuelve { id, numero, pdfPath, url, datos, blob }. Quien lo llame sube
+// blob a BUCKET_DECA en pdfPath (exactamente) y guarda id, numero, pdfPath,
+// url y datos en la tabla deca. Lanza un Error si no consigue reservar el
+// número: sin número no se genera nada.
 export const generarPdfDeca = async (servicio, cliente, config = {}) => {
   // 1. Identificador único, decidido aquí y no por la base de datos
   const id = crypto.randomUUID();
@@ -257,16 +270,23 @@ export const generarPdfDeca = async (servicio, cliente, config = {}) => {
   const pdfPath = `${id}.pdf`;
   const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${BUCKET_DECA}/${pdfPath}`;
 
-  // 3. El QR apunta a esa URL, la del propio documento
+  // 3. El número correlativo, del contador de la base de datos
+  const { data: numero, error: errorNumero } = await supabase.rpc("next_numero", { p_clave: "deca", p_prefijo: "DECA" });
+  if (errorNumero || !numero) {
+    console.error(errorNumero);
+    throw new Error("No se ha podido reservar el número del DeCA" + (errorNumero?.message ? ": " + errorNumero.message : ""));
+  }
+
+  // 4. El QR apunta a esa URL, la del propio documento
   const [{ jsPDF }, qrcode] = await Promise.all([import("jspdf"), import("qrcode")]);
   const QRCode = qrcode.default || qrcode;
   const qrDataUrl = await QRCode.toDataURL(url, { errorCorrectionLevel: "M", margin: 1, width: 512 });
 
-  // 4. El documento, con el QR ya dentro
+  // 5. El documento, con el número y el QR ya dentro
   const emitidoEn = new Date().toISOString();
-  const datos = congelarDatos(servicio, cliente, config, { id, url, emitidoEn });
+  const datos = congelarDatos(servicio, cliente, config, { id, numero, url, emitidoEn });
   const doc = buildDecaDoc(jsPDF, datos, qrDataUrl, config);
 
-  // 5. Listo para subir
-  return { id, pdfPath, url, datos, blob: doc.output("blob") };
+  // 6. Listo para subir
+  return { id, numero, pdfPath, url, datos, blob: doc.output("blob") };
 };

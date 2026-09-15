@@ -11,6 +11,11 @@ export const whatsappAdmin = (config) =>
 export const emailAdmin = (config) =>
   (config?.adminEmail || ADMIN_EMAIL).trim();
 
+// Bucket PÚBLICO de los DeCA emitidos: la norma exige que el PDF se abra sin
+// sesión. Está aquí y no en modules/deca/pdf.js para que quien solo necesita
+// el nombre del bucket no cargue jsPDF ni qrcode en el arranque.
+export const BUCKET_DECA = "deca-docs";
+
 export const DEFAULT_VEHICLES   = ["Camión 1", "Camión 2", "Grúa 3", "Cesta", "Operario externo"];
 export const DEFAULT_WORK_TYPES = ["Maquinaria", "Barcos", "Cesta", "Servicios", "Otro"];
 

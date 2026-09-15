@@ -1,6 +1,6 @@
 import { supabase } from "../../shared/lib/supabase";
+import { BUCKET_DECA } from "../../shared/lib/constants";
 import { faltanDatosDeca } from "./validar";
-import { BUCKET_DECA } from "./pdf";
 
 export { faltanDatosDeca } from "./validar";
 
@@ -19,9 +19,17 @@ export const dbEmitirDeca = async (servicio, cliente, config) => {
     return { deca: null, error: { message: `Faltan datos obligatorios del DeCA: ${faltan.join(", ")}`, faltan } };
   }
 
-  // El módulo del PDF (jsPDF + qrcode) solo se carga al emitir
+  // El módulo del PDF (jsPDF + qrcode) solo se carga al emitir: este
+  // import() es la única vía por la que se carga
   const { generarPdfDeca } = await import("./pdf");
-  const { id, pdfPath, url, datos, blob } = await generarPdfDeca(servicio, cliente, config);
+  let generado;
+  try {
+    generado = await generarPdfDeca(servicio, cliente, config);
+  } catch (e) {
+    console.error(e);
+    return { deca: null, error: { message: e.message || "No se ha podido generar el DeCA" } };
+  }
+  const { id, numero, pdfPath, url, datos, blob } = generado;
 
   const { error: errorSubida } = await supabase.storage
     .from(BUCKET_DECA)
@@ -31,10 +39,11 @@ export const dbEmitirDeca = async (servicio, cliente, config) => {
     return { deca: null, error: { message: "No se ha podido subir el PDF del DeCA: " + errorSubida.message } };
   }
 
-  // numero (DECA-XXX) lo asigna el trigger de la base de datos: no se envía
+  // numero se reservó al generar el PDF y es el que va impreso: se envía tal
+  // cual, y el trigger lo respeta porque solo asigna cuando llega vacío
   const { data, error } = await supabase
     .from("deca")
-    .insert([{ id, servicio_id: servicio.id ?? null, pdf_path: pdfPath, url, datos }])
+    .insert([{ id, numero, servicio_id: servicio.id ?? null, pdf_path: pdfPath, url, datos }])
     .select()
     .single();
   if (error) {
