@@ -55,6 +55,25 @@ export const dbEmitirDeca = async (servicio, cliente, config) => {
   return { deca: data, error: null };
 };
 
+// Los servicios que ya tienen algún DeCA vigente (no anulado), como Set de
+// servicio_id. Se carga una vez con el resto de datos y se compara en memoria:
+// pedir los DeCA servicio por servicio para pintar una marca en la lista y el
+// calendario sería una consulta por tarjeta. null cuando la carga falla.
+export const dbLoadServiciosConDeca = async () => {
+  const { data, error } = await supabase
+    .from("deca")
+    .select("servicio_id")
+    .not("servicio_id", "is", null)
+    .or("anulado.is.null,anulado.eq.false");
+  if (error) { console.error(error); return null; }
+  return new Set((data || []).map((d) => d.servicio_id));
+};
+
+// Un servicio marcado como requiere_deca, abierto y sin DeCA es un trabajo
+// que no puede salir legalmente: es lo que la lista y el calendario señalan
+export const servicioSinDeca = (s, serviciosConDeca) =>
+  !!s.requiere_deca && (s.estado || "abierto") === "abierto" && !serviciosConDeca?.has(s.id);
+
 // Los DeCA de un servicio, el más nuevo primero. null cuando la carga falla,
 // para distinguirlo de "no tiene ninguno".
 export const dbLoadDecaDeServicio = async (servicioId) => {

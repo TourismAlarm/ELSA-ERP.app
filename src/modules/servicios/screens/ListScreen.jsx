@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Btn } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
+import { servicioSinDeca } from "../../deca/db";
+
+// Un servicio que necesita DeCA y no lo tiene no puede salir: se marca en rojo
+const SinDecaBadge = () => (
+  <span className="text-xs font-black px-2 py-0.5 rounded bg-red-600 text-white">⚠️ Sin DeCA</span>
+);
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", border: "border-l-amber-400",   badge: "bg-amber-100 text-amber-700",     summary: "bg-amber-50 border-amber-200 text-amber-700" },
@@ -10,7 +16,7 @@ const ESTADOS = {
 const formatFecha = (fecha) =>
   fecha ? new Date(fecha).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
-const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado }) => {
+const ListScreen = ({ servicios, coloresVehiculo = {}, serviciosConDeca = new Set(), onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado }) => {
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -125,6 +131,7 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
                           </>
                         )}
                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
+                        {servicioSinDeca(s, serviciosConDeca) && <SinDecaBadge />}
                         {(Array.isArray(s.vehiculo) ? s.vehiculo : s.vehiculo ? [s.vehiculo] : []).map((v) => (
                           <span
                             key={v}
@@ -223,6 +230,7 @@ const ListScreen = ({ servicios, coloresVehiculo = {}, onNew, onView, onEdit, on
                         </>
                       )}
                       <span className={`text-xs font-bold px-2 py-0.5 rounded ${estadoCfg.badge}`}>{estadoCfg.emoji} {estadoCfg.label}</span>
+                      {servicioSinDeca(s, serviciosConDeca) && <SinDecaBadge />}
                     </div>
                     <p className="font-bold text-zinc-900">{s.cliente || "Sin nombre"}</p>
                     {s.origen && <p className="text-xs text-zinc-500">📍 {s.origen}{s.destino ? ` → ${s.destino}` : ""}</p>}

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
+import { servicioSinDeca } from "../../deca/db";
 import { festivoDe } from "../../../shared/lib/festivos";
 import { tipoDe, colorDe, diasDelEvento } from "../../eventos/db";
 
@@ -128,7 +129,9 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], serviciosConDeca = new Set(), onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig }) => {
+  // Marca roja en los servicios que necesitan DeCA y no lo tienen: no pueden salir
+  const sinDeca = (x) => servicioSinDeca(x, serviciosConDeca);
   // Estilo de la etiqueta de un servicio: color del vehículo/equipo indicado
   // (o del primero si no se especifica); si no hay color, el color por estado
   // (ámbar abierto / verde realizado)
@@ -492,7 +495,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
                       className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                     >
-                      {hecho ? "✓ " : ""}{vehiculo || "Sin camión"} · {s.cliente || "Sin nombre"}
+                      {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{vehiculo || "Sin camión"} · {s.cliente || "Sin nombre"}
                     </span>
                   );
                 })}
@@ -515,7 +518,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} /> {nombre}
                 </span>
               ))}
-              <span className="text-xs font-semibold text-zinc-500">✓ = realizado</span>
+              <span className="text-xs font-semibold text-zinc-500">✓ = realizado · 🔴 = sin DeCA</span>
             </>
           ) : (
             <>
@@ -667,7 +670,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       style={ev.style}
                       className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
                     >
-                      {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{etiquetaVehiculo(vehiculo)} · {s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
+                      {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{etiquetaVehiculo(vehiculo)} · {s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
                     </button>
                   );
                 })}
@@ -757,7 +760,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
                       </p>
                       <p className="text-[11px] font-bold leading-tight truncate">
-                        {hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
+                        {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
                       </p>
                       <p className={`text-[10px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>
                         {etiquetaVehiculo(vehiculo)}
@@ -895,7 +898,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                               style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
                               className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                             >
-                              {(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
+                              {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
                             </button>
                           );
                         })}
@@ -952,7 +955,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                           >
                             <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
                             <p className={`text-[9px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>{etiquetaVehiculo(vehiculo)}</p>
-                            <p className="text-[9px] leading-tight truncate">{s.cliente || "Sin nombre"}</p>
+                            <p className="text-[9px] leading-tight truncate">{sinDeca(s) ? "🔴 " : ""}{s.cliente || "Sin nombre"}</p>
                           </button>
                         );
                       })}
@@ -1002,6 +1005,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     <span className={`text-xs font-bold px-2 py-0.5 rounded ${hecho ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                       {hecho ? "🟢 Realizado" : "🟠 Abierto"}
                     </span>
+                    {sinDeca(s) && (
+                      <span className="text-xs font-black px-2 py-0.5 rounded bg-red-600 text-white">⚠️ Sin DeCA: no puede salir</span>
+                    )}
                   </div>
                   <p className="font-black text-zinc-900 text-lg leading-tight truncate">{s.cliente || "Sin nombre"}</p>
                 </div>
