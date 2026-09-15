@@ -1,4 +1,4 @@
-import { supabase } from "../../shared/lib/supabase";
+import { supabase, cargarTodas } from "../../shared/lib/supabase";
 import { BUCKET_DECA } from "../../shared/lib/constants";
 import { faltanDatosDeca } from "./validar";
 
@@ -58,15 +58,16 @@ export const dbEmitirDeca = async (servicio, cliente, config) => {
 // Los servicios que ya tienen algún DeCA vigente (no anulado), como Set de
 // servicio_id. Se carga una vez con el resto de datos y se compara en memoria:
 // pedir los DeCA servicio por servicio para pintar una marca en la lista y el
-// calendario sería una consulta por tarjeta. null cuando la carga falla.
+// calendario sería una consulta por tarjeta.
+//
+// Va por cargarTodas, que pagina: un select directo se corta a 1.000 filas
+// sin avisar, y a partir del DeCA 1.001 habría servicios con DeCA marcados
+// como "sin DeCA". Se filtra en memoria. null cuando la carga falla, que
+// App.jsx conserva entonces el conjunto anterior.
 export const dbLoadServiciosConDeca = async () => {
-  const { data, error } = await supabase
-    .from("deca")
-    .select("servicio_id")
-    .not("servicio_id", "is", null)
-    .or("anulado.is.null,anulado.eq.false");
-  if (error) { console.error(error); return null; }
-  return new Set((data || []).map((d) => d.servicio_id));
+  const filas = await cargarTodas("deca", { orden: "creado_en", ascendente: false });
+  if (filas === null) return null;
+  return new Set(filas.filter((d) => d.servicio_id && !d.anulado).map((d) => d.servicio_id));
 };
 
 // Un servicio marcado como requiere_deca, abierto y sin DeCA es un trabajo
