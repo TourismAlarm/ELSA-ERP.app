@@ -231,6 +231,10 @@ export default function App() {
       // trabajo: se copia al servicio, y sigue sin salir en ningún documento
       notas_internas: sol.notas_internas || "",
       precio: sol.precio,
+      // Peso y bultos son datos del DeCA y ya están en la solicitud: se
+      // heredan para no volver a pedirlos el día del trabajo
+      peso: sol.peso,
+      bultos: sol.bultos,
       fecha_servicio: fecha,
       hora_inicio,
       hora_fin,
@@ -705,7 +709,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={conCliente(editingServicio)} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={conCliente(editingServicio)} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} flota={vehiculos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen

@@ -15,14 +15,30 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 const horasIniciales = (prefill) =>
   conHorasValidas({ hora_inicio: prefill?.hora_inicio || HORA_INICIO_POR_DEFECTO, hora_fin: "" });
 
-const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], eventos = [], onSave, onSaveCliente, onCancel, saving }) => {
+// Lo que el DeCA pide del servicio y que no va en ningún otro sitio. Los
+// textos a "" y no a null, que un null en un <input> lo vuelve no controlado.
+const DECA_VACIO = { requiere_deca: false, naturaleza_mercancia: "", peso: "", bultos: "", autorizacion_especial: "", matricula_tractora: "", matricula_remolque: "" };
+const decaDe = (s) => ({
+  requiere_deca: !!s.requiere_deca,
+  naturaleza_mercancia: s.naturaleza_mercancia || "",
+  peso: s.peso ?? "",
+  bultos: s.bultos ?? "",
+  autorizacion_especial: s.autorizacion_especial || "",
+  matricula_tractora: s.matricula_tractora || "",
+  matricula_remolque: s.matricula_remolque || "",
+});
+
+// flota: los vehículos de la tabla vehiculos, que son los que tienen
+// matrícula. config.vehicles son nombres de recurso ("24+jib", "Operari") y
+// no sirven para esto.
+const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], eventos = [], flota = [], onSave, onSaveCliente, onCancel, saving }) => {
   const normalizeVehiculo = (v) => Array.isArray(v) ? v : (v ? [v] : []);
   const [tempId] = useState(() => initial?.id || `temp_${Date.now()}`);
   const [form, setForm] = useState(
     initial
-      ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), notas_internas: initial.notas_internas || "" })
+      ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), notas_internas: initial.notas_internas || "", ...decaDe(initial) })
       // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
-      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", notas_internas: "", fotos: [] }
+      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", notas_internas: "", ...DECA_VACIO, fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -32,6 +48,12 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const vehicles = normalizeVehiculos(config?.vehicles ?? DEFAULT_VEHICLES);
+
+  // Matrículas de la flota para elegirlas en vez de teclearlas. Las de los
+  // vehículos dados de baja no se ofrecen, pero una ya guardada se conserva.
+  const matriculasFlota = [...new Set(
+    flota.filter((v) => v.activo !== false && (v.matricula || "").trim()).map((v) => v.matricula.trim())
+  )];
 
   const toggleVehiculo = (v) => {
     setForm((f) => {
@@ -227,6 +249,53 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
 
         <Field label="Descripción del servicio"><Textarea value={form.descripcion} onChange={set("descripcion")} placeholder="Descripción del trabajo realizado..." /></Field>
         <Field label="Precio (€) — opcional"><Input value={form.precio} onChange={set("precio")} placeholder="1500" type="number" min="0" step="0.01" /></Field>
+
+        {/* El DeCA hay que emitirlo antes de salir, así que sus datos van
+            aquí, en el servicio, y no en el albarán. Solo los pide cuando el
+            trabajo es transporte público de mercancías. */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.requiere_deca}
+            onChange={(e) => setForm((f) => ({ ...f, requiere_deca: e.target.checked }))}
+            className="w-5 h-5 accent-zinc-900"
+          />
+          <span className="text-sm font-semibold text-zinc-700">Este servicio necesita DeCA</span>
+        </label>
+
+        {form.requiere_deca && (
+          <div className="flex flex-col gap-4 border-2 border-zinc-200 rounded-lg p-4">
+            <div>
+              <p className="text-sm font-black text-zinc-900">Datos del DeCA</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Lo que pide el documento de control del transporte. Hay que tenerlo antes de salir.</p>
+            </div>
+            <Field label="Naturaleza de la mercancía">
+              <Input value={form.naturaleza_mercancia} onChange={set("naturaleza_mercancia")} placeholder="Maquinaria industrial, módulo prefabricado..." />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Peso (kg)">
+                <Input value={form.peso} onChange={set("peso")} placeholder="5000" type="number" min="0" step="0.01" />
+              </Field>
+              <Field label="Bultos">
+                <Input value={form.bultos} onChange={set("bultos")} placeholder="4" type="number" min="0" step="1" />
+              </Field>
+            </div>
+            <Field label="Nº de autorización especial de circulación">
+              <Input value={form.autorizacion_especial} onChange={set("autorizacion_especial")} placeholder="Solo si el transporte la necesita" />
+            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Matrícula tractora">
+                <Input value={form.matricula_tractora} onChange={set("matricula_tractora")} placeholder="1234 ABC" list="matriculas-flota" />
+              </Field>
+              <Field label="Matrícula remolque">
+                <Input value={form.matricula_remolque} onChange={set("matricula_remolque")} placeholder="R 1234 ABC" list="matriculas-flota" />
+              </Field>
+            </div>
+            <datalist id="matriculas-flota">
+              {matriculasFlota.map((m) => <option key={m} value={m} />)}
+            </datalist>
+          </div>
+        )}
 
         {/* La maniobra: para quien hace el trabajo, no para el cliente. Fuera
             de la descripción a propósito, que esa sí se imprime. */}

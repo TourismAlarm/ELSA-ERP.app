@@ -17,6 +17,11 @@ const sanitize = (s) => {
     ...rest,
     vehiculo: vehiculoStr,
     precio: s.precio !== "" && s.precio != null ? Number(s.precio) : null,
+    // Datos del DeCA: las columnas son numeric/integer/boolean y el
+    // formulario trae cadenas, igual que con precio
+    peso:   s.peso   !== "" && s.peso   != null ? Number(s.peso)   : null,
+    bultos: s.bultos !== "" && s.bultos != null ? Number(s.bultos) : null,
+    requiere_deca: !!s.requiere_deca,
     fecha_servicio: s.fecha_servicio || null,
     hora_inicio: s.hora_inicio || null,
     hora_fin: s.hora_fin || null,
