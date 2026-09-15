@@ -157,7 +157,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     // La base de datos devuelve null en las columnas vacías, y un null en un
     // <input> lo convierte en no controlado y React se queja
     ...Object.fromEntries(
-      ["contractacion", "web", "formaPago", "observaciones", "conformidad", "legal"]
+      ["contractacion", "web", "formaPago", "observaciones", "conformidad", "legal", "nif", "autorizacion_transporte"]
         .map((k) => [k, initial?.[k] ?? ""])
     ),
     vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
@@ -223,6 +223,22 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         <Field label="Teléfono"><Input value={form.tel} onChange={set("tel")} placeholder="600 000 000" /></Field>
         <Field label="Email"><Input value={form.email} onChange={set("email")} placeholder="info@empresa.com" type="email" /></Field>
         <Field label="Dirección fiscal"><Input value={form.direccion} onChange={set("direccion")} placeholder="Calle Mayor 1, 28001 Madrid" /></Field>
+      </div>
+
+      <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+        <div>
+          <p className="text-sm font-black text-zinc-900 mb-1">Datos fiscales y de transporte</p>
+          <p className="text-xs text-zinc-400">
+            El NIF sale debajo del nombre de la empresa en los presupuestos. Los dos datos identifican al
+            transportista en el documento de control (DeCA) obligatorio desde octubre de 2026.
+          </p>
+        </div>
+        <Field label="NIF / CIF de la empresa">
+          <Input value={form.nif} onChange={set("nif")} placeholder="B12345678" />
+        </Field>
+        <Field label="Nº de autorización de transporte">
+          <Input value={form.autorizacion_transporte} onChange={set("autorizacion_transporte")} placeholder="MDP-1234567" />
+        </Field>
       </div>
 
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">

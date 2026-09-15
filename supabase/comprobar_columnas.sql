@@ -13,6 +13,8 @@ with esperadas(tabla, columna) as (values
   -- Textos fijos del presupuesto
   ('config','contractacion'), ('config','web'), ('config','formaPago'),
   ('config','observaciones'), ('config','conformidad'), ('config','legal'),
+  -- Datos fiscales y de transporte (DeCA)
+  ('config','nif'), ('config','autorizacion_transporte'),
 
   ('clientes','numero'), ('clientes','nombre'), ('clientes','nombre_comercial'),
   ('clientes','nifCif'), ('clientes','dirFact'), ('clientes','cp'), ('clientes','poblacion'),

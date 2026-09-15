@@ -92,8 +92,16 @@ const plantilla = ({ doc, config, documento, numero, fecha, cliente, conFirmas }
 
     fuente("bold", 11);
     doc.text(config.nombre || "", MARGEN, 17);
+    // El NIF, debajo del nombre; si no hay, la dirección sube a su sitio de
+    // siempre para no dejar un hueco
+    let yDir = 23;
+    if (config.nif) {
+      fuente("normal", 8.5, [60, 60, 60]);
+      doc.text(`NIF: ${config.nif}`, MARGEN, 22);
+      yDir = 27;
+    }
     fuente("normal", 9.5, [60, 60, 60]);
-    partirDireccion(config.direccion).forEach((linea, i) => doc.text(linea, MARGEN, 23 + i * 5));
+    partirDireccion(config.direccion).forEach((linea, i) => doc.text(linea, MARGEN, yDir + i * 5));
 
     // Bloque de contratación: teléfonos a la izquierda, email y web a la derecha
     fuente("bold", 8.5);
