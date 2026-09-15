@@ -36,6 +36,10 @@ with esperadas(tabla, columna) as (values
   ('servicios','descripcion'), ('servicios','precio'), ('servicios','fotos'),
   ('servicios','estado'), ('servicios','notas'), ('servicios','solicitud_id'),
   ('servicios','notas_internas'),
+  -- Datos del DeCA
+  ('servicios','requiere_deca'), ('servicios','naturaleza_mercancia'), ('servicios','peso'),
+  ('servicios','bultos'), ('servicios','autorizacion_especial'),
+  ('servicios','matricula_tractora'), ('servicios','matricula_remolque'),
 
   ('albaranes','numero'), ('albaranes','cliente'), ('albaranes','fecha'),
   ('albaranes','descripcion'), ('albaranes','lineas'), ('albaranes','fotos'),
