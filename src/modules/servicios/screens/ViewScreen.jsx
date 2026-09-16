@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Btn, PhotoGallery, MapasModal, ClienteBloque, NotasInternasBloque } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
+import { dbLoadDecaDeServicio, dbEmitirDeca, faltanDatosDeca } from "../../deca/db";
+import { sendDecaWhatsApp } from "../../deca/messaging";
 
 const ESTADOS = {
   abierto:   { label: "Abierto",   emoji: "🟠", summary: "bg-amber-50 border-amber-200 text-amber-700",       badge: "bg-amber-100 text-amber-700" },
@@ -25,7 +27,107 @@ const rangoHoras = (inicio, fin) => {
 const formatFechaHora = (fechaISO) =>
   new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onGeneratePDF, onEdit, onDelete, onBack, onCambiarEstado, onAddNota }) => {
+// El DeCA se emite ANTES de salir a hacer el trabajo (el albarán se firma
+// después). Solo aparece en los servicios marcados como requiere_deca. Si
+// faltan datos obligatorios no se deja emitir: se dice qué falta y dónde se
+// rellena, que un DeCA incompleto no vale y nadie tiene por qué adivinarlo.
+const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => {
+  const [decas, setDecas] = useState(null); // null = cargando
+  const [cargaFallida, setCargaFallida] = useState(false);
+  const [emitiendo, setEmitiendo] = useState(false);
+  const [error, setError] = useState(null);
+  const [recarga, setRecarga] = useState(0); // sube para volver a pedir la lista
+
+  useEffect(() => {
+    let vivo = true;
+    dbLoadDecaDeServicio(servicio.id).then((lista) => {
+      if (!vivo) return; // la ficha ya cambió de servicio o se cerró
+      setCargaFallida(lista === null);
+      setDecas(lista ?? []);
+    });
+    return () => { vivo = false; };
+  }, [servicio.id, recarga]);
+
+  const faltan = faltanDatosDeca(servicio, cliente, config);
+  const vigentes = (decas || []).filter((d) => !d.anulado);
+
+  const emitir = async () => {
+    setEmitiendo(true);
+    setError(null);
+    const { deca, error: err } = await dbEmitirDeca(servicio, cliente, config);
+    setEmitiendo(false);
+    if (err) { setError(err.message); return; }
+    setRecarga((n) => n + 1);
+    onEmitido?.(deca);
+  };
+
+  const enviar = async (deca) => {
+    const updated = await sendDecaWhatsApp(deca, servicio, config);
+    if (updated) onNotaAnadida?.(updated);
+  };
+
+  return (
+    <div className="bg-rose-50 border-2 border-rose-200 rounded-xl p-4 flex flex-col gap-3">
+      <div>
+        <p className="text-xs font-bold tracking-widest uppercase mb-1 text-rose-400">DeCA</p>
+        <p className="text-sm font-bold text-rose-900">
+          {vigentes.length > 0
+            ? `📄 ${vigentes.length === 1 ? "DeCA emitido" : `${vigentes.length} DeCA emitidos`}`
+            : "Este servicio necesita DeCA antes de salir"}
+        </p>
+        <p className="text-xs text-rose-700 mt-0.5 opacity-80">Documento de control del transporte. Se emite antes de salir y el conductor lo lleva en el móvil.</p>
+      </div>
+
+      {decas === null ? (
+        <p className="text-xs text-rose-700">Cargando DeCA...</p>
+      ) : cargaFallida ? (
+        <p className="text-xs font-semibold text-red-600">No se han podido cargar los DeCA de este servicio. Recarga la página.</p>
+      ) : decas.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {decas.map((d) => (
+            <div key={d.id} className={`bg-white border-2 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap ${d.anulado ? "border-zinc-200 opacity-60" : "border-rose-200"}`}>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-zinc-900">
+                  {d.numero}
+                  {d.anulado && <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded bg-zinc-100 text-zinc-500">Anulado</span>}
+                </p>
+                <p className="text-xs text-zinc-500">Emitido el {formatFechaHora(d.creado_en)}</p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <a href={d.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-bold tracking-wide border-2 bg-white text-zinc-900 border-zinc-300 hover:border-zinc-900 hover:bg-zinc-50 px-3 py-1.5 text-xs rounded">
+                  📄 Abrir PDF
+                </a>
+                {!d.anulado && (
+                  <Btn size="sm" variant="whatsapp" onClick={() => enviar(d)}>💬 Enviar por WhatsApp</Btn>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {faltan.length > 0 ? (
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-3">
+          <p className="text-sm font-black text-red-800">⚠️ No se puede emitir: faltan datos obligatorios</p>
+          <ul className="text-sm text-red-700 mt-1 list-disc pl-5">
+            {faltan.map((f) => <li key={f}>{f}</li>)}
+          </ul>
+          <p className="text-xs text-red-700 mt-2">
+            Los del servicio se completan con ✏️ Editar en esta ficha (bloque "Datos del DeCA"); los de la empresa, en ⚙️ Configuración (Datos fiscales y de transporte).
+          </p>
+        </div>
+      ) : (
+        <Btn size="md" onClick={emitir} disabled={emitiendo || decas === null}>
+          {emitiendo ? "Emitiendo..." : vigentes.length > 0 ? "📄 Emitir otro DeCA" : "📄 Emitir DeCA"}
+        </Btn>
+      )}
+
+      {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
+    </div>
+  );
+};
+
+const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onGeneratePDF, onEdit, onDelete, onBack, onCambiarEstado, onAddNota, onDecaEmitido }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
@@ -109,6 +211,18 @@ const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud
                 <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver solicitud</Btn>
               )}
             </div>
+          )}
+
+          {/* DeCA: va antes del albarán porque en el ciclo va antes (se
+              emite antes de salir; el albarán se firma al acabar) */}
+          {srv.requiere_deca && (
+            <DecaBloque
+              servicio={srv}
+              cliente={cliente}
+              config={config}
+              onEmitido={(deca) => onDecaEmitido?.(srv.id, deca)}
+              onNotaAnadida={(updated) => setSrv((prev) => ({ ...prev, ...updated }))}
+            />
           )}
 
           {/* Albarán vinculado */}

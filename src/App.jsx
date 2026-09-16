@@ -10,6 +10,7 @@ import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, db
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
+import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
 import { FechaServicioModal, ConfirmarAlbaranModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
@@ -41,6 +42,9 @@ export default function App() {
   const [config, setConfig]           = useState(null);
   const [solicitudes, setSolicitudes] = useState([]);
   const [servicios, setServicios]     = useState([]);
+  // servicio_id de los servicios que ya tienen DeCA: para marcar en la lista y
+  // el calendario los que lo necesitan y aún no lo tienen
+  const [serviciosConDeca, setServiciosConDeca] = useState(() => new Set());
   const [albaranes, setAlbaranes]     = useState([]);
   const [clientes, setClientes]       = useState([]);
   const [screen, setScreen]           = useState("dashboard");
@@ -90,8 +94,8 @@ export default function App() {
   const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
     if (inicial) setLoadingData(true); else setRefrescando(true);
 
-    const [cfgRes, sols, srvs, albs, vhcs, clts, evts] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos()]);
-    const falloAlguna = [sols, srvs, albs, vhcs, clts, evts].some((x) => x === null) || cfgRes.error;
+    const [cfgRes, sols, srvs, albs, vhcs, clts, evts, decas] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos(), dbLoadServiciosConDeca()]);
+    const falloAlguna = [sols, srvs, albs, vhcs, clts, evts, decas].some((x) => x === null) || cfgRes.error;
     setConfig(cfgRes.config);
     setConfigError(cfgRes.error);
     setErrorCarga(falloAlguna);
@@ -101,6 +105,9 @@ export default function App() {
     setVehiculos(vhcs ?? []);
     setClientes(clts ?? []);
     setEventos(evts ?? []);
+    // Si esta carga falla se conserva lo anterior: vaciarla marcaría en rojo
+    // como "sin DeCA" servicios que sí lo tienen
+    if (decas !== null) setServiciosConDeca(decas);
 
     // Si estás mirando una ficha, que se actualice también: si no, refrescar
     // cambiaría la lista pero dejaría delante la versión vieja del documento
@@ -150,6 +157,7 @@ export default function App() {
     setAlbaranes([]);
     setVehiculos([]);
     setEventos([]);
+    setServiciosConDeca(new Set());
     setErrorCarga(false);
     setConfigError(false);
     setRefrescando(false);
@@ -699,6 +707,7 @@ export default function App() {
         <ServiciosListScreen
           servicios={servicios}
           coloresVehiculo={coloresVehiculo}
+          serviciosConDeca={serviciosConDeca}
           loading={loadingData}
           onNew={handleServicioNew}
           onView={handleServicioView}
@@ -729,6 +738,7 @@ export default function App() {
           onBack={() => setScreen("servicios")}
           onCambiarEstado={handleServicioCambiarEstado}
           onAddNota={handleServicioAddNota}
+          onDecaEmitido={(servicioId) => setServiciosConDeca((prev) => new Set(prev).add(servicioId))}
         />
       )}
       {screen === "calendario" && (
@@ -736,6 +746,7 @@ export default function App() {
           servicios={servicios}
           albaranes={albaranes}
           eventos={eventos}
+          serviciosConDeca={serviciosConDeca}
           onNuevoEvento={(fecha) => setEditandoEvento({ fecha })}
           onEditarEvento={(evento) => setEditandoEvento({ evento, fecha: evento.fecha })}
           coloresVehiculo={coloresVehiculo}
