@@ -396,7 +396,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
   return (
-    <div className="max-w-2xl mx-auto px-3 py-5">
+    <div className="max-w-7xl mx-auto px-3 py-5">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-4 gap-4">
@@ -464,15 +464,15 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 }`}
               >
                 {(avisosPorDia[iso] || []).length > 0 && (
-                  <span className="absolute top-0.5 right-0.5 text-[9px] leading-none" title="Vencimiento de flota">⚠️</span>
+                  <span className="absolute top-0.5 right-0.5 text-xs leading-none" title="Vencimiento de flota">⚠️</span>
                 )}
-                <span className={`self-center text-[11px] font-black leading-none rounded-full w-4 h-4 flex items-center justify-center ${
+                <span className={`self-center text-xs font-black leading-none rounded-full w-4 h-4 flex items-center justify-center ${
                   esHoy ? "bg-zinc-900 text-white" : festivo ? "text-rose-600" : "text-zinc-700"
                 }`}>
                   {dia}
                 </span>
                 {festivo && (
-                  <span className="block w-full truncate px-1 text-[8px] font-bold text-rose-500 leading-tight">
+                  <span className="block w-full truncate px-1 text-xs font-bold text-rose-500 leading-tight">
                     {festivo}
                   </span>
                 )}
@@ -480,7 +480,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   <span
                     key={e.id}
                     style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
-                    className="block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight"
+                    className="block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight"
                   >
                     {tipoDe(e).emoji} {e.titulo}
                   </span>
@@ -493,14 +493,14 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       key={`${s.id}-${vehiculo || vi}`}
                       style={ev.style}
                       title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-[9px] font-bold leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                     >
                       {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{vehiculo || "Sin camión"} · {s.cliente || "Sin nombre"}
                     </span>
                   );
                 })}
                 {extra > 0 && (
-                  <span className="block w-full truncate px-1 text-[9px] font-black text-zinc-500 leading-tight">
+                  <span className="block w-full truncate px-1 text-xs font-black text-zinc-500 leading-tight">
                     +{extra} más
                   </span>
                 )}
@@ -542,7 +542,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           return (
             <div className="mt-3 pt-3 border-t border-zinc-100">
               <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
-                <span className="text-[10px] font-black tracking-widest text-zinc-400 uppercase">
+                <span className="text-xs font-black tracking-widest text-zinc-400 uppercase">
                   {new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
                 </span>
                 {Object.entries(coloresVehiculo).map(([nombre, color]) => {
@@ -551,14 +551,14 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     <span
                       key={nombre}
                       style={ocupado ? { backgroundColor: color, color: textoSobre(color) } : undefined}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ocupado ? "" : "bg-zinc-50 text-zinc-400 line-through"}`}
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${ocupado ? "" : "bg-zinc-50 text-zinc-400 line-through"}`}
                     >
                       {nombre}
                     </span>
                   );
                 })}
                 {sinCamion > 0 && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-zinc-500 ring-1 ring-zinc-300">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-white text-zinc-500 ring-1 ring-zinc-300">
                     {sinCamion} sin camión
                   </span>
                 )}
@@ -605,7 +605,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           </Btn>
         )}
       </div>
-      <p className="text-[11px] text-zinc-400 text-center mb-4">
+      <p className="text-xs text-zinc-400 text-center mb-4">
         Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
       </p>
 
@@ -685,7 +685,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
               <div className="w-12 shrink-0">
                 {franjas.map((min) => (
                   <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
-                    <span className={`absolute -top-1.5 right-2 leading-none ${min % 60 === 0 ? "text-[10px] font-bold text-zinc-500" : "text-[9px] text-zinc-300"}`}>
+                    <span className={`absolute -top-1.5 right-2 leading-none ${min % 60 === 0 ? "text-xs font-bold text-zinc-500" : "text-xs text-zinc-300"}`}>
                       {minutosAHora(min)}
                     </span>
                   </div>
@@ -723,10 +723,10 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       }}
                       className="absolute rounded-lg px-2 py-1 text-left overflow-hidden border-2 border-white/40"
                     >
-                      <p className="text-[10px] font-black leading-tight truncate">
+                      <p className="text-xs font-black leading-tight truncate">
                         {tipoDe(e).emoji} {e.titulo}
                       </p>
-                      <p className="text-[9px] opacity-80 leading-tight">
+                      <p className="text-xs opacity-80 leading-tight">
                         {horaCorta(e.hora_inicio)}{e.hora_fin ? ` – ${horaCorta(e.hora_fin)}` : ""}
                       </p>
                     </button>
@@ -756,17 +756,17 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       }}
                       className={`absolute rounded-lg px-1.5 py-1 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                     >
-                      <p className="text-[10px] font-black leading-tight truncate">
+                      <p className="text-xs font-black leading-tight truncate">
                         {horaCorta(s.hora_inicio)}{s.hora_fin ? ` – ${horaCorta(s.hora_fin)}` : ""}{albaran ? " 📝" : ""}
                       </p>
-                      <p className="text-[11px] font-bold leading-tight truncate">
+                      <p className="text-xs font-bold leading-tight truncate">
                         {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
                       </p>
-                      <p className={`text-[10px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>
+                      <p className={`text-xs font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>
                         {etiquetaVehiculo(vehiculo)}
                       </p>
                       {s.descripcion && (
-                        <p className="text-[10px] leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
+                        <p className="text-xs leading-tight opacity-80 line-clamp-2">{s.descripcion}</p>
                       )}
                     </button>
                   );
@@ -778,7 +778,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     className="absolute left-0.5 right-0.5 z-10 rounded-lg border-2 border-dashed border-zinc-900 bg-zinc-900/10 pointer-events-none px-1 pt-0.5"
                     style={{ top: drag.min * PX_POR_MINUTO, height: drag.dur * PX_POR_MINUTO }}
                   >
-                    <span className="inline-block text-[10px] font-black bg-zinc-900 text-white rounded px-1">
+                    <span className="inline-block text-xs font-black bg-zinc-900 text-white rounded px-1">
                       {minAbsAHora(drag.min)}{drag.durReal ? ` – ${minAbsAHora(drag.min + drag.dur)}` : ""}
                     </span>
                   </div>
@@ -817,7 +817,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 {franjas.map((min) => (
                   <div key={min} className="relative" style={{ height: 30 * PX_POR_MINUTO }}>
                     {min % 60 === 0 && (
-                      <span className="absolute -top-1.5 right-1.5 leading-none text-[10px] font-bold text-zinc-500">
+                      <span className="absolute -top-1.5 right-1.5 leading-none text-xs font-bold text-zinc-500">
                         {minutosAHora(min)}
                       </span>
                     )}
@@ -849,7 +849,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         seleccionado ? "bg-zinc-100" : "hover:bg-zinc-50"
                       }`}
                     >
-                      <span className={`text-[10px] font-black ${festivoDia ? "text-rose-500" : "text-zinc-400"}`} title={festivoDia || undefined}>{DIAS_SEMANA[idx]}</span>
+                      <span className={`text-xs font-black ${festivoDia ? "text-rose-500" : "text-zinc-400"}`} title={festivoDia || undefined}>{DIAS_SEMANA[idx]}</span>
                       <span className={`text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
                         esHoy ? "bg-zinc-900 text-white" : "text-zinc-800"
                       }`}>
@@ -865,7 +865,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             key={i}
                             onClick={() => onVerVehiculo && onVerVehiculo(a.vehiculo)}
                             title={`${a.tipo} ${a.vehiculo.nombre}`}
-                            className="block w-full truncate text-left text-[8px] font-black bg-red-100 text-red-700 hover:bg-red-200 rounded px-1 mt-px leading-tight transition-colors"
+                            className="block w-full truncate text-left text-xs font-black bg-red-100 text-red-700 hover:bg-red-200 rounded px-1 mt-px leading-tight transition-colors"
                             style={{ height: ALTO_AVISO - 2 }}
                           >
                             ⚠️ {a.tipo} {a.vehiculo.nombre}
@@ -883,7 +883,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             onClick={() => onEditarEvento && onEditarEvento(e)}
                             title={e.titulo}
                             style={{ height: ALTO_SIN_HORA - 2, backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
-                            className="block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight"
+                            className="block w-full truncate text-left text-xs font-black rounded px-1 mt-px leading-tight"
                           >
                             {tipoDe(e).emoji} {e.titulo}
                           </button>
@@ -896,7 +896,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                               onClick={() => setServicioSeleccionado(s)}
                               title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
                               style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
-                              className={`block w-full truncate text-left text-[8px] font-black rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
+                              className={`block w-full truncate text-left text-xs font-black rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                             >
                               {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
                             </button>
@@ -920,7 +920,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                                      left: "3%", width: "94%", backgroundColor: color, color: textoSobre(color) }}
                             className="absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1]"
                           >
-                            <p className="text-[8px] font-black leading-tight truncate">{tipoDe(e).emoji} {e.titulo}</p>
+                            <p className="text-xs font-black leading-tight truncate">{tipoDe(e).emoji} {e.titulo}</p>
                           </button>
                         );
                       })}
@@ -953,9 +953,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             }}
                             className={`absolute rounded px-1 py-0.5 text-left overflow-hidden shadow-sm border border-white/50 select-none ${ev.className} ${drag && drag.s.id === s.id ? "opacity-40" : ""}`}
                           >
-                            <p className="text-[9px] font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
-                            <p className={`text-[9px] font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>{etiquetaVehiculo(vehiculo)}</p>
-                            <p className="text-[9px] leading-tight truncate">{sinDeca(s) ? "🔴 " : ""}{s.cliente || "Sin nombre"}</p>
+                            <p className="text-xs font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
+                            <p className={`text-xs font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>{etiquetaVehiculo(vehiculo)}</p>
+                            <p className="text-xs leading-tight truncate">{sinDeca(s) ? "🔴 " : ""}{s.cliente || "Sin nombre"}</p>
                           </button>
                         );
                       })}
@@ -966,7 +966,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                           className="absolute left-0.5 right-0.5 z-10 rounded border-2 border-dashed border-zinc-900 bg-zinc-900/10 pointer-events-none px-0.5 pt-0.5"
                           style={{ top: drag.min * PX_POR_MINUTO, height: drag.dur * PX_POR_MINUTO }}
                         >
-                          <span className="inline-block text-[9px] font-black bg-zinc-900 text-white rounded px-1">
+                          <span className="inline-block text-xs font-black bg-zinc-900 text-white rounded px-1">
                             {minAbsAHora(drag.min)}
                           </span>
                         </div>
@@ -1022,9 +1022,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       onClick={() => setDireccionAbrir(s.origen)}
                       className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg px-3 py-2 text-left transition-colors"
                     >
-                      <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase shrink-0">A</span>
+                      <span className="text-xs font-black text-zinc-400 tracking-widest uppercase shrink-0">A</span>
                       <span className="text-sm font-semibold text-zinc-800 truncate flex-1">📍 {s.origen}</span>
-                      <span className="text-[10px] font-bold text-blue-600 shrink-0">Maps / Waze</span>
+                      <span className="text-xs font-bold text-blue-600 shrink-0">Maps / Waze</span>
                     </button>
                   )}
                   {s.destino && (
@@ -1032,9 +1032,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       onClick={() => setDireccionAbrir(s.destino)}
                       className="flex items-center gap-2 bg-zinc-50 hover:bg-zinc-100 rounded-lg px-3 py-2 text-left transition-colors"
                     >
-                      <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase shrink-0">B</span>
+                      <span className="text-xs font-black text-zinc-400 tracking-widest uppercase shrink-0">B</span>
                       <span className="text-sm font-semibold text-zinc-800 truncate flex-1">🏁 {s.destino}</span>
-                      <span className="text-[10px] font-bold text-blue-600 shrink-0">Maps / Waze</span>
+                      <span className="text-xs font-bold text-blue-600 shrink-0">Maps / Waze</span>
                     </button>
                   )}
                 </div>
@@ -1053,7 +1053,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     {notas.map((nota, i) => (
                       <div key={i} className="bg-zinc-50 rounded-lg px-3 py-1.5">
                         <p className="text-sm text-zinc-700">{TIPO_EMOJI[nota.tipo] || "📝"} {nota.texto}</p>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">{formatFechaHora(nota.fecha)}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">{formatFechaHora(nota.fecha)}</p>
                       </div>
                     ))}
                   </div>
