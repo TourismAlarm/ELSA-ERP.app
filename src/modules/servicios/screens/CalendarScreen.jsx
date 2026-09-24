@@ -162,6 +162,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const [guardandoNota, setGuardandoNota] = useState(false);
   // Vista principal: el calendario (mes + rejilla horaria) o la agenda
   const [vista, setVista] = useState("calendario");
+  // En la agenda: cada incremento vuelve la lista a hoy; y el menú del botón "+"
+  const [saltoAHoy, setSaltoAHoy] = useState(0);
+  const [menuNuevo, setMenuNuevo] = useState(false);
   // Vista de la rejilla horaria: un día o la semana completa
   const [vistaHoras, setVistaHoras] = useState("dia");
 
@@ -399,36 +402,85 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
 
   return (
-    <div className="max-w-7xl mx-auto px-3 py-5">
+    <div className={`max-w-7xl mx-auto px-3 pt-5 ${vista === "agenda" ? "pb-0" : "pb-5"}`}>
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4 gap-4">
+      {/* Header: el título es el desplegable Calendario / Agenda */}
+      <div className={`flex items-center justify-between gap-4 ${vista === "agenda" ? "mb-1" : "mb-4"}`}>
         <div>
-          <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-1">Servicios del mes</p>
-          <h1 className="text-2xl font-black text-zinc-900">Calendario</h1>
+          {vista === "calendario" && (
+            <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-1">Servicios del mes</p>
+          )}
+          {/* El select va invisible encima del texto: así el ▾ queda pegado a la
+              palabra y al tocar sale el selector nativo del iPad/iPhone */}
+          <div className="relative inline-flex items-center gap-1.5">
+            <span aria-hidden="true" className="text-2xl font-black text-zinc-900">
+              {vista === "agenda" ? "Agenda" : "Calendario"}
+            </span>
+            <span aria-hidden="true" className="text-lg text-zinc-500">▾</span>
+            <select
+              value={vista}
+              onChange={(e) => setVista(e.target.value)}
+              aria-label="Vista del calendario"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer text-base"
+            >
+              <option value="calendario">Calendario</option>
+              <option value="agenda">Agenda</option>
+            </select>
+          </div>
         </div>
-        <Btn variant="ghost" size="sm" onClick={onConfig}>⚙️ Config</Btn>
+        <div className="flex items-center gap-2">
+          {vista === "agenda" && (
+            <button
+              onClick={() => setSaltoAHoy((n) => n + 1)}
+              className="h-10 px-4 rounded-lg border-2 border-zinc-200 bg-white text-sm font-black text-zinc-700 hover:border-zinc-900 transition-colors"
+            >
+              Hoy
+            </button>
+          )}
+          <Btn variant="ghost" size="sm" onClick={onConfig}>⚙️ Config</Btn>
+        </div>
       </div>
 
-      {/* Conmutador Calendario / Agenda */}
-      <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5 mb-4">
-        <button
-          onClick={() => setVista("calendario")}
-          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
-            vista === "calendario" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          📅 Calendario
-        </button>
-        <button
-          onClick={() => setVista("agenda")}
-          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
-            vista === "agenda" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          📋 Agenda
-        </button>
-      </div>
+      {vista === "agenda" && (
+        <AgendaView
+          servicios={servicios}
+          eventos={eventos}
+          coloresVehiculo={coloresVehiculo}
+          serviciosConDeca={serviciosConDeca}
+          onSelectServicio={setServicioSeleccionado}
+          onEditarEvento={onEditarEvento}
+          saltoAHoy={saltoAHoy}
+        />
+      )}
+
+      {/* Botón flotante de nuevo, como en Google Calendar */}
+      {vista === "agenda" && (
+        <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+          {menuNuevo && (
+            <>
+              <button
+                onClick={() => { setMenuNuevo(false); onNuevoServicioEnHora(hoy(), null); }}
+                className="bg-white border-2 border-zinc-200 shadow-lg rounded-full px-5 py-3 text-base font-black text-zinc-900"
+              >
+                🚛 Servicio
+              </button>
+              <button
+                onClick={() => { setMenuNuevo(false); onNuevoEvento(hoy()); }}
+                className="bg-white border-2 border-zinc-200 shadow-lg rounded-full px-5 py-3 text-base font-black text-zinc-900"
+              >
+                📅 Otra cosa
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => (onNuevoEvento ? setMenuNuevo((v) => !v) : onNuevoServicioEnHora(hoy(), null))}
+            aria-label="Nuevo"
+            className="w-16 h-16 rounded-2xl bg-zinc-900 text-white text-3xl font-black shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          >
+            {menuNuevo ? "×" : "+"}
+          </button>
+        </div>
+      )}
 
       {vista === "calendario" && (<>
       {/* Vista mensual */}
@@ -620,7 +672,6 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           Semana
         </button>
       </div>
-      </>)}
 
       <div className="flex gap-2 mb-1.5">
         <Btn size="lg" className="flex-1" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Servicio</Btn>
@@ -630,24 +681,11 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           </Btn>
         )}
       </div>
-      {vista === "calendario" ? (
-        <p className="text-xs text-zinc-400 text-center mb-4">
-          Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
-        </p>
-      ) : (
-        <div className="mb-4" />
-      )}
+      <p className="text-xs text-zinc-400 text-center mb-4">
+        Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
+      </p>
 
-      {vista === "agenda" ? (
-        <AgendaView
-          servicios={servicios}
-          eventos={eventos}
-          coloresVehiculo={coloresVehiculo}
-          serviciosConDeca={serviciosConDeca}
-          onSelectServicio={setServicioSeleccionado}
-          onEditarEvento={onEditarEvento}
-        />
-      ) : vistaHoras === "dia" ? (
+      {vistaHoras === "dia" ? (
         <>
           {/* Día seleccionado */}
           <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-1">{labelDia}</p>
@@ -1018,6 +1056,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           </div>
         </>
       )}
+      </>)}
 
       {/* Panel de acciones del servicio tocado */}
       {servicioSeleccionado && (() => {
