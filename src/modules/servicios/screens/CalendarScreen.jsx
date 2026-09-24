@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 import { servicioSinDeca } from "../../deca/db";
@@ -36,6 +36,33 @@ const expandir = (lista) => lista.flatMap(porVehiculo);
 
 const DIAS_SEMANA = ["L", "M", "X", "J", "V", "S", "D"];
 
+// Vistas del calendario, como el menú de Google Calendar
+const VISTAS = [
+  { id: "agenda", nombre: "Agenda" },
+  { id: "dia", nombre: "Día" },
+  { id: "3dias", nombre: "3 días" },
+  { id: "semana", nombre: "Semana" },
+  { id: "mes", nombre: "Mes" },
+];
+const CLAVE_VISTA = "calendario.vista";
+
+// Icono de cada vista: rectángulos que dibujan cómo se reparte la pantalla
+const IconoVista = ({ id, className = "w-6 h-6" }) => {
+  const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinejoin: "round" };
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      {id === "agenda" && (<><rect x="3" y="4" width="18" height="7" rx="2" {...trazo} /><rect x="3" y="13" width="18" height="7" rx="2" {...trazo} /></>)}
+      {id === "dia" && (<><path d="M3 4h18M3 20h18" {...trazo} /><rect x="3" y="7" width="18" height="10" rx="1" {...trazo} /></>)}
+      {id === "3dias" && (<><rect x="3" y="4" width="18" height="16" rx="1" {...trazo} /><path d="M9 4v16M15 4v16" {...trazo} /></>)}
+      {id === "semana" && (<><rect x="3" y="4" width="18" height="16" rx="1" {...trazo} /><path d="M7.5 4v16M12 4v16M16.5 4v16" {...trazo} /></>)}
+      {id === "mes" && (<><rect x="3" y="4" width="18" height="16" rx="1" {...trazo} /><path d="M3 12h18M9 4v16M15 4v16" {...trazo} /></>)}
+    </svg>
+  );
+};
+
+// Alto (px) de cada línea de la celda del mes: festivo, evento, servicio o "+N más"
+const ALTO_LINEA_MES = 21;
+
 // --- Rejilla horaria del día seleccionado (06:00 a 22:00, franjas de 30 min) ---
 // Un servicio fuera de esta franja no desaparece, pero se dibuja pegado al
 // borde: la etiqueta sigue diciendo su hora real, aunque la posición engañe.
@@ -53,6 +80,8 @@ const aMinutosDesdeInicio = (h) => {
 };
 
 const horaCorta = (h) => (h ? h.slice(0, 5) : "");
+
+const capitalizar = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 // Emoji por tipo de nota (mismo criterio que la vista del servicio)
 const TIPO_EMOJI = { whatsapp: "💬", email: "✉️", manual: "📝" };
@@ -160,8 +189,50 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   // Nota que se está escribiendo en el panel de acciones
   const [nuevaNota, setNuevaNota] = useState("");
   const [guardandoNota, setGuardandoNota] = useState(false);
-  // Vista de la rejilla horaria: un día, la semana completa o la agenda
-  const [vistaHoras, setVistaHoras] = useState("dia");
+  // Vista elegida (agenda, día, 3 días, semana o mes). Cada uno trabaja con la
+  // suya, así que se recuerda en el dispositivo.
+  const [vista, setVistaState] = useState(() => {
+    try {
+      const guardada = localStorage.getItem(CLAVE_VISTA);
+      if (VISTAS.some((v) => v.id === guardada)) return guardada;
+    } catch { /* sin almacenamiento: vista por defecto */ }
+    return "agenda";
+  });
+  const setVista = (v) => {
+    setVistaState(v);
+    try { localStorage.setItem(CLAVE_VISTA, v); } catch { /* sin almacenamiento */ }
+  };
+  const [menuVistas, setMenuVistas] = useState(false);
+  // En la agenda: cada incremento vuelve la lista a hoy; y el menú del botón "+"
+  const [saltoAHoy, setSaltoAHoy] = useState(0);
+  const [menuNuevo, setMenuNuevo] = useState(false);
+
+  // Cada vista ocupa el alto que queda de pantalla y solo se desplaza su
+  // contenido, no la página
+  const areaRef = useRef(null);
+  const [altoArea, setAltoArea] = useState(null);
+  useLayoutEffect(() => {
+    const medir = () => {
+      const area = areaRef.current;
+      if (!area) return;
+      const top = area.getBoundingClientRect().top + window.scrollY;
+      setAltoArea(Math.max(320, window.innerHeight - top));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [vista]);
+
+  // Alto de la rejilla del mes, para meter en cada día tantos servicios como quepan
+  const rejillaMesRef = useRef(null);
+  const [altoRejillaMes, setAltoRejillaMes] = useState(0);
+  useLayoutEffect(() => {
+    const el = rejillaMesRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => setAltoRejillaMes(el.clientHeight));
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [vista]);
 
   // Añade una nota al servicio del panel y refresca el panel con la respuesta
   const handleAddNotaPanel = async () => {
@@ -179,7 +250,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const pressRef = useRef(null);        // datos del gesto en curso
   const justDraggedRef = useRef(false); // evita que el click tras soltar abra el panel
   const diaAreaRef = useRef(null);      // área de eventos de la vista de día
-  const semanaColsRef = useRef(null);   // contenedor de las 7 columnas de la semana
+  const semanaColsRef = useRef(null);   // contenedor de las columnas de 3 días / semana
 
   // Bloquea el scroll nativo solo mientras hay un arrastre activo
   const bloquearScroll = useRef((e) => {
@@ -206,15 +277,16 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   // Posición (día + minutos con snap de 15) bajo el puntero
   const objetivoDe = (e, p) => {
     let dia, min;
-    if (vistaHoras === "dia" || !semanaColsRef.current) {
+    if (vista === "dia" || !semanaColsRef.current) {
       const rect = diaAreaRef.current?.getBoundingClientRect();
       if (!rect) return null;
       dia = fecha;
       min = (e.clientY - rect.top) / PX_POR_MINUTO - p.grabOffset;
     } else {
       const rect = semanaColsRef.current.getBoundingClientRect();
-      const idx = Math.max(0, Math.min(6, Math.floor(((e.clientX - rect.left) / rect.width) * 7)));
-      dia = diasDeLaSemana[idx];
+      const n = diasRejilla.length;
+      const idx = Math.max(0, Math.min(n - 1, Math.floor(((e.clientX - rect.left) / rect.width) * n)));
+      dia = diasRejilla[idx];
       min = (e.clientY - rect.top - ALTO_CABECERA_SEMANA - alturaAvisosSemana - alturaSinHoraSemana) / PX_POR_MINUTO - p.grabOffset;
     }
     min = Math.max(0, Math.min(TOTAL_MINUTOS - p.dur, Math.round(min / 15) * 15));
@@ -289,10 +361,30 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
     setMes({ year: d.getFullYear(), month: d.getMonth() });
   };
 
+  const moverFecha = (dias) => {
+    const d = new Date(fecha + "T00:00:00");
+    d.setDate(d.getDate() + dias);
+    setFecha(toISO(d));
+    setMes({ year: d.getFullYear(), month: d.getMonth() });
+  };
+
+  // ◀ ▶ de la cabecera: lo que avanza depende de la vista
+  const navegar = (delta) => {
+    if (vista === "mes") cambiarMes(delta);
+    else moverFecha(delta * (vista === "semana" ? 7 : vista === "3dias" ? 3 : 1));
+  };
+
   const volverHoy = () => {
     const d = new Date();
     setFecha(hoy());
     setMes({ year: d.getFullYear(), month: d.getMonth() });
+    setSaltoAHoy((n) => n + 1);
+  };
+
+  // Tocar un día del mes lo abre en la vista de día, como en Google Calendar
+  const abrirDia = (iso) => {
+    setFecha(iso);
+    setVista("dia");
   };
 
   // Servicios agrupados por fecha
@@ -311,9 +403,6 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   ];
 
   const labelMes = primerDia.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
-  const labelDia = new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
 
   const delDia = (porDia[fecha] || [])
     .slice()
@@ -324,19 +413,20 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   const conHora = bloquesDe(delDia);
   const franjas = Array.from({ length: TOTAL_MINUTOS / 30 }, (_, i) => i * 30);
 
-  // Semana (lunes a domingo) que contiene la fecha seleccionada
-  const diasDeLaSemana = (() => {
-    const lunes = lunesDe(fecha);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(lunes);
-      d.setDate(lunes.getDate() + i);
+  // Columnas de la rejilla por días: la semana (lunes a domingo) que contiene
+  // la fecha, o 3 días empezando en ella
+  const diasRejilla = (() => {
+    const inicio = vista === "3dias" ? new Date(fecha + "T00:00:00") : lunesDe(fecha);
+    return Array.from({ length: vista === "3dias" ? 3 : 7 }, (_, i) => {
+      const d = new Date(inicio);
+      d.setDate(inicio.getDate() + i);
       return toISO(d);
     });
   })();
 
-  const labelSemana = (() => {
-    const ini = new Date(diasDeLaSemana[0] + "T00:00:00");
-    const fin = new Date(diasDeLaSemana[6] + "T00:00:00");
+  const labelRango = (() => {
+    const ini = new Date(diasRejilla[0] + "T00:00:00");
+    const fin = new Date(diasRejilla[diasRejilla.length - 1] + "T00:00:00");
     const mIni = ini.toLocaleDateString("es-ES", { month: "short" });
     const mFin = fin.toLocaleDateString("es-ES", { month: "short" });
     return mIni === mFin
@@ -344,12 +434,10 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
       : `${ini.getDate()} ${mIni} – ${fin.getDate()} ${mFin}`;
   })();
 
-  const cambiarSemana = (delta) => {
-    const d = new Date(fecha + "T00:00:00");
-    d.setDate(d.getDate() + delta * 7);
-    setFecha(toISO(d));
-    setMes({ year: d.getFullYear(), month: d.getMonth() });
-  };
+  const labelCabecera =
+    vista === "mes" ? labelMes
+    : vista === "dia" ? new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" }).replace(",", "")
+    : labelRango;
 
   // Vencimientos de la flota (ITV, seguro y extras) agrupados por fecha.
   // Son avisos informativos: tocarlos navega al vehículo, no se arrastran.
@@ -382,177 +470,288 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
     }));
 
   const ALTO_AVISO = 18; // px por fila de aviso en la vista de semana
-  const maxAvisosSemana = Math.max(0, ...diasDeLaSemana.map((iso) => (avisosPorDia[iso] || []).length));
+  const maxAvisosSemana = Math.max(0, ...diasRejilla.map((iso) => (avisosPorDia[iso] || []).length));
   const alturaAvisosSemana = maxAvisosSemana * ALTO_AVISO;
 
-  // Franja de servicios sin hora en la vista de semana (misma altura en las 7
-  // columnas para que la rejilla horaria quede alineada)
+  // Franja de servicios sin hora en la vista de semana (misma altura en todas
+  // las columnas para que la rejilla horaria quede alineada)
   const ALTO_SIN_HORA = 18; // px por fila de servicio sin hora
-  const maxSinHoraSemana = Math.max(0, ...diasDeLaSemana.map((iso) =>
+  const maxSinHoraSemana = Math.max(0, ...diasRejilla.map((iso) =>
     expandir((porDia[iso] || []).filter((s) => !s.hora_inicio)).length +
     (eventosPorDia[iso] || []).filter((e) => e.todo_el_dia || !e.hora_inicio).length
   ));
   const alturaSinHoraSemana = maxSinHoraSemana * ALTO_SIN_HORA;
 
-  const esMesActual = (() => { const d = new Date(); return mes.year === d.getFullYear() && mes.month === d.getMonth(); })();
+  // Líneas que caben en cada celda del mes, restando la del número del día
+  const filasMes = Math.ceil(celdas.length / 7);
+  const lineasPorCelda = altoRejillaMes
+    ? Math.max(1, Math.floor((altoRejillaMes / filasMes - 24) / ALTO_LINEA_MES))
+    : 3;
+
+  const nombreVista = VISTAS.find((v) => v.id === vista)?.nombre;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 py-5">
+    <div className="max-w-7xl mx-auto px-3 pt-5">
 
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4 gap-4">
-        <div>
-          <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-1">Servicios del mes</p>
-          <h1 className="text-2xl font-black text-zinc-900">Calendario</h1>
+      {/* Cabecera: menú de vistas, navegación, hoy y configuración. En pantalla
+          estrecha la navegación baja a una segunda fila. */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <button
+          onClick={() => setMenuVistas(true)}
+          aria-label="Cambiar de vista"
+          className="inline-flex items-center gap-2 h-11 pl-3.5 pr-1.5 rounded-full bg-zinc-900 text-white shadow-md active:scale-95 transition-transform"
+        >
+          <IconoVista id={vista} className="w-5 h-5" />
+          <span className="text-lg font-black">{nombreVista}</span>
+          <span aria-hidden="true" className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+            </svg>
+          </span>
+        </button>
+
+        {vista !== "agenda" && (
+          <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1 flex items-center justify-between sm:justify-center gap-2 min-w-0">
+            <button
+              onClick={() => navegar(-1)}
+              aria-label="Anterior"
+              className="w-10 h-10 shrink-0 bg-white border-2 border-zinc-200 hover:border-zinc-900 text-zinc-700 rounded-lg font-black transition-colors"
+            >
+              ◀
+            </button>
+            <p className="text-base font-black text-zinc-900 text-center truncate sm:min-w-[11rem]">{capitalizar(labelCabecera)}</p>
+            <button
+              onClick={() => navegar(1)}
+              aria-label="Siguiente"
+              className="w-10 h-10 shrink-0 bg-white border-2 border-zinc-200 hover:border-zinc-900 text-zinc-700 rounded-lg font-black transition-colors"
+            >
+              ▶
+            </button>
+          </div>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={volverHoy}
+            className="h-10 px-4 rounded-lg border-2 border-zinc-200 bg-white text-sm font-black text-zinc-700 hover:border-zinc-900 transition-colors"
+          >
+            Hoy
+          </button>
+          <button
+            onClick={onConfig}
+            aria-label="Configuración"
+            className="w-10 h-10 rounded-lg text-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+          >
+            ⚙️
+          </button>
         </div>
-        <Btn variant="ghost" size="sm" onClick={onConfig}>⚙️ Config</Btn>
       </div>
 
-      {/* Vista mensual */}
-      <div className="bg-white border-2 border-zinc-200 rounded-xl p-3 mb-4">
-        {/* Navegación de mes */}
-        <div className="flex items-center justify-between gap-3 mb-2">
-          <button
-            onClick={() => cambiarMes(-1)}
-            className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
-          >
-            ◀
-          </button>
-          <p className="text-base font-black text-zinc-900 capitalize text-center flex-1">{labelMes}</p>
-          <button
-            onClick={() => cambiarMes(1)}
-            className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
-          >
-            ▶
-          </button>
-        </div>
-
-        {/* Cabecera de días de la semana */}
-        <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-          {DIAS_SEMANA.map((d) => (
-            <div key={d} className="text-center text-xs font-black text-zinc-400 py-1">{d}</div>
-          ))}
-        </div>
-
-        {/* Rejilla de días (estilo agenda: cada día muestra sus servicios) */}
-        <div className="grid grid-cols-7 gap-0.5">
-          {celdas.map((dia, i) => {
-            if (dia === null) return <div key={`vacio-${i}`} />;
-            const iso = toISO(new Date(mes.year, mes.month, dia));
-            const svs = (porDia[iso] || [])
-              .slice()
-              .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
-            const esHoy = iso === hoy();
-            const seleccionado = iso === fecha;
-            const festivo = festivoDe(iso);
-            const evs = eventosPorDia[iso] || [];
-            const entradas = expandir(svs); // una por vehículo, con su color
-            // Los eventos van primero: un día libre o una visita condicionan
-            // lo que se puede meter ese día
-            const visibles = entradas.slice(0, Math.max(1, 3 - evs.length));
-            const extra = entradas.length - visibles.length;
-            return (
+      {/* Menú de vistas, como el lateral de Google Calendar */}
+      {menuVistas && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMenuVistas(false)} />
+          <nav className="absolute left-0 top-0 bottom-0 w-72 max-w-[80vw] bg-white shadow-2xl pt-8 pr-3 flex flex-col gap-1">
+            <p className="px-6 pb-4 text-2xl font-black text-zinc-900">Calendario</p>
+            {VISTAS.map((v) => (
               <button
-                key={iso}
-                onClick={() => setFecha(iso)}
-                title={festivo || undefined}
-                className={`relative min-h-[58px] rounded border flex flex-col items-stretch gap-px p-0.5 text-left transition-colors ${
-                  seleccionado
-                    ? "bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900"
-                    : festivo
-                      ? "bg-rose-50 border-rose-200 hover:border-rose-400"
-                      : "bg-white border-zinc-200 hover:border-zinc-400"
+                key={v.id}
+                onClick={() => { setVista(v.id); setMenuVistas(false); }}
+                aria-current={vista === v.id ? "true" : undefined}
+                className={`flex items-center gap-5 h-14 pl-6 pr-4 rounded-r-full text-lg font-bold text-left transition-colors ${
+                  vista === v.id ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
-                {(avisosPorDia[iso] || []).length > 0 && (
-                  <span className="absolute top-0.5 right-0.5 text-xs leading-none" title="Vencimiento de flota">⚠️</span>
-                )}
-                <span className={`self-center text-xs font-black leading-none rounded-full w-4 h-4 flex items-center justify-center ${
-                  esHoy ? "bg-zinc-900 text-white" : festivo ? "text-rose-600" : "text-zinc-700"
-                }`}>
-                  {dia}
-                </span>
-                {festivo && (
-                  <span className="block w-full truncate px-1 text-xs font-bold text-rose-500 leading-tight">
-                    {festivo}
-                  </span>
-                )}
-                {evs.slice(0, 2).map((e) => (
-                  <span
-                    key={e.id}
-                    style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
-                    className="block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight"
+                <IconoVista id={v.id} />
+                {v.nombre}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
+
+      {/* Botón flotante de nuevo, como en Google Calendar */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+        {menuNuevo && (
+          <>
+            <button
+              onClick={() => { setMenuNuevo(false); onNuevoServicioEnHora(vista === "agenda" ? hoy() : fecha, null); }}
+              className="bg-white border-2 border-zinc-200 shadow-lg rounded-full px-5 py-3 text-base font-black text-zinc-900"
+            >
+              🚛 Servicio
+            </button>
+            <button
+              onClick={() => { setMenuNuevo(false); onNuevoEvento(vista === "agenda" ? hoy() : fecha); }}
+              className="bg-white border-2 border-zinc-200 shadow-lg rounded-full px-5 py-3 text-base font-black text-zinc-900"
+            >
+              📅 Otra cosa
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => (onNuevoEvento ? setMenuNuevo((v) => !v) : onNuevoServicioEnHora(vista === "agenda" ? hoy() : fecha, null))}
+          aria-label="Nuevo"
+          className="w-16 h-16 rounded-2xl bg-zinc-900 text-white text-3xl font-black shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+        >
+          {menuNuevo ? "×" : "+"}
+        </button>
+      </div>
+
+      {/* Zona de la vista: ocupa el resto de la pantalla y solo se desplaza su contenido */}
+      <div ref={areaRef} style={{ height: altoArea ?? "70vh" }} className="min-h-0">
+
+      {vista === "agenda" && (
+        <AgendaView
+          servicios={servicios}
+          eventos={eventos}
+          coloresVehiculo={coloresVehiculo}
+          serviciosConDeca={serviciosConDeca}
+          onSelectServicio={setServicioSeleccionado}
+          onEditarEvento={onEditarEvento}
+          saltoAHoy={saltoAHoy}
+        />
+      )}
+
+      {vista === "mes" && (
+        // pb-20: la leyenda queda entre los dos botones flotantes y no tapan días
+        <div className="h-full flex flex-col pb-20">
+          <div className="flex-1 min-h-0 flex flex-col bg-white border-2 border-zinc-200 rounded-xl p-1.5">
+            {/* Cabecera de días de la semana */}
+            <div className="grid grid-cols-7 gap-0.5 mb-0.5">
+              {DIAS_SEMANA.map((d) => (
+                <div key={d} className="text-center text-xs font-black text-zinc-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Rejilla de días: cada día muestra tantos servicios como quepan */}
+            <div
+              ref={rejillaMesRef}
+              className="flex-1 min-h-0 grid grid-cols-7 gap-0.5"
+              style={{ gridTemplateRows: `repeat(${filasMes}, minmax(0, 1fr))` }}
+            >
+              {celdas.map((dia, i) => {
+                if (dia === null) return <div key={`vacio-${i}`} />;
+                const iso = toISO(new Date(mes.year, mes.month, dia));
+                const svs = (porDia[iso] || [])
+                  .slice()
+                  .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
+                const esHoy = iso === hoy();
+                const festivo = festivoDe(iso);
+                const evs = eventosPorDia[iso] || [];
+                const entradas = expandir(svs); // una por vehículo, con su color
+                // Los eventos van primero: un día libre o una visita condicionan
+                // lo que se puede meter ese día. Si no cabe todo, la última línea
+                // es "+N más".
+                let lineas = lineasPorCelda - (festivo ? 1 : 0);
+                const total = evs.length + entradas.length;
+                if (total > lineas) lineas -= 1;
+                const evsVisibles = evs.slice(0, Math.max(0, lineas));
+                const visibles = entradas.slice(0, Math.max(0, lineas - evsVisibles.length));
+                const extra = total - evsVisibles.length - visibles.length;
+                return (
+                  <button
+                    key={iso}
+                    onClick={() => abrirDia(iso)}
+                    title={festivo || undefined}
+                    className={`relative min-h-0 overflow-hidden rounded border flex flex-col items-stretch gap-px p-0.5 text-left transition-colors ${
+                      festivo ? "bg-rose-50 border-rose-200 hover:border-rose-400" : "bg-white border-zinc-200 hover:border-zinc-400"
+                    }`}
                   >
-                    {tipoDe(e).emoji} {e.titulo}
+                    {(avisosPorDia[iso] || []).length > 0 && (
+                      <span className="absolute top-0.5 right-0.5 text-xs leading-none" title="Vencimiento de flota">⚠️</span>
+                    )}
+                    <span className={`self-center shrink-0 text-xs font-black leading-none rounded-full w-6 h-6 flex items-center justify-center ${
+                      esHoy ? "bg-zinc-900 text-white" : festivo ? "text-rose-600" : "text-zinc-700"
+                    }`}>
+                      {dia}
+                    </span>
+                    {festivo && (
+                      <span className="block w-full truncate px-1 text-xs font-bold text-rose-500 leading-tight shrink-0">
+                        {festivo}
+                      </span>
+                    )}
+                    {evsVisibles.map((e) => (
+                      <span
+                        key={e.id}
+                        style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
+                        className="block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight shrink-0"
+                      >
+                        {tipoDe(e).emoji} {e.titulo}
+                      </span>
+                    ))}
+                    {visibles.map(({ s, vehiculo }, vi) => {
+                      const ev = estiloEvento(s, vehiculo);
+                      const hecho = (s.estado || "abierto") === "realizado";
+                      return (
+                        <span
+                          key={`${s.id}-${vehiculo || vi}`}
+                          style={ev.style}
+                          title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
+                          className={`block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight shrink-0 ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
+                        >
+                          {/* En móvil la celda es estrecha: el color ya dice el camión, así que va el cliente */}
+                          {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}<span className="hidden sm:inline">{vehiculo || "Sin camión"} · </span>{s.cliente || "Sin nombre"}
+                        </span>
+                      );
+                    })}
+                    {extra > 0 && (
+                      <span className="block w-full truncate px-1 text-xs font-black text-zinc-500 leading-tight shrink-0">
+                        +{extra}<span className="hidden sm:inline"> más</span>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Leyenda */}
+          <div className="flex items-center justify-center gap-x-4 gap-y-1.5 mt-2 flex-wrap px-16">
+            {Object.keys(coloresVehiculo).length > 0 ? (
+              <>
+                {Object.entries(coloresVehiculo).map(([nombre, color]) => (
+                  <span key={nombre} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
+                    <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} /> {nombre}
                   </span>
                 ))}
-                {visibles.map(({ s, vehiculo }, vi) => {
-                  const ev = estiloEvento(s, vehiculo);
-                  const hecho = (s.estado || "abierto") === "realizado";
-                  return (
-                    <span
-                      key={`${s.id}-${vehiculo || vi}`}
-                      style={ev.style}
-                      title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
-                      className={`block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
-                    >
-                      {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{vehiculo || "Sin camión"} · {s.cliente || "Sin nombre"}
-                    </span>
-                  );
-                })}
-                {extra > 0 && (
-                  <span className="block w-full truncate px-1 text-xs font-black text-zinc-500 leading-tight">
-                    +{extra} más
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Leyenda */}
-        <div className="flex items-center justify-center gap-x-4 gap-y-1.5 mt-3 flex-wrap">
-          {Object.keys(coloresVehiculo).length > 0 ? (
-            <>
-              {Object.entries(coloresVehiculo).map(([nombre, color]) => (
-                <span key={nombre} className="flex items-center gap-1.5 text-xs font-semibold text-zinc-600">
-                  <span className="w-3 h-3 rounded" style={{ backgroundColor: color }} /> {nombre}
+                <span className="text-xs font-semibold text-zinc-500">✓ = realizado · 🔴 = sin DeCA</span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+                  <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Abierto
                 </span>
-              ))}
-              <span className="text-xs font-semibold text-zinc-500">✓ = realizado · 🔴 = sin DeCA</span>
-            </>
-          ) : (
-            <>
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-                <span className="w-3 h-3 rounded bg-amber-100 border border-amber-300" /> Abierto
-              </span>
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-                <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Realizado
-              </span>
-            </>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+                  <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Realizado
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {vista === "dia" && (
+        <div className="h-full overflow-y-auto overscroll-contain pb-24">
+          {festivoDe(fecha) && (
+            <p className="text-center text-sm font-black text-rose-600 mb-3">🎉 {festivoDe(fecha)}</p>
           )}
-        </div>
 
-        {/* Qué camiones están cogidos el día elegido: la pregunta que se hace
-            todo el rato al mirar el calendario */}
-        {Object.keys(coloresVehiculo).length > 0 && (() => {
-          const ocupados = new Set(
-            (porDia[fecha] || []).flatMap((s) => vehiculosDe(s))
-          );
-          const sinCamion = (porDia[fecha] || []).filter((s) => vehiculosDe(s).length === 0).length;
-          return (
-            <div className="mt-3 pt-3 border-t border-zinc-100">
-              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
-                <span className="text-xs font-black tracking-widest text-zinc-400 uppercase">
-                  {new Date(fecha + "T00:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
-                </span>
+          {/* Qué camiones están cogidos este día: la pregunta que se hace
+              todo el rato al mirar el calendario */}
+          {Object.keys(coloresVehiculo).length > 0 && (() => {
+            const ocupados = new Set(
+              (porDia[fecha] || []).flatMap((s) => vehiculosDe(s))
+            );
+            const sinCamion = (porDia[fecha] || []).filter((s) => vehiculosDe(s).length === 0).length;
+            return (
+              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-3">
                 {Object.entries(coloresVehiculo).map(([nombre, color]) => {
                   const ocupado = ocupados.has(nombre);
                   return (
                     <span
                       key={nombre}
                       style={ocupado ? { backgroundColor: color, color: textoSobre(color) } : undefined}
-                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${ocupado ? "" : "bg-zinc-50 text-zinc-400 line-through"}`}
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${ocupado ? "" : "bg-white text-zinc-400 line-through ring-1 ring-zinc-200"}`}
                     >
                       {nombre}
                     </span>
@@ -564,70 +763,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   </span>
                 )}
               </div>
-            </div>
-          );
-        })()}
-
-        {(!esMesActual || fecha !== hoy()) && (
-          <button
-            onClick={volverHoy}
-            className="mt-4 w-full text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            Volver a hoy
-          </button>
-        )}
-      </div>
-
-      {/* Conmutador Día / Semana / Agenda */}
-      <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5 mb-4">
-        <button
-          onClick={() => setVistaHoras("dia")}
-          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
-            vistaHoras === "dia" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          Día
-        </button>
-        <button
-          onClick={() => setVistaHoras("semana")}
-          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
-            vistaHoras === "semana" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          Semana
-        </button>
-        <button
-          onClick={() => setVistaHoras("agenda")}
-          className={`flex-1 py-2.5 text-sm font-black rounded-lg transition-colors ${
-            vistaHoras === "agenda" ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          Agenda
-        </button>
-      </div>
-
-      <div className="flex gap-2 mb-1.5">
-        <Btn size="lg" className="flex-1" onClick={() => onNuevoServicioEnHora(fecha, null)}>➕ Servicio</Btn>
-        {onNuevoEvento && (
-          <Btn size="lg" variant="secondary" className="flex-1" onClick={() => onNuevoEvento(fecha)}>
-            📅 Otra cosa
-          </Btn>
-        )}
-      </div>
-      {vistaHoras !== "agenda" && (
-        <p className="text-xs text-zinc-400 text-center mb-4">
-          Mantén pulsado un bloque para moverlo de hora{vistaHoras === "semana" ? " o de día" : ""}
-        </p>
-      )}
-
-      {vistaHoras === "dia" ? (
-        <>
-          {/* Día seleccionado */}
-          <p className="text-center text-sm font-bold text-zinc-500 capitalize mb-1">{labelDia}</p>
-          {festivoDe(fecha) && (
-            <p className="text-center text-sm font-black text-rose-600 mb-3">🎉 {festivoDe(fecha)}</p>
-          )}
-          {!festivoDe(fecha) && <div className="mb-3" />}
+            );
+          })()}
 
           {/* Eventos del día que no son servicios */}
           {eventosSinHora.length > 0 && (
@@ -797,32 +934,17 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
               </div>
             </div>
           </div>
-        </>
-      ) : vistaHoras === "semana" ? (
-        <>
-          {/* Navegación de semana */}
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <button
-              onClick={() => cambiarSemana(-1)}
-              className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
-            >
-              ◀
-            </button>
-            <p className="text-sm font-black text-zinc-700 text-center flex-1 capitalize">{labelSemana}</p>
-            <button
-              onClick={() => cambiarSemana(1)}
-              className="w-9 h-9 shrink-0 bg-zinc-100 hover:bg-zinc-900 hover:text-white text-zinc-700 rounded-lg font-black transition-colors"
-            >
-              ▶
-            </button>
-          </div>
+        </div>
+      )}
 
-          {/* Rejilla semanal (scroll horizontal en pantallas estrechas) */}
-          <div className="bg-white border-2 border-zinc-200 rounded-xl p-2 pt-3 overflow-x-auto">
-            <div className="flex min-w-[600px]">
+      {(vista === "semana" || vista === "3dias") && (
+          // Rejilla de varios días: se desplaza en vertical y, en pantallas
+          // estrechas, también en horizontal
+          <div className="h-full bg-white border-2 border-zinc-200 rounded-xl px-2 overflow-auto overscroll-contain">
+            <div className="flex pb-24" style={{ minWidth: 44 + diasRejilla.length * 80 }}>
               {/* Columna de horas (fija al hacer scroll) */}
               <div className="w-11 shrink-0 sticky left-0 bg-white z-20">
-                <div className="h-10" />
+                <div className="h-10 sticky top-0 bg-white z-10" />
                 {alturaAvisosSemana > 0 && <div style={{ height: alturaAvisosSemana }} />}
                 {alturaSinHoraSemana > 0 && <div style={{ height: alturaSinHoraSemana }} />}
                 {franjas.map((min) => (
@@ -838,7 +960,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
               {/* Una columna por día de la semana */}
               <div ref={semanaColsRef} className="flex flex-1">
-              {diasDeLaSemana.map((iso, idx) => {
+              {diasRejilla.map((iso) => {
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
                 const sinHoraDia = expandir(svsDia.filter((s) => !s.hora_inicio));
@@ -853,14 +975,14 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   .map((e) => ({ e, ini: aMinutosDesdeInicio(e.hora_inicio), fin: e.hora_fin ? aMinutosDesdeInicio(e.hora_fin) : aMinutosDesdeInicio(e.hora_inicio) + 60 }));
                 return (
                   <div key={iso} className="flex-1 min-w-[72px] border-l border-zinc-100">
-                    {/* Cabecera del día */}
+                    {/* Cabecera del día: se queda arriba al bajar; tocarla abre el día */}
                     <button
-                      onClick={() => setFecha(iso)}
-                      className={`w-full h-10 flex items-center justify-center gap-1 rounded-t-lg transition-colors ${
-                        seleccionado ? "bg-zinc-100" : "hover:bg-zinc-50"
+                      onClick={() => abrirDia(iso)}
+                      className={`sticky top-0 z-[15] w-full h-10 flex items-center justify-center gap-1 transition-colors ${
+                        seleccionado ? "bg-zinc-100" : "bg-white hover:bg-zinc-50"
                       }`}
                     >
-                      <span className={`text-xs font-black ${festivoDia ? "text-rose-500" : "text-zinc-400"}`} title={festivoDia || undefined}>{DIAS_SEMANA[idx]}</span>
+                      <span className={`text-xs font-black ${festivoDia ? "text-rose-500" : "text-zinc-400"}`} title={festivoDia || undefined}>{DIAS_SEMANA[(d.getDay() + 6) % 7]}</span>
                       <span className={`text-xs font-black leading-none rounded-full w-5 h-5 flex items-center justify-center ${
                         esHoy ? "bg-zinc-900 text-white" : "text-zinc-800"
                       }`}>
@@ -989,17 +1111,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
               </div>
             </div>
           </div>
-        </>
-      ) : (
-        <AgendaView
-          servicios={servicios}
-          eventos={eventos}
-          coloresVehiculo={coloresVehiculo}
-          serviciosConDeca={serviciosConDeca}
-          onSelectServicio={setServicioSeleccionado}
-          onEditarEvento={onEditarEvento}
-        />
       )}
+      </div>
 
       {/* Panel de acciones del servicio tocado */}
       {servicioSeleccionado && (() => {
