@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { textoSobre } from "../../../shared/lib/color";
 import { servicioSinDeca } from "../../deca/db";
 import { festivoDe } from "../../../shared/lib/festivos";
@@ -33,28 +33,13 @@ const labelMes = (iso) => {
 
 // Vista Agenda estilo Google Calendar: todas las faenas, pasadas y futuras, un
 // día debajo de otro. Solo salen los días con algo, más hoy, que es donde se
-// abre la lista. La lista ocupa el resto de la pantalla y es lo único que se
-// desplaza, para que al bajar con el dedo la cabecera no se vaya.
-// Cada vez que cambia `saltoAHoy` la lista vuelve a hoy (botón "Hoy").
+// abre la lista. Ocupa todo el alto de su contenedor y es lo único que se
+// desplaza. Cada vez que cambia `saltoAHoy` la lista vuelve a hoy.
 const AgendaView = ({ servicios = [], eventos = [], coloresVehiculo = {}, serviciosConDeca = new Set(), onSelectServicio, onEditarEvento, saltoAHoy = 0 }) => {
   const listaRef = useRef(null);
   const hoyRef = useRef(null);
-  const [alto, setAlto] = useState(null);
   const sinDeca = (s) => servicioSinDeca(s, serviciosConDeca);
   const iHoy = hoy();
-
-  // Alto = lo que queda de pantalla por debajo de donde empieza la lista
-  useLayoutEffect(() => {
-    const medir = () => {
-      const lista = listaRef.current;
-      if (!lista) return;
-      const top = lista.getBoundingClientRect().top + window.scrollY;
-      setAlto(Math.max(320, window.innerHeight - top));
-    };
-    medir();
-    window.addEventListener("resize", medir);
-    return () => window.removeEventListener("resize", medir);
-  }, []);
 
   // Coloca hoy arriba, dejando sitio a la cabecera fija del mes
   useLayoutEffect(() => {
@@ -176,8 +161,7 @@ const AgendaView = ({ servicios = [], eventos = [], coloresVehiculo = {}, servic
   return (
     <div
       ref={listaRef}
-      style={{ height: alto ?? "70vh" }}
-      className="relative overflow-y-auto overscroll-contain -mx-3 px-3 pb-28 bg-zinc-50"
+      className="relative h-full overflow-y-auto overscroll-contain -mx-3 px-3 pb-28 bg-zinc-50"
     >
       {meses.map(({ clave, dias: diasMes }) => (
         <div key={clave}>
