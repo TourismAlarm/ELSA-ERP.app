@@ -412,11 +412,16 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           )}
           {/* El select va invisible encima del texto: así el ▾ queda pegado a la
               palabra y al tocar sale el selector nativo del iPad/iPhone */}
-          <div className="relative inline-flex items-center gap-1.5">
-            <span aria-hidden="true" className="text-2xl font-black text-zinc-900">
+          <div className="relative inline-flex items-center gap-2 h-11 pl-4 pr-1.5 rounded-full bg-zinc-900 text-white shadow-md active:scale-95 transition-transform">
+            <span aria-hidden="true" className="text-lg">{vista === "agenda" ? "📋" : "📅"}</span>
+            <span aria-hidden="true" className="text-lg font-black">
               {vista === "agenda" ? "Agenda" : "Calendario"}
             </span>
-            <span aria-hidden="true" className="text-lg text-zinc-500">▾</span>
+            <span aria-hidden="true" className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </span>
             <select
               value={vista}
               onChange={(e) => setVista(e.target.value)}
