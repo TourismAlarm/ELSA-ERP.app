@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState, useRef, useLayoutEffect, useMemo } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 import { servicioSinDeca } from "../../deca/db";
@@ -63,15 +63,18 @@ const IconoVista = ({ id, className = "w-6 h-6" }) => {
 // Alto (px) de cada línea de la celda del mes: festivo, evento, servicio o "+N más"
 const ALTO_LINEA_MES = 21;
 
-// --- Rejilla horaria del día seleccionado (06:00 a 22:00, franjas de 30 min) ---
-// Un servicio fuera de esta franja no desaparece, pero se dibuja pegado al
-// borde: la etiqueta sigue diciendo su hora real, aunque la posición engañe.
-// 6 a 22 cubre las horas de trabajo reales; antes iba de 7 a 21 y un servicio
-// a primera hora se pintaba mal.
-const HORA_MIN = 6;
-const HORA_MAX = 22;
+// --- Rejilla horaria (el día entero, 00:00 a 24:00, franjas de 30 min) ---
+// Al abrirla se coloca sola en HORA_SCROLL_INICIAL (o una hora antes de la
+// actual si se está viendo hoy), así que el día completo no obliga a bajar.
+const HORA_MIN = 0;
+const HORA_MAX = 24;
 const PX_POR_MINUTO = 1; // 60px por hora
 const TOTAL_MINUTOS = (HORA_MAX - HORA_MIN) * 60;
+const HORA_SCROLL_INICIAL = 7;
+
+// Última hora que se guarda como fin: "24:00" no cabe en los campos de hora
+// de los formularios, y el resto de la app ya cierra el día en 23:59
+const ULTIMO_MINUTO_DEL_DIA = 23 * 60 + 59;
 
 // "HH:MM" o "HH:MM:SS" -> minutos desde el inicio de la rejilla
 const aMinutosDesdeInicio = (h) => {
@@ -97,9 +100,9 @@ const minutosAHora = (min) => {
 };
 
 // Minutos desde el inicio de la rejilla -> "HH:MM" (admite cualquier minuto,
-// para el arrastre con snap de 15 min)
+// para el arrastre con snap de 15 min). Un fin a medianoche sale "23:59".
 const minAbsAHora = (min) => {
-  const t = HORA_MIN * 60 + min;
+  const t = Math.min(HORA_MIN * 60 + min, ULTIMO_MINUTO_DEL_DIA);
   return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 };
 
@@ -131,7 +134,7 @@ const asignarColumnas = (eventos) => {
 };
 
 // Convierte los servicios con hora de un día en bloques posicionables
-// (ini/fin en minutos desde las 07:00, con reparto de columnas si se solapan)
+// (ini/fin en minutos desde el inicio de la rejilla, con reparto de columnas si se solapan)
 // Cada servicio con varios vehículos genera un bloque por vehículo (mismas
 // horas, colocados en paralelo por asignarColumnas), como entradas separadas.
 const bloquesDe = (lista) =>
@@ -415,14 +418,39 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
   // Columnas de la rejilla por días: la semana (lunes a domingo) que contiene
   // la fecha, o 3 días empezando en ella
-  const diasRejilla = (() => {
+  const diasRejilla = useMemo(() => {
     const inicio = vista === "3dias" ? new Date(fecha + "T00:00:00") : lunesDe(fecha);
     return Array.from({ length: vista === "3dias" ? 3 : 7 }, (_, i) => {
       const d = new Date(inicio);
       d.setDate(inicio.getDate() + i);
       return toISO(d);
     });
-  })();
+  }, [vista, fecha]);
+
+  // Al abrir Día / 3 días / Semana, al cambiar de fecha o al pulsar "Hoy", la
+  // rejilla se coloca en las 7:00; si se está viendo hoy y ya pasan de las
+  // 8:00, en la hora anterior a la actual. Solo en esos momentos: recargar
+  // los datos no mueve lo que se está mirando.
+  const diaScrollRef = useRef(null);
+  const semanaScrollRef = useRef(null);
+  const inicioSemanaRef = useRef(null); // 00:00 de la primera columna de la semana
+  useLayoutEffect(() => {
+    if (vista !== "dia" && vista !== "3dias" && vista !== "semana") return;
+    const contenedor = vista === "dia" ? diaScrollRef.current : semanaScrollRef.current;
+    const cero = vista === "dia" ? diaAreaRef.current : inicioSemanaRef.current;
+    if (!contenedor || !cero) return;
+    const visibles = vista === "dia" ? [fecha] : diasRejilla;
+    const ahora = new Date();
+    const minAhora = ahora.getHours() * 60 + ahora.getMinutes();
+    const minuto = visibles.includes(hoy()) && minAhora > 8 * 60
+      ? Math.floor((minAhora - 60) / 60) * 60
+      : HORA_SCROLL_INICIAL * 60;
+    const yCero = cero.getBoundingClientRect().top - contenedor.getBoundingClientRect().top + contenedor.scrollTop;
+    // En 3 días / Semana la fila con los días queda fija arriba y tapa esa franja;
+    // los 8 px dejan ver la etiqueta de la hora, que asoma por encima de su línea
+    const tapado = vista === "dia" ? 0 : ALTO_CABECERA_SEMANA;
+    contenedor.scrollTop = yCero + (minuto - HORA_MIN * 60) * PX_POR_MINUTO - tapado - 8;
+  }, [vista, fecha, diasRejilla, saltoAHoy]);
 
   const labelRango = (() => {
     const ini = new Date(diasRejilla[0] + "T00:00:00");
@@ -731,7 +759,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
       )}
 
       {vista === "dia" && (
-        <div className="h-full overflow-y-auto overscroll-contain pb-24">
+        <div ref={diaScrollRef} className="h-full overflow-y-auto overscroll-contain pb-24">
           {festivoDe(fecha) && (
             <p className="text-center text-sm font-black text-rose-600 mb-3">🎉 {festivoDe(fecha)}</p>
           )}
@@ -940,7 +968,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
       {(vista === "semana" || vista === "3dias") && (
           // Rejilla de varios días: se desplaza en vertical y, en pantallas
           // estrechas, también en horizontal
-          <div className="h-full bg-white border-2 border-zinc-200 rounded-xl px-2 overflow-auto overscroll-contain">
+          <div ref={semanaScrollRef} className="h-full bg-white border-2 border-zinc-200 rounded-xl px-2 overflow-auto overscroll-contain">
             <div className="flex pb-24" style={{ minWidth: 44 + diasRejilla.length * 80 }}>
               {/* Columna de horas (fija al hacer scroll) */}
               <div className="w-11 shrink-0 sticky left-0 bg-white z-20">
@@ -960,7 +988,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
               {/* Una columna por día de la semana */}
               <div ref={semanaColsRef} className="flex flex-1">
-              {diasRejilla.map((iso) => {
+              {diasRejilla.map((iso, idx) => {
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
                 const sinHoraDia = expandir(svsDia.filter((s) => !s.hora_inicio));
@@ -1039,7 +1067,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     )}
 
                     {/* Área horaria del día */}
-                    <div className="relative">
+                    <div ref={idx === 0 ? inicioSemanaRef : undefined} className="relative">
                       {evsConHoraDia.map(({ e, ini, fin }) => {
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(20, Math.min(fin, TOTAL_MINUTOS) - top);
