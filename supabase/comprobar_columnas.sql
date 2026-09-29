@@ -29,6 +29,7 @@ with esperadas(tabla, columna) as (values
   ('solicitudes','formaPago'), ('solicitudes','observaciones'),
   -- Notas de maniobra que no salen en ningún documento del cliente
   ('solicitudes','notas_internas'),
+  ('solicitudes','telCliente'), ('solicitudes','emailCliente'),
 
   ('servicios','numero'), ('servicios','cliente'), ('servicios','cliente_id'),
   ('servicios','vehiculo'), ('servicios','origen'), ('servicios','destino'),
@@ -36,6 +37,7 @@ with esperadas(tabla, columna) as (values
   ('servicios','descripcion'), ('servicios','precio'), ('servicios','fotos'),
   ('servicios','estado'), ('servicios','notas'), ('servicios','solicitud_id'),
   ('servicios','notas_internas'),
+  ('servicios','telCliente'), ('servicios','emailCliente'),
   -- Datos del DeCA
   ('servicios','requiere_deca'), ('servicios','naturaleza_mercancia'), ('servicios','peso'),
   ('servicios','bultos'), ('servicios','autorizacion_especial'),

@@ -8,8 +8,9 @@ const sanitize = (s) => {
 
   // nifCif y dirFact son campos del cliente, y fecha es un campo derivado para la UI —
   // ninguno existe como columna en solicitudes, excluirlos del insert.
-  // OJO: cliente_id SÍ es columna real (vínculo al cliente), no añadirlo a esta lista.
-  const { nifCif, dirFact, fotos, telCliente, emailCliente, fecha, ...rest } = s;
+  // OJO: cliente_id, telCliente y emailCliente SÍ son columnas reales, no
+  // añadirlos a esta lista: si se quitan, el contacto escrito se pierde al guardar.
+  const { nifCif, dirFact, fotos, fecha, ...rest } = s;
 
   const sanitized = {
     ...rest,

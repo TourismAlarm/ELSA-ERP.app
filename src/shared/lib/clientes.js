@@ -86,10 +86,10 @@ export const fichaDelCliente = (doc, clientes = []) => {
 // Rellena el NIF, la dirección de facturación, el teléfono y el email desde la
 // ficha del cliente.
 //
-// Ni solicitudes ni servicios ni albaranes tienen columnas para estos campos:
-// se escriben en el formulario, se ven durante un rato y al guardar se tiran.
-// Por eso al volver a entrar el cliente aparecía a medias y había que
-// rellenarlo otra vez. Ahora salen siempre de la ficha, que es donde viven.
+// NIF y dirección no tienen columna en ningún documento, y los albaranes
+// tampoco guardan teléfono ni email: al volver a entrar salen de la ficha,
+// que es donde viven. Solicitudes y servicios sí guardan el teléfono y el
+// email que se escriben en el formulario.
 //
 // Lo que ya trae el documento manda: si alguien escribió a mano un teléfono
 // distinto para ese trabajo, no se le pisa.
