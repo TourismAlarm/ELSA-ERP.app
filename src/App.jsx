@@ -5,7 +5,7 @@ import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/s
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
@@ -290,11 +290,6 @@ export default function App() {
     if (!confirm("¿Eliminar este cliente?")) return;
     if (!await dbDeleteCliente(id)) return;
     setClientes((prev) => prev.filter((c) => c.id !== id));
-  };
-
-  const handleToggleAvisos = async (id, valor) => {
-    if (!await dbToggleAvisos(id, valor)) return;
-    setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, avisos_activos: valor } : b));
   };
 
   const handleDelete = async (id) => {
@@ -682,7 +677,6 @@ export default function App() {
           onDelete={handleDelete}
           onConfig={() => setScreen("config")}
           onCambiarEstado={handleCambiarEstado}
-          onToggleAvisos={handleToggleAvisos}
         />
       )}
       {screen === "form" && (

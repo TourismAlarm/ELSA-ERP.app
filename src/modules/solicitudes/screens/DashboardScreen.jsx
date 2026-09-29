@@ -8,12 +8,7 @@ const ESTADOS = {
   rechazado:   { label: "Rechazado",      emoji: "🔴", border: "border-l-red-400",     badge: "bg-red-100 text-red-700",        summary: "bg-red-50 border-red-200 text-red-700" },
 };
 
-const diasDesde = (fechaISO) => {
-  if (!fechaISO) return null;
-  return Math.floor((Date.now() - new Date(fechaISO).getTime()) / (1000 * 60 * 60 * 24));
-};
-
-const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado, onToggleAvisos }) => {
+const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfig, loading, onCambiarEstado }) => {
   const [q, setQ] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -39,14 +34,6 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
   const conteo = Object.fromEntries(
     Object.keys(ESTADOS).map((e) => [e, solicitudes.filter((b) => (b.estado || "pendiente") === e).length])
   );
-
-  const alertas = solicitudes
-    .filter((b) => {
-      const estado = b.estado || "pendiente";
-      const dias = diasDesde(b.fecha_ultimo_contacto);
-      return (estado === "pendiente" || estado === "seguimiento") && dias !== null && dias >= 3 && b.avisos_activos !== false;
-    })
-    .sort((a, b) => diasDesde(b.fecha_ultimo_contacto) - diasDesde(a.fecha_ultimo_contacto));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10">
@@ -75,28 +62,6 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
           </button>
         ))}
       </div>
-
-      {/* Alertas */}
-      {alertas.length > 0 && (
-        <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 mb-6">
-          <p className="text-orange-800 font-black text-lg mb-3">
-            ⚠️ {alertas.length} {alertas.length === 1 ? "solicitud necesita" : "solicitudes necesitan"} atención
-          </p>
-          <div className="flex flex-col gap-3">
-            {alertas.map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-3 flex-wrap">
-                <span className="text-orange-900 font-semibold text-sm flex-1 min-w-0">
-                  • {s.cliente || "Sin nombre"} — <span className="font-normal">hace {diasDesde(s.fecha_ultimo_contacto)} días</span>
-                </span>
-                <div className="flex gap-2">
-                  <Btn size="sm" onClick={() => onView(s)}>Contactar</Btn>
-                  <Btn size="sm" variant="secondary" onClick={() => onToggleAvisos(s.id, false)}>Silenciar</Btn>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Filtros por estado */}
       {solicitudes.length > 0 && (
