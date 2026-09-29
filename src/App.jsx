@@ -231,6 +231,8 @@ export default function App() {
     const saved = await dbSaveServicio({
       cliente: sol.cliente,
       cliente_id: sol.cliente_id ?? null,
+      telCliente: sol.telCliente || "",
+      emailCliente: sol.emailCliente || "",
       vehiculo: sol.vehiculo,
       origen: sol.origen,
       destino: sol.destino,
