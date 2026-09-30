@@ -85,7 +85,9 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
   const footer = () => {
     doc.setFillColor(20, 20, 20); doc.rect(0, 282, W, 15, "F");
     doc.setTextColor(150, 150, 150); doc.setFontSize(7); doc.setFont("helvetica", "normal");
-    doc.text([config.nombre, config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), W / 2, 291, { align: "center" });
+    // Envuelto y sin recortar: una dirección larga no se sale de la página
+    const pie = doc.splitTextToSize([config.nombre, config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), anchoUtil);
+    doc.text(pie, W / 2, pie.length > 1 ? 287 : 291, { align: "center" });
   };
 
   const checkPage = (needed) => {
@@ -109,12 +111,12 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
     doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont("helvetica", "bold");
     doc.text(config.nombre || "Mi Empresa", margin + 34, 22);
     doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 180, 180);
-    doc.text([config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), margin + 34, 29);
+    doc.text(doc.splitTextToSize([config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), anchoUtil - 34), margin + 34, 29);
   } else {
     doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.setFont("helvetica", "bold");
     doc.text(config.nombre || "Mi Empresa", margin, 22);
     doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(180, 180, 180);
-    doc.text([config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), margin, 30);
+    doc.text(doc.splitTextToSize([config.tel, config.email, config.direccion].filter(Boolean).join("  ·  "), anchoUtil), margin, 30);
   }
 
   // --- Título, número y fecha de emisión. El número va grande y a la
@@ -139,8 +141,11 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
   const cajas = (lista) => {
     const hueco = 6;
     const w = (anchoUtil - hueco * (lista.length - 1)) / lista.length;
-    const filas = lista.map(([, lineas]) => lineas.filter(Boolean));
-    const alto = 8 + Math.max(...filas.map((f) => f.length)) * 5;
+    // Cada línea se parte en las que hagan falta: nada se recorta, y las dos
+    // cajas crecen hasta la altura de la más larga
+    doc.setFontSize(9); doc.setFont("helvetica", "normal");
+    const filas = lista.map(([, lineas]) => lineas.filter(Boolean).flatMap((l) => doc.splitTextToSize(l, w - 8)));
+    const alto = 10 + Math.max(...filas.map((f) => f.length)) * 5;
     checkPage(alto + 6);
     lista.forEach(([titulo], i) => {
       const x = margin + i * (w + hueco);
@@ -149,7 +154,7 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
       doc.setTextColor(100, 100, 100); doc.setFontSize(7); doc.setFont("helvetica", "bold");
       doc.text(titulo, x + 4, y + 6);
       doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(20, 20, 20);
-      filas[i].forEach((l, j) => doc.text(doc.splitTextToSize(l, w - 8)[0], x + 4, y + 12 + j * 5));
+      filas[i].forEach((l, j) => doc.text(l, x + 4, y + 12 + j * 5));
     });
     y += alto + 6;
   };
@@ -165,13 +170,13 @@ const buildDecaDoc = (jsPDF, datos, qrDataUrl, config) => {
     y += 6;
   };
 
-  // Un valor largo (la naturaleza de la mercancía, una dirección) puede
-  // ocupar hasta dos líneas; la fila crece con el más largo
+  // Un valor largo (la naturaleza de la mercancía, una dirección) ocupa las
+  // líneas que necesite, sin recortar; la fila crece con el más largo
   const parejas = (pares, columnas = 2) => {
     const colW = anchoUtil / columnas;
     for (let i = 0; i < pares.length; i += columnas) {
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      const fila = pares.slice(i, i + columnas).map(([etiq, valor]) => [etiq, doc.splitTextToSize(valor || "—", colW - 6).slice(0, 2)]);
+      const fila = pares.slice(i, i + columnas).map(([etiq, valor]) => [etiq, doc.splitTextToSize(valor || "—", colW - 6)]);
       const lineas = Math.max(...fila.map(([, v]) => v.length));
       const alto = 5 + lineas * 4.5 + 1.5;
       checkPage(alto);
