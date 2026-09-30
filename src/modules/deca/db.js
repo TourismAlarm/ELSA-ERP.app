@@ -75,6 +75,15 @@ export const dbLoadServiciosConDeca = async () => {
 export const servicioSinDeca = (s, serviciosConDeca) =>
   !!s.requiere_deca && (s.estado || "abierto") === "abierto" && !serviciosConDeca?.has(s.id);
 
+// Anula un DeCA. Solo admin; el motivo es obligatorio y la base de datos
+// registra quién, cuándo y por qué en deca.modificaciones. Un DeCA no se
+// borra ni se reactiva. Devuelve { deca, error }.
+export const dbAnularDeca = async (id, motivo) => {
+  const { data, error } = await supabase.rpc("anular_deca", { p_id: id, p_motivo: motivo });
+  if (error) { console.error(error); return { deca: null, error: { message: error.message } }; }
+  return { deca: data, error: null };
+};
+
 // Los DeCA de un servicio, el más nuevo primero. null cuando la carga falla,
 // para distinguirlo de "no tiene ninguno".
 export const dbLoadDecaDeServicio = async (servicioId) => {

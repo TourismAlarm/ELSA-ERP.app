@@ -723,6 +723,12 @@ export default function App() {
           onCambiarEstado={handleServicioCambiarEstado}
           onAddNota={handleServicioAddNota}
           onDecaEmitido={(servicioId) => setServiciosConDeca((prev) => new Set(prev).add(servicioId))}
+          esAdmin={esAdmin}
+          onDecaCambio={(servicioId, hayVigente) => setServiciosConDeca((prev) => {
+            const n = new Set(prev);
+            if (hayVigente) n.add(servicioId); else n.delete(servicioId);
+            return n;
+          })}
         />
       )}
       {screen === "calendario" && (
