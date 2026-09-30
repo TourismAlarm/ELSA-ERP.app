@@ -7,12 +7,11 @@ const sanitize = (s) => {
     ? s.vehiculo.join(", ")
     : (s.vehiculo || "");
 
-  // nifCif y dirFact son campos del cliente —
-  // no existen como columnas en servicios, excluirlos del insert.
   // recurso_id se retira (fusionado en vehiculo/equipo); no persistirlo.
-  // OJO: cliente_id, telCliente y emailCliente SÍ son columnas reales, no
-  // añadirlos a esta lista: si se quitan, el contacto escrito se pierde al guardar.
-  const { nifCif, dirFact, fotos, recurso_id, ...rest } = s;
+  // OJO: cliente_id, telCliente, emailCliente, nifCif y dirFact SÍ son
+  // columnas reales, no quitarlos aquí: lo escrito en el formulario se
+  // perdería al guardar.
+  const { fotos, recurso_id, ...rest } = s;
 
   const sanitized = {
     ...rest,
@@ -28,14 +27,13 @@ const sanitize = (s) => {
     hora_fin: s.hora_fin || null,
   };
 
-  if (fotos && Array.isArray(fotos) && fotos.length > 0) {
-    sanitized.fotos = fotos;
-  }
+  // También el array vacío: al quitar la última foto hay que guardarlo
+  if (Array.isArray(fotos)) sanitized.fotos = fotos;
 
   return sanitized;
 };
 
-const deserializeServicio = (s) => ({
+export const deserializeServicio = (s) => ({
   ...s,
   vehiculo: s.vehiculo ? s.vehiculo.split(", ").filter(Boolean) : [],
 });

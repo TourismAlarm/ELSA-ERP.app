@@ -5,9 +5,9 @@ import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/s
 import { ListScreen as ServiciosListScreen, FormScreen as ServicioFormScreen, ViewScreen as ServicioViewScreen, CalendarScreen } from "./modules/servicios/screens";
 import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, ViewScreen as AlbaranViewScreen } from "./modules/albaranes/screens";
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
-import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
-import { dbLoadServicios, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
-import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
+import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbAceptarSolicitud, dbMiRol, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
+import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
+import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
@@ -18,6 +18,8 @@ import { conDatosDelCliente, fichaDelCliente } from "./shared/lib/clientes";
 import { mapaColoresVehiculo, normalizeVehiculos } from "./shared/lib/color";
 import { DEFAULT_VEHICLES } from "./shared/lib/constants";
 import { today } from "./shared/lib/utils";
+import { conHorasValidas } from "./shared/lib/horas";
+import { borrarFotosQuitadas } from "./shared/lib/fotos";
 
 const PESTANAS = [
   { id: "dashboard",     emoji: "📋", texto: "Solicitudes" },
@@ -70,6 +72,10 @@ export default function App() {
   const [pidiendoAlbaranServicio, setPidiendoAlbaranServicio] = useState(null);
   const [refrescando, setRefrescando] = useState(false);
   const [configError, setConfigError] = useState(false);
+  // 'admin' | 'operario' | null. Solo decide qué botones se enseñan: los
+  // permisos de verdad los aplica la base de datos.
+  const [rol, setRol] = useState(null);
+  const esAdmin = rol === "admin";
 
   useEffect(() => {
     supabase.auth.getSession()
@@ -94,7 +100,8 @@ export default function App() {
   const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
     if (inicial) setLoadingData(true); else setRefrescando(true);
 
-    const [cfgRes, sols, srvs, albs, vhcs, clts, evts, decas] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos(), dbLoadServiciosConDeca()]);
+    const [cfgRes, sols, srvs, albs, vhcs, clts, evts, decas, miRol] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos(), dbLoadServiciosConDeca(), dbMiRol()]);
+    setRol(miRol);
     const falloAlguna = [sols, srvs, albs, vhcs, clts, evts, decas].some((x) => x === null) || cfgRes.error;
     setConfig(cfgRes.config);
     setConfigError(cfgRes.error);
@@ -158,6 +165,7 @@ export default function App() {
     setVehiculos([]);
     setEventos([]);
     setServiciosConDeca(new Set());
+    setRol(null);
     setErrorCarga(false);
     setConfigError(false);
     setRefrescando(false);
@@ -188,10 +196,10 @@ export default function App() {
 
   const servicioDeAlbaran = (a) => (a.servicio_id ? servicios.find((s) => s.id === a.servicio_id) || null : null);
 
-  // El albarán guarda el nombre del cliente, no su id, así que la ficha se
-  // busca por nombre para poder poner el nº de cliente en el PDF
-  const clienteDeAlbaran = (a) =>
-    clientes.find((c) => (c.nombre || "").trim().toLowerCase() === (a.cliente || "").trim().toLowerCase()) || null;
+  // Por cliente_id, que es el vínculo fiable; por nombre solo en los
+  // albaranes antiguos que no lo guardaban (con dos clientes de nombre
+  // parecido, buscar por nombre podía coger la ficha equivocada)
+  const clienteDeAlbaran = (a) => fichaDelCliente(a, clientes);
 
   const pdfAlbaran = async (a) => {
     const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
@@ -209,18 +217,17 @@ export default function App() {
   const handleView       = (b) => { setViewing(b); setScreen("view"); };
 
   const handleCambiarEstado = async (id, nuevoEstado) => {
+    // Aceptar sin servicio todavía: primero se pide la fecha y, al
+    // confirmarla, se acepta y se programa en una sola operación. Si se
+    // cancela el diálogo, la solicitud se queda como estaba.
+    if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
+      const sol = solicitudes.find((b) => b.id === id);
+      if (sol) { setPidiendoFechaServicio(sol); return false; }
+    }
     if (!await dbCambiarEstado(id, nuevoEstado)) return false;
     const now = new Date().toISOString();
     setSolicitudes((prev) => prev.map((b) => b.id === id ? { ...b, estado: nuevoEstado, fecha_ultimo_contacto: now } : b));
     setViewing((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado, fecha_ultimo_contacto: now } : prev);
-
-    // Al aceptar una solicitud, crear su servicio vinculado (si no existe ya)
-    if (nuevoEstado === "aceptado" && !servicios.some((s) => s.solicitud_id === id)) {
-      const sol = solicitudes.find((b) => b.id === id);
-      // El diálogo pide la fecha con un calendario de verdad, en vez del
-      // prompt() del navegador, que en el móvil es incómodo y no valida nada
-      if (sol) setPidiendoFechaServicio(sol);
-    }
     return true;
   };
 
@@ -228,32 +235,16 @@ export default function App() {
     const sol = pidiendoFechaServicio;
     setPidiendoFechaServicio(null);
     if (!sol) return;
-    const saved = await dbSaveServicio({
-      cliente: sol.cliente,
-      cliente_id: sol.cliente_id ?? null,
-      telCliente: sol.telCliente || "",
-      emailCliente: sol.emailCliente || "",
-      vehiculo: sol.vehiculo,
-      origen: sol.origen,
-      destino: sol.destino,
-      descripcion: sol.descripcion,
-      // La maniobra apuntada en la solicitud sigue haciendo falta el día del
-      // trabajo: se copia al servicio, y sigue sin salir en ningún documento
-      notas_internas: sol.notas_internas || "",
-      precio: sol.precio,
-      // Peso y bultos son datos del DeCA y ya están en la solicitud: se
-      // heredan para no volver a pedirlos el día del trabajo
-      peso: sol.peso,
-      bultos: sol.bultos,
-      fecha_servicio: fecha,
-      hora_inicio,
-      hora_fin,
-      solicitud_id: sol.id,
-    });
-    if (saved) {
-      setServicios((prev) => [saved, ...prev]);
-      handleServicioView(saved);
-    }
+    // Mismas horas por defecto que un servicio creado desde el formulario
+    const horas = conHorasValidas({ hora_inicio, hora_fin });
+    const creado = await dbAceptarSolicitud(sol.id, { fecha, ...horas });
+    if (!creado) return;
+    const saved = deserializeServicio(creado);
+    const now = new Date().toISOString();
+    setSolicitudes((prev) => prev.map((b) => b.id === sol.id ? { ...b, estado: "aceptado", fecha_ultimo_contacto: now } : b));
+    setViewing((prev) => prev && prev.id === sol.id ? { ...prev, estado: "aceptado", fecha_ultimo_contacto: now } : prev);
+    setServicios((prev) => prev.some((s) => s.id === saved.id) ? prev : [saved, ...prev]);
+    handleServicioView(saved);
   };
 
   const handleAddNota = async (id, texto) => {
@@ -287,6 +278,7 @@ export default function App() {
   };
 
   const handleDeleteCliente = async (id) => {
+    if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
     if (!confirm("¿Eliminar este cliente?")) return;
     if (!await dbDeleteCliente(id)) return;
     setClientes((prev) => prev.filter((c) => c.id !== id));
@@ -298,6 +290,7 @@ export default function App() {
   };
 
   const handleDelete = async (id) => {
+    if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
     if (!confirm("¿Eliminar esta solicitud?")) return;
     if (!await dbDeleteSolicitud(id)) return;
     setSolicitudes((prev) => prev.filter((b) => b.id !== id));
@@ -311,6 +304,7 @@ export default function App() {
       const ok = await dbUpdateSolicitud(updated);
       setSaving(false);
       if (!ok) return; // el aviso ya se ha mostrado; se queda en el formulario
+      borrarFotosQuitadas(editing.fotos, updated.fotos);
       setSolicitudes((prev) => prev.map((b) => b.id === editing.id ? updated : b));
       setEditing(null);
       handleView(updated);
@@ -318,13 +312,12 @@ export default function App() {
       const nueva = { ...form, fecha: today() };
       const saved = await dbSaveSolicitud(nueva);
       setSaving(false);
-      setEditing(null);
       if (saved) {
+        setEditing(null);
         setSolicitudes((prev) => [saved, ...prev]);
         handleView(saved);
-      } else {
-        setScreen("dashboard");
       }
+      // Si falla, se queda en el formulario con lo escrito para reintentar
     }
   };
 
@@ -374,6 +367,7 @@ export default function App() {
   };
 
   const handleServicioDelete = async (id) => {
+    if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
     // La FK de albaranes.servicio_id impide borrar un servicio con albaranes:
     // avisar y desvincularlos primero (los albaranes no se borran)
     const vinculados = albaranes.filter((a) => a.servicio_id === id);
@@ -400,19 +394,19 @@ export default function App() {
       const ok = await dbUpdateServicio(updated);
       setSaving(false);
       if (!ok) return;
+      borrarFotosQuitadas(editingServicio.fotos, updated.fotos);
       setServicios((prev) => prev.map((s) => s.id === editingServicio.id ? updated : s));
       setEditingServicio(null);
       handleServicioView(updated);
     } else {
       const saved = await dbSaveServicio(form);
       setSaving(false);
-      setEditingServicio(null);
       if (saved) {
+        setEditingServicio(null);
         setServicios((prev) => [saved, ...prev]);
         handleServicioView(saved);
-      } else {
-        setScreen("servicios");
       }
+      // Si falla, se queda en el formulario con lo escrito para reintentar
     }
   };
 
@@ -422,25 +416,31 @@ export default function App() {
   const handleAlbaranView = (a) => { setViewingAlbaran(a); setScreen("albaranView"); };
 
   const handleAlbaranFirmar = async (id, firmaBase64, firmadoPor) => {
-    const updated = await dbFirmarAlbaran(id, firmaBase64, firmadoPor);
-    if (updated) {
-      setAlbaranes((prev) => prev.map((a) => a.id === id ? { ...a, ...updated } : a));
-      setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...updated } : prev);
-
-      // La firma confirma que el trabajo está terminado:
-      // cerrar automáticamente el servicio vinculado
-      const albaran = albaranes.find((a) => a.id === id);
-      const servicio = albaran?.servicio_id ? servicios.find((s) => s.id === albaran.servicio_id) : null;
-      if (servicio && (servicio.estado || "abierto") !== "realizado") {
-        await dbCambiarEstadoServicio(servicio.id, "realizado");
-        setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, estado: "realizado" } : s));
-        setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, estado: "realizado" } : prev);
-      }
+    // Firma y cierre del servicio van juntos en la base de datos
+    const firmado = await dbFirmarAlbaran(id, firmaBase64, firmadoPor);
+    if (!firmado) return null;
+    setAlbaranes((prev) => prev.map((a) => a.id === id ? { ...a, ...firmado } : a));
+    setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...firmado } : prev);
+    if (firmado.servicio_id) {
+      setServicios((prev) => prev.map((s) => s.id === firmado.servicio_id ? { ...s, estado: "realizado" } : s));
+      setViewingServicio((prev) => prev && prev.id === firmado.servicio_id ? { ...prev, estado: "realizado" } : prev);
     }
-    return updated;
+    return firmado;
+  };
+
+  const handleAlbaranAnular = async (id) => {
+    const motivo = prompt("Motivo de la anulación (queda registrado):");
+    if (motivo === null) return null;
+    if (!motivo.trim()) { alert("Hay que indicar el motivo."); return null; }
+    const anulado = await dbAnularAlbaran(id, motivo.trim());
+    if (!anulado) return null;
+    setAlbaranes((prev) => prev.map((a) => a.id === id ? { ...a, ...anulado } : a));
+    setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...anulado } : prev);
+    return anulado;
   };
 
   const handleAlbaranDelete = async (id) => {
+    if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
     if (!confirm("¿Eliminar este albarán?")) return;
     if (!await dbDeleteAlbaran(id)) return;
     setAlbaranes((prev) => prev.filter((a) => a.id !== id));
@@ -456,42 +456,18 @@ export default function App() {
     setPidiendoAlbaranServicio(null);
     if (!servicio) return;
 
-    // Si se han corregido las horas al confirmar, son las realmente
-    // trabajadas: guardarlas en el servicio antes de generar el albarán.
-    // Las horas del servicio pueden venir con segundos ("08:00:00") de la
-    // base de datos: comparar recortadas a "HH:MM" para no reescribir cuando
-    // no ha cambiado nada
-    let srv = servicio;
-    if (hora_inicio !== (servicio.hora_inicio || "").slice(0, 5) || hora_fin !== (servicio.hora_fin || "").slice(0, 5)) {
-      srv = { ...servicio, hora_inicio, hora_fin };
-      if (await dbUpdateServicio(srv)) {
-        setServicios((prev) => prev.map((s) => s.id === servicio.id ? srv : s));
-        setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, hora_inicio, hora_fin } : prev);
-      }
-    }
+    // Horas reales, servicio realizado y albarán nuevo, en una sola
+    // operación: si algo falla no queda nada a medias. Si el servicio ya
+    // tenía albarán, se abre ese en vez de crear otro.
+    const alb = await dbEmitirAlbaranDeServicio(servicio.id, hora_inicio, hora_fin);
+    if (!alb) return;
 
-    // El albarán certifica que el trabajo está hecho: si el servicio seguía
-    // abierto (p. ej. se pidió el albarán a mano sin pasar por "Realizado"),
-    // cerrarlo también
-    if ((srv.estado || "abierto") !== "realizado") {
-      if (await dbCambiarEstadoServicio(srv.id, "realizado")) {
-        setServicios((prev) => prev.map((s) => s.id === srv.id ? { ...s, estado: "realizado" } : s));
-        setViewingServicio((prev) => prev && prev.id === srv.id ? { ...prev, estado: "realizado" } : prev);
-      }
-    }
-
-    const saved = await dbSaveAlbaran({
-      cliente: srv.cliente,
-      fecha: srv.fecha_servicio,
-      descripcion: srv.descripcion,
-      servicio_id: srv.id,
-      lineas: [],
-    });
-    if (saved) {
-      setAlbaranes((prev) => [saved, ...prev]);
-      setViewingAlbaran(saved);
-      setScreen("albaranView");
-    }
+    const cambios = { estado: "realizado", ...(hora_inicio ? { hora_inicio } : {}), ...(hora_fin ? { hora_fin } : {}) };
+    setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, ...cambios } : s));
+    setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, ...cambios } : prev);
+    setAlbaranes((prev) => prev.some((a) => a.id === alb.id) ? prev : [alb, ...prev]);
+    setViewingAlbaran(alb);
+    setScreen("albaranView");
   };
 
   // ---- Eventos del calendario (lo que no es un servicio) ----
@@ -519,6 +495,7 @@ export default function App() {
   const handleVehiculoView = (v) => { setViewingVehiculo(v); setScreen("vehiculoView"); };
 
   const handleVehiculoDelete = async (id) => {
+    if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
     if (!confirm("¿Eliminar este vehículo?")) return;
     if (!await dbDeleteVehiculo(id)) return;
     setVehiculos((prev) => prev.filter((v) => v.id !== id));
@@ -532,19 +509,19 @@ export default function App() {
       const ok = await dbUpdateVehiculo(updated);
       setSaving(false);
       if (!ok) return;
+      borrarFotosQuitadas(editingVehiculo.fotos, updated.fotos);
       setVehiculos((prev) => prev.map((v) => v.id === editingVehiculo.id ? updated : v).sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
       setEditingVehiculo(null);
       handleVehiculoView(updated);
     } else {
       const saved = await dbSaveVehiculo(form);
       setSaving(false);
-      setEditingVehiculo(null);
       if (saved) {
+        setEditingVehiculo(null);
         setVehiculos((prev) => [...prev, saved].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "")));
         handleVehiculoView(saved);
-      } else {
-        setScreen("flota");
       }
+      // Si falla, se queda en el formulario con lo escrito para reintentar
     }
   };
 
@@ -555,19 +532,19 @@ export default function App() {
       const ok = await dbUpdateAlbaran(updated);
       setSaving(false);
       if (!ok) return;
+      borrarFotosQuitadas(editingAlbaran.fotos, updated.fotos);
       setAlbaranes((prev) => prev.map((a) => a.id === editingAlbaran.id ? updated : a));
       setEditingAlbaran(null);
       handleAlbaranView(updated);
     } else {
       const saved = await dbSaveAlbaran(form);
       setSaving(false);
-      setEditingAlbaran(null);
       if (saved) {
+        setEditingAlbaran(null);
         setAlbaranes((prev) => [saved, ...prev]);
         handleAlbaranView(saved);
-      } else {
-        setScreen("albaranesList");
       }
+      // Si falla, se queda en el formulario con lo escrito para reintentar
     }
   };
 
@@ -811,6 +788,7 @@ export default function App() {
           onVerSolicitud={handleView}
           onEdit={() => handleAlbaranEdit(viewingAlbaran)}
           onDelete={() => handleAlbaranDelete(viewingAlbaran.id)}
+          onAnular={esAdmin ? handleAlbaranAnular : null}
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
           onGeneratePDF={pdfAlbaran}

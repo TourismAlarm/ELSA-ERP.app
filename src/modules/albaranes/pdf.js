@@ -7,7 +7,28 @@ const formatFecha = (f) =>
 const formatFechaHora = (f) =>
   f ? new Date(f).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const buildAlbaranDoc = (a, config, servicio = null, cliente = null) => {
+// Un albarán firmado se imprime SIEMPRE con lo que se congeló al firmar
+// (contenido_firmado), no con la ficha del cliente, el servicio o la
+// configuración de hoy: si alguien cambia el NIF o el nombre de la empresa,
+// la reimpresión de un firmado tiene que seguir diciendo lo mismo.
+// El logo es lo único que se toma de la configuración actual (es una imagen
+// pesada y no forma parte de lo acordado).
+const segunLoFirmado = (a, config, servicio, cliente) => {
+  const f = a.estado === "firmado" ? a.contenido_firmado : null;
+  if (!f) return { a, config, servicio, cliente };
+  const vehiculo = f.servicio?.vehiculo;
+  return {
+    a: { ...a, ...f.albaran, firma: a.firma },
+    config: { ...config, ...f.empresa, logo: config.logo },
+    servicio: f.servicio
+      ? { ...f.servicio, vehiculo: typeof vehiculo === "string" ? vehiculo.split(", ").filter(Boolean) : vehiculo }
+      : null,
+    cliente: f.cliente || null,
+  };
+};
+
+const buildAlbaranDoc = (a0, config0, servicio0 = null, cliente0 = null) => {
+  const { a, config, servicio, cliente } = segunLoFirmado(a0, config0, servicio0, cliente0);
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210, margin = 18;
   let y = 0;
@@ -70,9 +91,11 @@ const buildAlbaranDoc = (a, config, servicio = null, cliente = null) => {
   }
   doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(20, 20, 20);
   doc.text(a.cliente || "—", margin + 5, y + 15);
-  if (cliente?.nifCif) {
+  // Lo escrito en el propio albarán manda sobre la ficha del cliente
+  const nif = a.nifCif || cliente?.nifCif;
+  if (nif) {
     doc.setFontSize(9); doc.setTextColor(80, 80, 80);
-    doc.text(cliente.nifCif, W - margin - 5, y + 15, { align: "right" });
+    doc.text(nif, W - margin - 5, y + 15, { align: "right" });
   }
   y += 28;
 
@@ -167,6 +190,23 @@ const buildAlbaranDoc = (a, config, servicio = null, cliente = null) => {
     doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(150, 150, 150);
     doc.text("Pendiente de firma", margin + 40, y + 19, { align: "center" });
     y += 41;
+  }
+
+  // Huella del contenido congelado: permite comprobar que este PDF
+  // corresponde a lo que consta firmado en el sistema
+  if (a0.huella_sha256) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(150, 150, 150);
+    doc.text(`Huella SHA-256: ${a0.huella_sha256}`, margin, 278);
+  }
+
+  // Anulado: marca de agua en todas las páginas
+  if (a0.anulado) {
+    const paginas = doc.getNumberOfPages();
+    for (let i = 1; i <= paginas; i++) {
+      doc.setPage(i);
+      doc.setTextColor(220, 38, 38); doc.setFont("helvetica", "bold"); doc.setFontSize(60);
+      doc.text("ANULADO", W / 2, 160, { align: "center", angle: 30 });
+    }
   }
 
   footer();

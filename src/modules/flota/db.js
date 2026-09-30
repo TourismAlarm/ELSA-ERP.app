@@ -11,9 +11,7 @@ const sanitize = (v) => {
     vencimientos: Array.isArray(v.vencimientos) ? v.vencimientos : [],
   };
 
-  if (fotos && Array.isArray(fotos) && fotos.length > 0) {
-    sanitized.fotos = fotos;
-  }
+  if (Array.isArray(fotos)) sanitized.fotos = fotos;
 
   return sanitized;
 };

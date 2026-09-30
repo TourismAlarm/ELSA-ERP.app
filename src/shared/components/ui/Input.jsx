@@ -2,8 +2,8 @@ export const inputClass = "w-full border-2 border-zinc-200 rounded-md px-4 py-3 
 
 export const Input = (props) => <input {...props} className={inputClass} />;
 
-export const Select = ({ value, onChange, children }) => (
-  <select value={value} onChange={onChange} className={inputClass}>{children}</select>
+export const Select = ({ children, ...props }) => (
+  <select {...props} className={inputClass}>{children}</select>
 );
 
 export const Textarea = (props) => (

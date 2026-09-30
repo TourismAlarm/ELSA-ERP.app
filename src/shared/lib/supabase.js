@@ -17,7 +17,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const TAMANO_PAGINA = 1000;
 const MAX_PAGINAS = 100; // freno de seguridad: 100.000 filas es mucho más de lo que mueve la app
 
-export const cargarTodas = async (tabla, { orden = "id", ascendente = true } = {}) => {
+export const cargarTodas = async (tabla, { orden = "id", ascendente = true, desempate = "id" } = {}) => {
   const filas = [];
 
   for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
@@ -25,7 +25,9 @@ export const cargarTodas = async (tabla, { orden = "id", ascendente = true } = {
     // Desempate por id: cuando dos filas empatan en el orden pedido, la base de
     // datos no garantiza cuál va antes, y entre una página y la siguiente una
     // podría repetirse o perderse.
-    if (orden !== "id") consulta = consulta.order("id", { ascending: true });
+    // (desempate: null para tablas sin columna id, como contadores, cuya
+    // clave primaria ya es la columna de orden)
+    if (desempate && orden !== desempate) consulta = consulta.order(desempate, { ascending: true });
 
     const { data, error } = await consulta.range(filas.length, filas.length + TAMANO_PAGINA - 1);
     if (error) { console.error(error); return null; }

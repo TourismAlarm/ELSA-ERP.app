@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { supabase } from "../shared/lib/supabase";
+import { supabase, cargarTodas } from "../shared/lib/supabase";
 import { dbSaveConfig } from "../modules/solicitudes/db";
 import { Btn, Field, Input, Textarea, ColorPicker } from "../shared/components/ui";
 import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
@@ -67,44 +67,59 @@ const VehiculosManager = ({ items, onChange }) => {
   );
 };
 
-// Vuelca TODAS las tablas, no solo solicitudes: una copia que se deja fuera
-// los clientes, los albaranes firmados o la flota no es una copia de seguridad.
-const TABLAS_BACKUP = ["solicitudes", "servicios", "albaranes", "clientes", "vehiculos", "mantenimientos"];
+// EXPORTACIÓN DE DATOS (no es la copia de recuperación).
+//
+// Antes pedía seis tablas sin paginar: Supabase corta cada respuesta a 1.000
+// filas sin avisar, así que con 1.482 clientes la «copia» se dejaba 482, y
+// faltaban eventos, DeCA, contadores y perfiles. Ahora pide todas las tablas
+// por páginas (cargarTodas) y, si cualquiera falla, no descarga nada.
+//
+// Sigue sin incluir los ficheros (fotos y PDF de DeCA) ni las cuentas de
+// usuario: la copia de recuperación de verdad es la de Supabase (ver
+// supabase/README.md, «Copias y recuperación»).
+const TABLAS_EXPORTACION = [
+  ["solicitudes", "id"], ["servicios", "id"], ["albaranes", "id"], ["clientes", "id"],
+  ["vehiculos", "id"], ["mantenimientos", "id"], ["eventos", "id"], ["deca", "id"],
+  ["perfiles", "id"], ["contadores", "clave", null], ["_solicitud_counter", "id"],
+];
 
 const downloadBackup = async (onEstado) => {
-  onEstado("Descargando...");
+  onEstado("Exportando...");
 
   const [{ data: cfg, error: errorCfg }, ...resultados] = await Promise.all([
     supabase.from("config").select("*").eq("id", 1).maybeSingle(),
-    ...TABLAS_BACKUP.map((t) => supabase.from(t).select("*")),
+    ...TABLAS_EXPORTACION.map(([t, orden, desempate = "id"]) => cargarTodas(t, { orden, desempate })),
   ]);
 
-  // Si falla cualquier tabla no se descarga nada: una copia incompleta que
-  // parece completa es peor que no tener copia
-  const fallos = TABLAS_BACKUP.filter((_, i) => resultados[i].error);
+  const fallos = TABLAS_EXPORTACION.filter((_, i) => resultados[i] === null).map(([t]) => t);
   if (errorCfg || fallos.length > 0) {
     const detalle = [errorCfg ? "config" : null, ...fallos].filter(Boolean).join(", ");
-    console.error(errorCfg, ...resultados.map((r) => r.error).filter(Boolean));
-    alert(`No se ha podido descargar la copia: falló la lectura de ${detalle}.\n\nNo se ha guardado nada para no dejarte una copia incompleta. Inténtalo de nuevo.`);
+    alert(`No se ha podido exportar: falló la lectura de ${detalle}.\n\nNo se ha guardado nada para no dejarte una exportación incompleta. Si eres operario, la exportación completa es cosa de administración.`);
     onEstado(null);
     return;
   }
 
-  const datos = Object.fromEntries(TABLAS_BACKUP.map((t, i) => [t, resultados[i].data || []]));
+  const datos = Object.fromEntries(TABLAS_EXPORTACION.map(([t], i) => [t, resultados[i]]));
   const total = Object.values(datos).reduce((n, filas) => n + filas.length, 0);
 
-  const backup = { fecha: new Date().toISOString(), version: 2, config: cfg, ...datos };
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const exportacion = {
+    fecha: new Date().toISOString(),
+    version: 3,
+    aviso: "Exportación de datos. No incluye fotos, PDF de DeCA ni cuentas de usuario.",
+    config: cfg,
+    ...datos,
+  };
+  const blob = new Blob([JSON.stringify(exportacion, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `ELSA_backup_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `ELSA_exportacion_${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 
   onEstado(null);
-  const resumen = TABLAS_BACKUP.map((t) => `${datos[t].length} ${t}`).join("\n");
-  alert(`Copia descargada con ${total} registros:\n\n${resumen}`);
+  const resumen = TABLAS_EXPORTACION.map(([t]) => `${datos[t].length} ${t}`).join("\n");
+  alert(`Exportados ${total} registros:\n\n${resumen}\n\nNo incluye fotos ni PDF de DeCA.`);
 };
 
 // Cambio de contraseña del usuario que ya tiene la sesión iniciada
@@ -311,7 +326,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         👥 Gestionar clientes
       </Btn>
       <Btn size="md" variant="secondary" className="w-full" onClick={() => downloadBackup(setEstadoBackup)} disabled={!!estadoBackup}>
-        {estadoBackup || "📥 Descargar copia de seguridad"}
+        {estadoBackup || "📥 Exportar datos (sin fotos ni PDF)"}
       </Btn>
     </div>
   );

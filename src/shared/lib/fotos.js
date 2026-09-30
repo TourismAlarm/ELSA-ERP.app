@@ -94,6 +94,19 @@ export const borrarFoto = async (path) => {
   return true;
 };
 
+// Después de GUARDAR una edición: borra del almacén las fotos que estaban
+// antes y ya no están. Se hace aquí y no al pulsar la papelera porque, si
+// luego se cancelaba el formulario, la foto ya no existía pero el documento
+// seguía apuntando a ella. Sin avisos: si falla, queda un fichero huérfano
+// en un bucket privado, que no rompe nada.
+export const borrarFotosQuitadas = async (antes = [], despues = []) => {
+  const siguen = new Set((despues || []).map((f) => f?.path).filter(Boolean));
+  const quitadas = (antes || []).map((f) => f?.path).filter((p) => p && !siguen.has(p));
+  if (quitadas.length === 0) return;
+  const { error } = await supabase.storage.from(BUCKET_FOTOS).remove(quitadas);
+  if (error) console.error("No se han podido borrar fotos quitadas:", error);
+};
+
 // Firma en bloque los paths de una lista de fotos y devuelve {path: url}.
 // Las fotos antiguas que solo tengan `url` pública se dejan como están.
 export const firmarFotos = async (fotos = []) => {

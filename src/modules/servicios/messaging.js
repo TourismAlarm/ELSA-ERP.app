@@ -32,6 +32,6 @@ export const sendServicioEmail = async (s, config) => {
     "_blank"
   );
   if (s.id) {
-    await dbAddNotaServicio(s.id, { tipo: "email", fecha: new Date().toISOString(), texto: "Enviado por email" });
+    await dbAddNotaServicio(s.id, { tipo: "email", fecha: new Date().toISOString(), texto: "Email preparado (abierto para enviar)" });
   }
 };

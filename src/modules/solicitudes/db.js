@@ -6,11 +6,10 @@ const sanitize = (s) => {
     ? s.vehiculo.join(", ")
     : (s.vehiculo || "");
 
-  // nifCif y dirFact son campos del cliente, y fecha es un campo derivado para la UI —
-  // ninguno existe como columna en solicitudes, excluirlos del insert.
-  // OJO: cliente_id, telCliente y emailCliente SÍ son columnas reales, no
-  // añadirlos a esta lista: si se quitan, el contacto escrito se pierde al guardar.
-  const { nifCif, dirFact, fotos, fecha, ...rest } = s;
+  // fecha es un campo derivado para la UI, no una columna.
+  // OJO: cliente_id, telCliente, emailCliente, nifCif y dirFact SÍ son
+  // columnas reales, no quitarlos aquí: lo escrito se perdería al guardar.
+  const { fotos, fecha, ...rest } = s;
 
   const sanitized = {
     ...rest,
@@ -21,9 +20,7 @@ const sanitize = (s) => {
     bultos: s.bultos !== "" && s.bultos != null ? Number(s.bultos) : null,
   };
 
-  if (fotos && Array.isArray(fotos) && fotos.length > 0) {
-    sanitized.fotos = fotos;
-  }
+  if (Array.isArray(fotos)) sanitized.fotos = fotos;
 
   return sanitized;
 };
@@ -88,6 +85,30 @@ export const dbCambiarEstado = async (id, estado) => {
     .eq("id", id);
   if (error) { console.error(error); alert("Error al cambiar el estado: " + error.message); return false; }
   return true;
+};
+
+// Aceptar y programar en una sola operación de la base de datos. Antes la
+// solicitud quedaba aceptada aunque se cancelara el diálogo de la fecha y el
+// servicio no llegaba a crearse. Si ya tenía servicio, devuelve ese.
+export const dbAceptarSolicitud = async (id, { fecha, hora_inicio, hora_fin }) => {
+  const { data, error } = await supabase.rpc("aceptar_solicitud", {
+    p_solicitud_id: id, p_fecha: fecha, p_hora_inicio: hora_inicio || null, p_hora_fin: hora_fin || null,
+  });
+  if (error) {
+    console.error(error);
+    alert("No se ha podido aceptar la solicitud: " + (/row-level security/i.test(error.message) ? "no tienes permiso." : error.message));
+    return null;
+  }
+  return data;
+};
+
+// Rol de la cuenta con la sesión iniciada ('admin' | 'operario'), o null si
+// no tiene perfil activo. Solo sirve para enseñar u ocultar botones: quien
+// decide de verdad es la base de datos.
+export const dbMiRol = async () => {
+  const { data, error } = await supabase.rpc("mi_rol");
+  if (error) { console.error(error); return null; }
+  return data || null;
 };
 
 export const dbToggleAvisos = async (id, valor) => {
