@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Btn, PhotoGallery, MapasModal, ClienteBloque, NotasInternasBloque } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
-import { dbLoadDecaDeServicio, dbEmitirDeca, faltanDatosDeca } from "../../deca/db";
+import { dbLoadDecaDeServicio, dbEmitirDeca, dbAnularDeca, faltanDatosDeca } from "../../deca/db";
+import { estadoDeca, estadoDecaServicio, anuladoEn, motivoAnulacion } from "../../deca/estado";
 import { sendDecaWhatsApp } from "../../deca/messaging";
 
 const ESTADOS = {
@@ -31,12 +32,30 @@ const formatFechaHora = (fechaISO) =>
 // después). Solo aparece en los servicios marcados como requiere_deca. Si
 // faltan datos obligatorios no se deja emitir: se dice qué falta y dónde se
 // rellena, que un DeCA incompleto no vale y nadie tiene por qué adivinarlo.
-const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => {
+//
+// Cuatro situaciones, siempre a la vista: sin DeCA, emitido, anulado y
+// sustituido (se emitió otro después de anular; lo dice cada DeCA anulado).
+// Anular es solo de admin y pide motivo; un DeCA no se borra.
+const ESTADO_SERVICIO = {
+  sin_deca: { titulo: "Sin DeCA: este servicio necesita DeCA antes de salir", icono: "⚠️" },
+  emitido:  { titulo: "DeCA emitido", icono: "✅" },
+  anulado:  { titulo: "DeCA anulado: hay que emitir otro antes de salir", icono: "⛔" },
+};
+const ESTADO_DECA = {
+  emitido:    { label: "Emitido",    clase: "bg-emerald-100 text-emerald-700" },
+  anulado:    { label: "Anulado",    clase: "bg-red-100 text-red-700" },
+  sustituido: { label: "Sustituido", clase: "bg-amber-100 text-amber-700" },
+};
+
+const DecaBloque = ({ servicio, cliente, config, esAdmin, onEmitido, onCambio, onNotaAnadida }) => {
   const [decas, setDecas] = useState(null); // null = cargando
   const [cargaFallida, setCargaFallida] = useState(false);
   const [emitiendo, setEmitiendo] = useState(false);
   const [error, setError] = useState(null);
   const [recarga, setRecarga] = useState(0); // sube para volver a pedir la lista
+  const [anulando, setAnulando] = useState(null); // id del DeCA con el formulario de anulación abierto
+  const [motivo, setMotivo] = useState("");
+  const [guardandoAnulacion, setGuardandoAnulacion] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -50,6 +69,7 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
 
   const faltan = faltanDatosDeca(servicio, cliente, config);
   const vigentes = (decas || []).filter((d) => !d.anulado);
+  const estadoServicio = decas ? estadoDecaServicio(decas) : null;
 
   const emitir = async () => {
     setEmitiendo(true);
@@ -59,6 +79,18 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
     if (err) { setError(err.message); return; }
     setRecarga((n) => n + 1);
     onEmitido?.(deca);
+  };
+
+  const anular = async (deca) => {
+    setGuardandoAnulacion(true);
+    setError(null);
+    const { error: err } = await dbAnularDeca(deca.id, motivo.trim());
+    setGuardandoAnulacion(false);
+    if (err) { setError("No se ha podido anular el DeCA: " + err.message); return; }
+    setAnulando(null);
+    setMotivo("");
+    setRecarga((n) => n + 1);
+    onCambio?.(servicio.id, vigentes.some((d) => d.id !== deca.id));
   };
 
   const enviar = async (deca) => {
@@ -71,9 +103,9 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
       <div>
         <p className="text-xs font-bold tracking-widest uppercase mb-1 text-rose-400">DeCA</p>
         <p className="text-sm font-bold text-rose-900">
-          {vigentes.length > 0
-            ? `📄 ${vigentes.length === 1 ? "DeCA emitido" : `${vigentes.length} DeCA emitidos`}`
-            : "Este servicio necesita DeCA antes de salir"}
+          {estadoServicio
+            ? `${ESTADO_SERVICIO[estadoServicio].icono} ${estadoServicio === "emitido" && vigentes.length > 1 ? `${vigentes.length} DeCA emitidos` : ESTADO_SERVICIO[estadoServicio].titulo}`
+            : "📄 DeCA"}
         </p>
         <p className="text-xs text-rose-700 mt-0.5 opacity-80">Documento de control del transporte. Se emite antes de salir y el conductor lo lleva en el móvil.</p>
       </div>
@@ -84,14 +116,21 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
         <p className="text-xs font-semibold text-red-600">No se han podido cargar los DeCA de este servicio. Recarga la página.</p>
       ) : decas.length > 0 && (
         <div className="flex flex-col gap-2">
-          {decas.map((d) => (
-            <div key={d.id} className={`bg-white border-2 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap ${d.anulado ? "border-zinc-200 opacity-60" : "border-rose-200"}`}>
+          {decas.map((d) => {
+            const est = estadoDeca(d, decas);
+            return (
+            <div key={d.id} className={`bg-white border-2 rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap ${d.anulado ? "border-zinc-200" : "border-rose-200"}`}>
               <div className="min-w-0">
                 <p className="text-sm font-black text-zinc-900">
                   {d.numero}
-                  {d.anulado && <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded bg-zinc-100 text-zinc-500">Anulado</span>}
+                  <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded ${ESTADO_DECA[est].clase}`}>{ESTADO_DECA[est].label}</span>
                 </p>
                 <p className="text-xs text-zinc-500">Emitido el {formatFechaHora(d.creado_en)}</p>
+                {d.anulado && (
+                  <p className="text-xs text-zinc-600 mt-1">
+                    Anulado el {anuladoEn(d) ? formatFechaHora(anuladoEn(d)) : "—"}{motivoAnulacion(d) ? ` · Motivo: ${motivoAnulacion(d)}` : ""}
+                  </p>
+                )}
               </div>
               <div className="flex gap-2 flex-wrap">
                 <a href={d.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-bold tracking-wide border-2 bg-white text-zinc-900 border-zinc-300 hover:border-zinc-900 hover:bg-zinc-50 px-3 py-1.5 text-xs rounded">
@@ -100,9 +139,26 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
                 {!d.anulado && (
                   <Btn size="sm" variant="whatsapp" onClick={() => enviar(d)}>💬 Enviar por WhatsApp</Btn>
                 )}
+                {!d.anulado && esAdmin && anulando !== d.id && (
+                  <Btn size="sm" variant="secondary" onClick={() => { setAnulando(d.id); setMotivo(""); setError(null); }}>⛔ Anular</Btn>
+                )}
               </div>
+              {anulando === d.id && (
+                <div className="w-full flex flex-col gap-2">
+                  <label className="text-xs font-bold text-zinc-700" htmlFor={`motivo-${d.id}`}>Motivo de la anulación (obligatorio, queda registrado)</label>
+                  <textarea id={`motivo-${d.id}`} value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2}
+                    className="border-2 border-zinc-300 rounded p-2 text-sm" placeholder="Ej.: matrícula equivocada" />
+                  <div className="flex gap-2">
+                    <Btn size="sm" onClick={() => anular(d)} disabled={!motivo.trim() || guardandoAnulacion}>
+                      {guardandoAnulacion ? "Anulando..." : "Confirmar anulación"}
+                    </Btn>
+                    <Btn size="sm" variant="secondary" onClick={() => setAnulando(null)} disabled={guardandoAnulacion}>Cancelar</Btn>
+                  </div>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -118,7 +174,7 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
         </div>
       ) : (
         <Btn size="md" onClick={emitir} disabled={emitiendo || decas === null}>
-          {emitiendo ? "Emitiendo..." : vigentes.length > 0 ? "📄 Emitir otro DeCA" : "📄 Emitir DeCA"}
+          {emitiendo ? "Emitiendo..." : vigentes.length > 0 ? "📄 Emitir otro DeCA" : estadoServicio === "anulado" ? "📄 Emitir DeCA nuevo (sustituye al anulado)" : "📄 Emitir DeCA"}
         </Btn>
       )}
 
@@ -127,7 +183,7 @@ const DecaBloque = ({ servicio, cliente, config, onEmitido, onNotaAnadida }) => 
   );
 };
 
-const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onGeneratePDF, onEdit, onDelete, onBack, onCambiarEstado, onAddNota, onDecaEmitido }) => {
+const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud, albaranVinculado, onVerAlbaran, onCrearAlbaran, coloresVehiculo = {}, onSendEmail, onGeneratePDF, onEdit, onDelete, onBack, onCambiarEstado, onAddNota, onDecaEmitido, onDecaCambio, esAdmin = false }) => {
   const [srv, setSrv] = useState(servicio);
   const [nuevaNota, setNuevaNota] = useState("");
   const [direccionAbrir, setDireccionAbrir] = useState(null); // Maps/Waze
@@ -220,7 +276,9 @@ const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud
               servicio={srv}
               cliente={cliente}
               config={config}
+              esAdmin={esAdmin}
               onEmitido={(deca) => onDecaEmitido?.(srv.id, deca)}
+              onCambio={onDecaCambio}
               onNotaAnadida={(updated) => setSrv((prev) => ({ ...prev, ...updated }))}
             />
           )}
