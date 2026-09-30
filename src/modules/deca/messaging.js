@@ -27,5 +27,5 @@ export const buildDecaMessage = (deca, servicio, config) => [
 export const sendDecaWhatsApp = async (deca, servicio, config) => {
   window.open(`https://wa.me/?text=${encodeURIComponent(buildDecaMessage(deca, servicio, config))}`, "_blank");
   if (!servicio.id) return null;
-  return dbAddNotaServicio(servicio.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: `DeCA ${deca.numero} enviado por WhatsApp` });
+  return dbAddNotaServicio(servicio.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: `DeCA ${deca.numero}: WhatsApp preparado (abierto para enviar)` });
 };

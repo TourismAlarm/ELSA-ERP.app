@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { subirFoto, borrarFoto, useUrlsFotos } from "../../lib/fotos";
+import { subirFoto, useUrlsFotos } from "../../lib/fotos";
 
 const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => {
   const [photos, setPhotos] = useState(existingPhotos || []);
@@ -38,13 +38,11 @@ const PhotoUploader = ({ solicitudId, existingPhotos = [], onPhotosChange }) => 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [viewingIndex, photos.length]);
 
-  const deletePhoto = async (photo, e) => {
+  // Quitar una foto solo la saca de la lista del formulario. El fichero se
+  // borra del almacén al GUARDAR (borrarFotosQuitadas en App.jsx): así
+  // Cancelar deja el documento exactamente como estaba.
+  const deletePhoto = (photo, e) => {
     if (e) e.stopPropagation();
-    setUploading(true);
-    const ok = await borrarFoto(photo.path);
-    setUploading(false);
-    if (!ok) return;
-
     setPhotos((prevPhotos) => {
       const updatedPhotos = prevPhotos.filter((p) => p.id !== photo.id);
       onPhotosChange(updatedPhotos);

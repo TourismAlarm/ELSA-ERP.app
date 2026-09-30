@@ -30,6 +30,7 @@ with esperadas(tabla, columna) as (values
   -- Notas de maniobra que no salen en ningún documento del cliente
   ('solicitudes','notas_internas'),
   ('solicitudes','telCliente'), ('solicitudes','emailCliente'),
+  ('solicitudes','nifCif'), ('solicitudes','dirFact'),
 
   ('servicios','numero'), ('servicios','cliente'), ('servicios','cliente_id'),
   ('servicios','vehiculo'), ('servicios','origen'), ('servicios','destino'),
@@ -38,6 +39,7 @@ with esperadas(tabla, columna) as (values
   ('servicios','estado'), ('servicios','notas'), ('servicios','solicitud_id'),
   ('servicios','notas_internas'),
   ('servicios','telCliente'), ('servicios','emailCliente'),
+  ('servicios','nifCif'), ('servicios','dirFact'),
   -- Datos del DeCA
   ('servicios','requiere_deca'), ('servicios','naturaleza_mercancia'), ('servicios','peso'),
   ('servicios','bultos'), ('servicios','autorizacion_especial'),
@@ -47,6 +49,11 @@ with esperadas(tabla, columna) as (values
   ('albaranes','descripcion'), ('albaranes','lineas'), ('albaranes','fotos'),
   ('albaranes','servicio_id'), ('albaranes','estado'), ('albaranes','firma'),
   ('albaranes','firmado_por'), ('albaranes','firmado_en'),
+  ('albaranes','cliente_id'), ('albaranes','nifCif'), ('albaranes','dirFact'),
+  ('albaranes','telCliente'), ('albaranes','emailCliente'),
+  -- Firma congelada y anulación (las escribe la base de datos)
+  ('albaranes','contenido_firmado'), ('albaranes','huella_sha256'), ('albaranes','anulado'),
+  ('albaranes','anulado_en'), ('albaranes','motivo_anulacion'),
 
   ('vehiculos','nombre'), ('vehiculos','matricula'), ('vehiculos','tipo'),
   ('vehiculos','itv_vencimiento'), ('vehiculos','seguro_vencimiento'),

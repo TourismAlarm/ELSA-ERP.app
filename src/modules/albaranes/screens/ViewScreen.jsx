@@ -12,8 +12,14 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   fechaISO ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
+const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onAnular, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
   const [alb, setAlb] = useState(albaran);
+  // Si el albarán cambia desde fuera (refrescar, anular) la ficha se
+  // actualiza; antes se quedaba con la copia del momento de abrirla
+  // (App crea el objeto de nuevo en cada render: se compara por lo que cambia)
+  useEffect(() => { setAlb(albaran); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [albaran.id, albaran.estado, albaran.anulado, albaran.updated_at]);
   const [firmante, setFirmante] = useState("");
   const [firmando, setFirmando] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
@@ -120,7 +126,22 @@ const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio
             {yaFirmado && alb.firmado_en && (
               <p className="text-xs mt-2 opacity-70">Firmado el {formatFechaHora(alb.firmado_en)}</p>
             )}
+            {yaFirmado && alb.huella_sha256 && (
+              <p className="text-[11px] mt-1 opacity-60 font-mono break-all" title="Huella SHA-256 del contenido congelado al firmar">
+                🔒 Contenido congelado · {alb.huella_sha256.slice(0, 16)}…
+                {alb.contenido_firmado?.retroactivo && " (congelado después de la firma)"}
+              </p>
+            )}
           </div>
+
+          {alb.anulado && (
+            <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+              <p className="text-sm font-black text-red-800">⛔ Albarán anulado</p>
+              <p className="text-xs text-red-700 mt-1">
+                {alb.anulado_en && `El ${formatFechaHora(alb.anulado_en)}. `}Motivo: {alb.motivo_anulacion || "—"}
+              </p>
+            </div>
+          )}
 
           {/* Servicio vinculado */}
           {alb.servicio_id && (
@@ -252,10 +273,23 @@ const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio
         </div>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
-        <Btn size="md" variant="secondary" className="flex-1" onClick={onEdit}>✏️ Editar</Btn>
-        <Btn size="md" variant="danger" onClick={onDelete}>🗑 Eliminar</Btn>
-      </div>
+      {estado === "firmado" ? (
+        // Firmado: no se edita ni se borra. Si hay un error se anula (queda
+        // registrado quién, cuándo y por qué) y se hace un albarán nuevo.
+        onAnular && !alb.anulado && (
+          <div className="flex gap-3 flex-wrap">
+            <Btn size="md" variant="danger" className="flex-1" onClick={async () => {
+              const r = await onAnular(alb.id);
+              if (r) setAlb((prev) => ({ ...prev, ...r }));
+            }}>⛔ Anular albarán</Btn>
+          </div>
+        )
+      ) : (
+        <div className="flex gap-3 flex-wrap">
+          <Btn size="md" variant="secondary" className="flex-1" onClick={onEdit}>✏️ Editar</Btn>
+          <Btn size="md" variant="danger" onClick={onDelete}>🗑 Eliminar</Btn>
+        </div>
+      )}
     </div>
   );
 };

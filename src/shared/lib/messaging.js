@@ -36,7 +36,7 @@ export const buildMessage = (s, config) => {
 export const sendWhatsApp = async (s, config) => {
   window.open(`https://wa.me/${whatsappAdmin(config)}?text=${encodeURIComponent(buildMessage(s, config))}`, "_blank");
   if (s.id) {
-    await dbAddNota(s.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: "Enviado por WhatsApp" });
+    await dbAddNota(s.id, { tipo: "whatsapp", fecha: new Date().toISOString(), texto: "WhatsApp preparado (abierto para enviar)" });
   }
 };
 
@@ -46,6 +46,6 @@ export const sendEmail = async (s, config) => {
     "_blank"
   );
   if (s.id) {
-    await dbAddNota(s.id, { tipo: "email", fecha: new Date().toISOString(), texto: "Enviado por email" });
+    await dbAddNota(s.id, { tipo: "email", fecha: new Date().toISOString(), texto: "Email preparado (abierto para enviar)" });
   }
 };

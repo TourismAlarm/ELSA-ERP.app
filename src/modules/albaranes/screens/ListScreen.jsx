@@ -131,6 +131,7 @@ const ListScreen = ({ albaranes, servicios = [], onNew, onView, onEdit, onDelete
                           </>
                         )}
                         <span className={`text-xs font-bold px-2 py-0.5 rounded ${cfg.badge}`}>{cfg.emoji} {cfg.label}</span>
+                        {a.anulado && <span className="text-xs font-bold px-2 py-0.5 rounded bg-red-100 text-red-700">⛔ Anulado</span>}
                         {numLineas > 0 && (
                           <span className="text-xs font-semibold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded">{numLineas} línea{numLineas !== 1 ? "s" : ""}</span>
                         )}
@@ -144,8 +145,13 @@ const ListScreen = ({ albaranes, servicios = [], onNew, onView, onEdit, onDelete
 
                   <div className="flex gap-2 flex-wrap">
                     <Btn size="sm" onClick={() => onView(a)}>👁 Ver</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => onEdit(a)}>✏️ Editar</Btn>
-                    <Btn size="sm" variant="danger" onClick={() => onDelete(a.id)}>🗑 Eliminar</Btn>
+                    {/* Un firmado no se edita ni se borra: se anula desde su ficha */}
+                    {estado !== "firmado" && (
+                      <>
+                        <Btn size="sm" variant="secondary" onClick={() => onEdit(a)}>✏️ Editar</Btn>
+                        <Btn size="sm" variant="danger" onClick={() => onDelete(a.id)}>🗑 Eliminar</Btn>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
