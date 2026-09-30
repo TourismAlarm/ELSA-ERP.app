@@ -177,6 +177,12 @@ AS $function$
 DECLARE
   n integer;
 BEGIN
+  -- Llamada directa por RPC (fuera de un trigger): solo para reservar el
+  -- número del DeCA y solo con perfil activo. Si no, cualquier sesión, hasta
+  -- una desactivada, podría quemar números de albarán y dejar huecos.
+  IF pg_trigger_depth() = 0 AND (p_clave <> 'deca' OR NOT public.es_usuario_activo()) THEN
+    RAISE EXCEPTION 'No se puede reservar un número de «%» directamente.', p_clave;
+  END IF;
   UPDATE public.contadores
   SET next_number = next_number + 1, updated_at = now()
   WHERE clave = p_clave
@@ -374,6 +380,12 @@ BEGIN
   );
 END;
 $$;
+
+-- Solo la usan el trigger de firma y esta migración. Es SECURITY DEFINER y
+-- lee clientes, servicios y config saltándose RLS: expuesta por la API,
+-- cualquiera (anon incluido) podría leer la ficha de un cliente pasándole un
+-- cliente_id inventado.
+REVOKE ALL ON FUNCTION public.foto_albaran(public.albaranes) FROM PUBLIC, anon, authenticated;
 
 -- Albaranes firmados antes de esta migración: se congelan con los datos de
 -- hoy y quedan marcados como retroactivos. No prueban lo que se firmó en su
@@ -609,13 +621,19 @@ AS $$
 DECLARE
   a public.albaranes;
 BEGIN
+  SELECT * INTO a FROM public.albaranes WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No existe el albarán o no tienes acceso.';
+  END IF;
+  -- Un borrador se corrige o se borra; «anularlo» no dejaría nada anulado
+  IF a.estado IS DISTINCT FROM 'firmado' THEN
+    RAISE EXCEPTION 'Solo se anula un albarán firmado. Un borrador se edita o se borra.';
+  END IF;
+
   UPDATE public.albaranes
   SET anulado = true, motivo_anulacion = btrim(p_motivo)
   WHERE id = p_id
   RETURNING * INTO a;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'No existe el albarán o no tienes acceso.';
-  END IF;
   RETURN a;
 END;
 $$;
@@ -647,23 +665,23 @@ GRANT EXECUTE ON FUNCTION public.anular_albaran(uuid, text)                     
 --   el vínculo usuario ↔ trabajo en los datos (hoy no existe).
 -- ---------------------------------------------------------------------
 
--- Fuera las políticas «con sesión, todo»
+-- Fuera TODAS las políticas de estas tablas, se llamen como se llamen. Las
+-- políticas se suman con OR: una sola «con sesión, todo» creada a mano desde
+-- el panel con otro nombre dejaría sin efecto todo lo de abajo.
 DO $$
-DECLARE t text;
+DECLARE r record;
 BEGIN
-  FOREACH t IN ARRAY ARRAY[
-    'clientes','solicitudes','servicios','albaranes','vehiculos',
-    'mantenimientos','eventos','config','contadores','perfiles','deca'
-  ] LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_autenticados', t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_leer', t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_crear', t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_modificar', t);
-    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_borrar', t);
+  FOR r IN
+    SELECT policyname, tablename FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = ANY (ARRAY[
+        'clientes','solicitudes','servicios','albaranes','vehiculos',
+        'mantenimientos','eventos','config','contadores','perfiles','deca',
+        '_solicitud_counter'])
+  LOOP
+    EXECUTE format('DROP POLICY %I ON public.%I', r.policyname, r.tablename);
   END LOOP;
 END $$;
-DROP POLICY IF EXISTS solicitud_counter_autenticados ON public._solicitud_counter;
-DROP POLICY IF EXISTS solicitud_counter_leer ON public._solicitud_counter;
 
 -- Plantilla: (tabla, quién crea, quién modifica, quién borra)
 --   'activo' = cualquier perfil activo · 'admin' = solo admin · NULL = nadie
@@ -738,9 +756,15 @@ CREATE POLICY fotos_leer ON storage.objects
 CREATE POLICY fotos_subir ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'service-photos' AND public.es_usuario_activo());
+-- Una foto que forma parte de un albarán firmado es parte de lo firmado: no
+-- se borra (el albarán congelado apunta a ella).
 CREATE POLICY fotos_borrar ON storage.objects
   FOR DELETE TO authenticated
-  USING (bucket_id = 'service-photos' AND public.es_usuario_activo());
+  USING (bucket_id = 'service-photos' AND public.es_usuario_activo()
+         AND NOT EXISTS (
+           SELECT 1 FROM public.albaranes a
+           WHERE a.estado = 'firmado'
+             AND a.fotos @> jsonb_build_array(jsonb_build_object('path', objects.name))));
 
 -- DeCA: se puede subir; sobrescribir o borrar solo un PDF que todavía no
 -- esté registrado en la tabla deca (la app lo necesita para limpiar si el

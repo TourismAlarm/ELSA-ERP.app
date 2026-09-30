@@ -462,9 +462,14 @@ export default function App() {
     const alb = await dbEmitirAlbaranDeServicio(servicio.id, hora_inicio, hora_fin);
     if (!alb) return;
 
-    const cambios = { estado: "realizado", ...(hora_inicio ? { hora_inicio } : {}), ...(hora_fin ? { hora_fin } : {}) };
-    setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, ...cambios } : s));
-    setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, ...cambios } : prev);
+    // Si devolvió un albarán que ya existía, la base no ha tocado el
+    // servicio: no pintar aquí unas horas que no se han guardado
+    const yaExistia = albaranes.some((a) => a.id === alb.id);
+    if (!yaExistia) {
+      const cambios = { estado: "realizado", ...(hora_inicio ? { hora_inicio } : {}), ...(hora_fin ? { hora_fin } : {}) };
+      setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, ...cambios } : s));
+      setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, ...cambios } : prev);
+    }
     setAlbaranes((prev) => prev.some((a) => a.id === alb.id) ? prev : [alb, ...prev]);
     setViewingAlbaran(alb);
     setScreen("albaranView");

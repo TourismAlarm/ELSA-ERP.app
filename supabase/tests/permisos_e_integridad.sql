@@ -119,6 +119,42 @@ BEGIN
   EXCEPTION WHEN raise_exception THEN
     IF SQLERRM = 'EL OPERARIO ANULA' THEN RAISE; END IF;
   END;
+
+  -- Numeración: reservar el del DeCA sí; quemar números de albarán, no
+  ASSERT public.next_numero('deca', 'DECA') LIKE 'DECA-%', 'el operario no puede reservar número de DeCA';
+  BEGIN
+    PERFORM public.next_numero('albaran', 'ALB');
+    RAISE EXCEPTION 'SE QUEMAN NÚMEROS DE ALBARÁN';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM = 'SE QUEMAN NÚMEROS DE ALBARÁN' THEN RAISE; END IF;
+  END;
+
+  -- Una foto de un albarán firmado no se borra; una suelta sí
+  INSERT INTO storage.objects(bucket_id, name) VALUES
+    ('service-photos', 'albaranes/x/firmada.jpg'), ('service-photos', 'albaranes/x/suelta.jpg');
+  INSERT INTO public.albaranes(cliente, fotos)
+    VALUES ('Obra Y', '[{"id":"1","path":"albaranes/x/firmada.jpg"}]') RETURNING * INTO a;
+  PERFORM public.firmar_albaran(a.id, 'f', 'Juan');
+  DELETE FROM storage.objects WHERE name = 'albaranes/x/firmada.jpg';
+  GET DIAGNOSTICS n = ROW_COUNT;  ASSERT n = 0, 'se borra una foto de un albarán firmado';
+  DELETE FROM storage.objects WHERE name = 'albaranes/x/suelta.jpg';
+  GET DIAGNOSTICS n = ROW_COUNT;  ASSERT n = 1, 'no se puede borrar una foto suelta';
+END $$;
+RESET ROLE;
+
+-- ------------------------------------------------------------ admin: anular un borrador
+SET ROLE authenticated;
+SELECT pg_temp.como('aaaaaaaa-0000-0000-0000-000000000001');
+DO $$
+DECLARE a public.albaranes;
+BEGIN
+  INSERT INTO public.albaranes(cliente) VALUES ('Borrador') RETURNING * INTO a;
+  BEGIN
+    PERFORM public.anular_albaran(a.id, 'motivo');
+    RAISE EXCEPTION 'SE ANULA UN BORRADOR';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM = 'SE ANULA UN BORRADOR' THEN RAISE; END IF;
+  END;
 END $$;
 RESET ROLE;
 
@@ -127,12 +163,23 @@ SET ROLE authenticated;
 SELECT pg_temp.como('aaaaaaaa-0000-0000-0000-000000000003');
 DO $$ BEGIN
   ASSERT (SELECT count(*) FROM public.clientes) = 0, 'una cuenta desactivada ve datos';
+  BEGIN
+    PERFORM public.next_numero('deca', 'DECA');
+    RAISE EXCEPTION 'UNA CUENTA DESACTIVADA RESERVA NÚMEROS';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM = 'UNA CUENTA DESACTIVADA RESERVA NÚMEROS' THEN RAISE; END IF;
+  END;
 END $$;
 RESET ROLE;
 
 SET ROLE anon;
 DO $$ BEGIN
   ASSERT (SELECT count(*) FROM public.clientes) = 0, 'anon ve datos';
+  -- foto_albaran lee saltándose RLS: no puede estar al alcance de la API
+  ASSERT NOT has_function_privilege('anon', 'public.foto_albaran(public.albaranes)', 'EXECUTE'),
+    'anon puede ejecutar foto_albaran';
+  ASSERT NOT has_function_privilege('authenticated', 'public.foto_albaran(public.albaranes)', 'EXECUTE'),
+    'authenticated puede ejecutar foto_albaran';
 END $$;
 RESET ROLE;
 
