@@ -10,6 +10,8 @@ const iso = (d) =>
 
 const hoy = () => iso(new Date());
 const hhmm = (h) => (h ? String(h).slice(0, 5) : "");
+// Hora de inicio delante de cada trabajo en el mes, sin el cero: "9:00"
+const horaDelante = (h) => (h ? `${String(h).slice(0, 5).replace(/^0/, "")} ` : "");
 
 const vehiculosDe = (s) => {
   const a = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
@@ -129,6 +131,7 @@ const MiniCalendario = ({ valor, servicios = [], eventos = [], vehiculos = [], o
           color ? "" : "bg-amber-100 text-amber-800"
         }`}
       >
+        {s.hora_inicio && <span className="font-black">{horaDelante(s.hora_inicio)}</span>}
         {s.cliente || "Sin cliente"}
       </span>
     );
@@ -225,7 +228,7 @@ const MiniCalendario = ({ valor, servicios = [], eventos = [], vehiculos = [], o
                       style={{ lineHeight: `${ALTO_LINEA - 1}px`, backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
                       className="block w-full truncate rounded px-1 text-[10px] font-bold shrink-0"
                     >
-                      {tipoDe(e).emoji} {e.titulo}
+                      {e.todo_el_dia ? "" : horaDelante(e.hora_inicio)}{tipoDe(e).emoji} {e.titulo}
                     </span>
                   ))}
                   {svsVisibles.map(lineaServicio)}
