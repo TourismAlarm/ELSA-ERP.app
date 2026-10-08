@@ -5,6 +5,7 @@ import { Btn, Field, Input, Textarea, ColorPicker } from "../shared/components/u
 import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
 import { TEXTOS_PRESUPUESTO } from "../shared/lib/textos";
+import { urlCalendarioERP, dbRegenerarTokenCalendario } from "../modules/eventos/google";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
 // solicitudes y el calendario). Cada uno es { nombre, color }.
@@ -165,6 +166,93 @@ const CambiarPassword = () => {
   );
 };
 
+// Conexión con Google Calendar, en los dos sentidos y sin iniciar sesión
+// con Google:
+//   · ERP → Google: un enlace iCal que se añade en Google Calendar. Lleva un
+//     token secreto que se genera aquí; cambiarlo deja sin servicio el viejo.
+//   · Google → ERP: la «dirección secreta en formato iCal» del calendario de
+//     Google. Sus eventos salen en el calendario del ERP en solo lectura.
+const GoogleCalendar = ({ token, onToken, googleUrl, onGoogleUrl }) => {
+  const [generando, setGenerando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const enlace = urlCalendarioERP(token);
+  const urlMala = googleUrl && !/^https:\/\/calendar\.google\.com\/calendar\/ical\//.test(googleUrl.trim());
+
+  const generar = async () => {
+    if (token && !confirm("Si cambias el enlace, el que ya está puesto en Google Calendar deja de funcionar y habrá que añadir el nuevo. ¿Seguir?")) return;
+    setGenerando(true);
+    const nuevo = await dbRegenerarTokenCalendario();
+    setGenerando(false);
+    if (nuevo) onToken(nuevo);
+  };
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(enlace);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      prompt("Copia el enlace:", enlace);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+      <div>
+        <p className="text-sm font-black text-zinc-900 mb-1">📆 Google Calendar</p>
+        <p className="text-xs text-zinc-400">
+          Para poder mirar lo mismo desde los dos sitios. No hace falta usar los dos: es para que lo que está en uno se vea también en el otro.
+        </p>
+      </div>
+
+      <div>
+        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver el ERP en Google Calendar</p>
+        {enlace ? (
+          <>
+            <div className="flex gap-2">
+              <input readOnly value={enlace} onFocus={(e) => e.target.select()}
+                className="w-full min-w-0 border-2 border-zinc-200 rounded-md px-3 py-2 text-xs text-zinc-700 bg-zinc-50 font-mono" />
+              <button type="button" onClick={copiar} className="px-3 py-2 bg-zinc-900 text-white text-xs font-bold rounded-md shrink-0">
+                {copiado ? "✓ Copiado" : "Copiar"}
+              </button>
+            </div>
+            <ol className="text-xs text-zinc-500 mt-2 list-decimal pl-4 space-y-0.5">
+              <li>En el ordenador, abre Google Calendar.</li>
+              <li>A la izquierda, junto a «Otros calendarios», pulsa <b>+</b> y luego <b>Desde URL</b>.</li>
+              <li>Pega este enlace y pulsa <b>Añadir calendario</b>.</li>
+            </ol>
+            <p className="text-xs text-amber-700 mt-2">
+              Google lo actualiza solo cada pocas horas (a veces hasta un día): lo que cambies en el ERP tarda en verse allí.
+              Quien tenga este enlace ve los servicios, así que no lo compartas fuera de la empresa.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-zinc-500 mb-1">Todavía no hay enlace. Genera uno para añadirlo en Google Calendar.</p>
+        )}
+        <button type="button" onClick={generar} disabled={generando}
+          className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-50">
+          {generando ? "Generando..." : enlace ? "🔄 Cambiar enlace (el anterior deja de funcionar)" : "🔗 Generar enlace"}
+        </button>
+      </div>
+
+      <div>
+        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver Google Calendar en el ERP</p>
+        <Input value={googleUrl} onChange={(e) => onGoogleUrl(e.target.value)} placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
+        {urlMala && <p className="text-xs font-semibold text-red-600 mt-1">Tiene que ser la dirección iCal de Google (empieza por https://calendar.google.com/calendar/ical/).</p>}
+        <ol className="text-xs text-zinc-500 mt-2 list-decimal pl-4 space-y-0.5">
+          <li>En Google Calendar (ordenador), ⚙️ <b>Configuración</b>.</li>
+          <li>A la izquierda, en «Configuración de mis calendarios», elige el calendario.</li>
+          <li>Abajo del todo, copia la <b>Dirección secreta en formato iCal</b> y pégala aquí.</li>
+          <li>Pulsa <b>Guardar configuración</b>.</li>
+        </ol>
+        <p className="text-xs text-zinc-400 mt-2">
+          Sus eventos, también los antiguos, salen en el calendario del ERP en azul 📆 y solo se pueden mirar: se cambian en Google. Se actualizan al abrir la app y con el botón de refrescar.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClientes }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
@@ -178,6 +266,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
     adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
+    google_ics_url: initial?.google_ics_url ?? "",
   }));
   const [saving, setSaving] = useState(false);
   const [estadoBackup, setEstadoBackup] = useState(null);
@@ -197,9 +286,13 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
   const handleSave = async () => {
     if (cargaFallida) return;
     setSaving(true);
-    const ok = await dbSaveConfig(form);
+    // El token del enlace iCal solo lo escribe la base de datos al generarlo:
+    // no se manda, para no pisar uno recién cambiado con el de la pantalla
+    const { ics_token: _token, ...datos } = form;
+    datos.google_ics_url = (datos.google_ics_url || "").trim() || null;
+    const ok = await dbSaveConfig(datos);
     setSaving(false);
-    if (ok) onSave(form);
+    if (ok) onSave({ ...form, google_ics_url: datos.google_ics_url });
   };
 
   return (
@@ -316,6 +409,13 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
           <Textarea rows={5} value={form.legal} onChange={set("legal")} placeholder={TEXTOS_PRESUPUESTO.legal} />
         </Field>
       </div>
+
+      <GoogleCalendar
+        token={form.ics_token}
+        onToken={(t) => setForm((f) => ({ ...f, ics_token: t }))}
+        googleUrl={form.google_ics_url}
+        onGoogleUrl={(v) => setForm((f) => ({ ...f, google_ics_url: v }))}
+      />
 
       <CambiarPassword />
 

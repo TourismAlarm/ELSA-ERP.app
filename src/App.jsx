@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen, ImportarClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
@@ -10,10 +10,11 @@ import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio,
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
+import { dbLoadEventosGoogle } from "./modules/eventos/google";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
-import { FechaServicioModal, ConfirmarAlbaranModal, BotonRefrescar, EventoModal } from "./shared/components/ui";
+import { FechaServicioModal, ConfirmarAlbaranModal, BotonRefrescar, EventoModal, EventoGoogleModal } from "./shared/components/ui";
 import { conDatosDelCliente, fichaDelCliente } from "./shared/lib/clientes";
 import { mapaColoresVehiculo, normalizeVehiculos } from "./shared/lib/color";
 import { DEFAULT_VEHICLES } from "./shared/lib/constants";
@@ -59,6 +60,12 @@ export default function App() {
   const [viewingAlbaran, setViewingAlbaran] = useState(null);
   const [vehiculos, setVehiculos] = useState([]);
   const [eventos, setEventos] = useState([]);
+  // Eventos de Google Calendar (solo lectura) y, si no se han podido traer, por qué
+  const [eventosGoogle, setEventosGoogle] = useState([]);
+  const [avisoGoogle, setAvisoGoogle] = useState(null);
+  const [verEventoGoogle, setVerEventoGoogle] = useState(null);
+  // Lo que pintan los calendarios: los del ERP y los de Google juntos
+  const eventosCalendario = useMemo(() => [...eventos, ...eventosGoogle], [eventos, eventosGoogle]);
   // Evento del calendario que se está creando o editando: { evento?, fecha }
   const [editandoEvento, setEditandoEvento] = useState(null);
   const [editingVehiculo, setEditingVehiculo] = useState(null);
@@ -99,6 +106,13 @@ export default function App() {
   // verían parpadear, ni se cambia de pantalla: te quedas donde estabas.
   const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
     if (inicial) setLoadingData(true); else setRefrescando(true);
+
+    // Google va aparte y sin esperar: si tarda o falla, el resto de la app no
+    // se queda esperando. Si falla se conservan los que ya había.
+    dbLoadEventosGoogle().then(({ eventos: evsGoogle, error }) => {
+      if (evsGoogle) setEventosGoogle(evsGoogle);
+      setAvisoGoogle(error);
+    });
 
     const [cfgRes, sols, srvs, albs, vhcs, clts, evts, decas, miRol] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos(), dbLoadServiciosConDeca(), dbMiRol()]);
     setRol(miRol);
@@ -164,6 +178,8 @@ export default function App() {
     setAlbaranes([]);
     setVehiculos([]);
     setEventos([]);
+    setEventosGoogle([]);
+    setAvisoGoogle(null);
     setServiciosConDeca(new Set());
     setRol(null);
     setErrorCarga(false);
@@ -211,7 +227,18 @@ export default function App() {
     await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
   };
 
-  const handleConfigSave = (cfg) => { setConfig(cfg); setScreen("dashboard"); };
+  const handleConfigSave = (cfg) => {
+    // Si ha cambiado la dirección de Google, se vuelven a traer sus eventos
+    if ((cfg.google_ics_url || "") !== (config?.google_ics_url || "")) {
+      setEventosGoogle([]);
+      dbLoadEventosGoogle().then(({ eventos: evsGoogle, error }) => {
+        if (evsGoogle) setEventosGoogle(evsGoogle);
+        setAvisoGoogle(error);
+      });
+    }
+    setConfig(cfg);
+    setScreen("dashboard");
+  };
   const handleNew        = () => { setEditing(null); setScreen("form"); };
   const handleEdit       = (b) => { setEditing(b); setScreen("form"); };
   const handleView       = (b) => { setViewing(b); setScreen("view"); };
@@ -595,6 +622,10 @@ export default function App() {
 
       {!loadingData && <BotonRefrescar onRefrescar={() => cargarDatos()} refrescando={refrescando} />}
 
+      {verEventoGoogle && (
+        <EventoGoogleModal evento={verEventoGoogle} onCerrar={() => setVerEventoGoogle(null)} />
+      )}
+
       {editandoEvento && (
         <EventoModal
           inicial={editandoEvento.evento}
@@ -610,7 +641,7 @@ export default function App() {
         <FechaServicioModal
           solicitud={pidiendoFechaServicio}
           servicios={servicios}
-          eventos={eventos}
+          eventos={eventosCalendario}
           vehiculos={normalizeVehiculos(config?.vehicles ?? DEFAULT_VEHICLES)}
           onConfirmar={crearServicioDesdeSolicitud}
           onCancelar={() => setPidiendoFechaServicio(null)}
@@ -702,7 +733,7 @@ export default function App() {
         />
       )}
       {screen === "servicioForm" && (
-        <ServicioFormScreen initial={conCliente(editingServicio)} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventos} flota={vehiculos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
+        <ServicioFormScreen initial={conCliente(editingServicio)} prefill={prefillServicio} config={config} clientes={clientes} servicios={servicios} eventos={eventosCalendario} flota={vehiculos} onSave={handleServicioFormSave} onSaveCliente={handleSaveCliente} onCancel={() => setScreen("servicios")} saving={saving} />
       )}
       {screen === "servicioView" && viewingServicio && (
         <ServicioViewScreen
@@ -735,10 +766,11 @@ export default function App() {
         <CalendarScreen
           servicios={servicios}
           albaranes={albaranes}
-          eventos={eventos}
+          eventos={eventosCalendario}
+          avisoGoogle={avisoGoogle}
           serviciosConDeca={serviciosConDeca}
           onNuevoEvento={(fecha) => setEditandoEvento({ fecha })}
-          onEditarEvento={(evento) => setEditandoEvento({ evento, fecha: evento.fecha })}
+          onEditarEvento={(evento) => (evento.externo ? setVerEventoGoogle(evento) : setEditandoEvento({ evento, fecha: evento.fecha }))}
           coloresVehiculo={coloresVehiculo}
           flota={vehiculos}
           onVerVehiculo={handleVehiculoView}
