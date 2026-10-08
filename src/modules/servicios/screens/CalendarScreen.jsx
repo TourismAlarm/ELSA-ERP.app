@@ -84,6 +84,15 @@ const aMinutosDesdeInicio = (h) => {
 
 const horaCorta = (h) => (h ? h.slice(0, 5) : "");
 
+// Hora de inicio delante de cada trabajo en las vistas sin rejilla de horas
+// (mes), donde si no no se sabe a qué hora empieza. "09:00" -> "9:00 "
+const horaDelante = (h) => (h ? `${h.slice(0, 5).replace(/^0/, "")} ` : "");
+
+// Orden dentro de un día sin rejilla: por hora de inicio (los sin hora al
+// final) y, a igual hora, por cliente
+const porHora = (a, b) =>
+  (a.hora_inicio || "99").localeCompare(b.hora_inicio || "99") || (a.cliente || "").localeCompare(b.cliente || "");
+
 const capitalizar = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 // Emoji por tipo de nota (mismo criterio que la vista del servicio)
@@ -660,12 +669,12 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
               {celdas.map((dia, i) => {
                 if (dia === null) return <div key={`vacio-${i}`} />;
                 const iso = toISO(new Date(mes.year, mes.month, dia));
-                const svs = (porDia[iso] || [])
-                  .slice()
-                  .sort((a, b) => (a.cliente || "").localeCompare(b.cliente || ""));
+                const svs = (porDia[iso] || []).slice().sort(porHora);
                 const esHoy = iso === hoy();
                 const festivo = festivoDe(iso);
-                const evs = eventosPorDia[iso] || [];
+                const evs = (eventosPorDia[iso] || [])
+                  .slice()
+                  .sort((a, b) => (a.todo_el_dia ? "" : a.hora_inicio || "").localeCompare(b.todo_el_dia ? "" : b.hora_inicio || ""));
                 const entradas = expandir(svs); // una por vehículo, con su color
                 // Los eventos van primero: un día libre o una visita condicionan
                 // lo que se puede meter ese día. Si no cabe todo, la última línea
@@ -704,7 +713,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
                         className="block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight shrink-0"
                       >
-                        {tipoDe(e).emoji} {e.titulo}
+                        {e.todo_el_dia ? "" : horaDelante(e.hora_inicio)}{tipoDe(e).emoji} {e.titulo}
                       </span>
                     ))}
                     {visibles.map(({ s, vehiculo }, vi) => {
@@ -718,7 +727,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                           className={`block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight shrink-0 ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                         >
                           {/* En móvil la celda es estrecha: el color ya dice el camión, así que va el cliente */}
-                          {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}<span className="hidden sm:inline">{vehiculo || "Sin camión"} · </span>{s.cliente || "Sin nombre"}
+                          {s.hora_inicio && <span className="font-black">{horaDelante(s.hora_inicio)}</span>}{sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}<span className="hidden sm:inline">{vehiculo || "Sin camión"} · </span>{s.cliente || "Sin nombre"}
                         </span>
                       );
                     })}

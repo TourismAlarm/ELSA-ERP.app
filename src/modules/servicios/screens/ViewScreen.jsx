@@ -47,6 +47,45 @@ const ESTADO_DECA = {
   sustituido: { label: "Sustituido", clase: "bg-amber-100 text-amber-700" },
 };
 
+// QR del DeCA en la propia ficha: el conductor lo enseña en un control desde
+// aquí, sin tener que descargar ni abrir el PDF. Apunta a la misma URL que el
+// QR impreso en el PDF. qrcode se carga con import() solo cuando hace falta,
+// como en el PDF. "Ampliar" lo pone a pantalla completa sobre blanco, que es
+// como mejor lo lee el móvil de quien inspecciona.
+const QrDeca = ({ deca }) => {
+  const [src, setSrc] = useState(null);
+  const [fallo, setFallo] = useState(false);
+  const [grande, setGrande] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    import("qrcode")
+      .then((m) => (m.default || m).toDataURL(deca.url, { errorCorrectionLevel: "M", margin: 1, width: 640 }))
+      .then((dataUrl) => { if (vivo) setSrc(dataUrl); })
+      .catch((e) => { console.error(e); if (vivo) setFallo(true); });
+    return () => { vivo = false; };
+  }, [deca.url]);
+
+  if (fallo) return <p className="text-xs font-semibold text-red-600">No se ha podido generar el QR. Usa «Abrir PDF».</p>;
+  if (!src) return <p className="text-xs text-zinc-400">Generando QR...</p>;
+
+  return (
+    <>
+      <button type="button" onClick={() => setGrande(true)} className="flex flex-col items-center gap-1" aria-label={`Ampliar QR del ${deca.numero}`}>
+        <img src={src} alt={`QR del ${deca.numero}`} className="w-44 h-44 rounded border border-zinc-200 bg-white" />
+        <span className="text-xs font-bold text-zinc-600">🔍 Toca para ampliar</span>
+      </button>
+      {grande && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 gap-4" onClick={() => setGrande(false)}>
+          <p className="text-2xl font-black text-zinc-900">{deca.numero}</p>
+          <img src={src} alt={`QR del ${deca.numero}`} className="w-full max-w-[90vmin] aspect-square" />
+          <p className="text-sm text-zinc-500">Toca en cualquier sitio para cerrar</p>
+        </div>
+      )}
+    </>
+  );
+};
+
 const DecaBloque = ({ servicio, cliente, config, esAdmin, onEmitido, onCambio, onNotaAnadida }) => {
   const [decas, setDecas] = useState(null); // null = cargando
   const [cargaFallida, setCargaFallida] = useState(false);
@@ -143,6 +182,11 @@ const DecaBloque = ({ servicio, cliente, config, esAdmin, onEmitido, onCambio, o
                   <Btn size="sm" variant="secondary" onClick={() => { setAnulando(d.id); setMotivo(""); setError(null); }}>⛔ Anular</Btn>
                 )}
               </div>
+              {!d.anulado && d.url && (
+                <div className="w-full flex justify-center pt-1">
+                  <QrDeca deca={d} />
+                </div>
+              )}
               {anulando === d.id && (
                 <div className="w-full flex flex-col gap-2">
                   <label className="text-xs font-bold text-zinc-700" htmlFor={`motivo-${d.id}`}>Motivo de la anulación (obligatorio, queda registrado)</label>
@@ -257,14 +301,14 @@ const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Origen</p>
                 <p className="text-sm font-bold text-blue-900">
-                  📋 Creado desde la solicitud {solicitudOrigen?.numero || "(eliminada)"}
+                  📋 Creado desde el presupuesto {solicitudOrigen?.numero || "(eliminada)"}
                 </p>
                 {solicitudOrigen?.fecha && (
-                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">Solicitud del {solicitudOrigen.fecha}</p>
+                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">Presupuesto del {solicitudOrigen.fecha}</p>
                 )}
               </div>
               {solicitudOrigen && onVerSolicitud && (
-                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver solicitud</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver presupuesto</Btn>
               )}
             </div>
           )}

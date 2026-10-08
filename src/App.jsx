@@ -22,7 +22,7 @@ import { conHorasValidas } from "./shared/lib/horas";
 import { borrarFotosQuitadas } from "./shared/lib/fotos";
 
 const PESTANAS = [
-  { id: "dashboard",     emoji: "📋", texto: "Solicitudes" },
+  { id: "dashboard",     emoji: "📋", texto: "Presupuestos" },
   { id: "servicios",     emoji: "🔧", texto: "Servicios" },
   { id: "albaranesList", emoji: "📝", texto: "Albaranes" },
   { id: "calendario",    emoji: "📅", texto: "Calendario" },
@@ -291,7 +291,7 @@ export default function App() {
 
   const handleDelete = async (id) => {
     if (!esAdmin) { alert("Solo administración puede eliminar."); return; }
-    if (!confirm("¿Eliminar esta solicitud?")) return;
+    if (!confirm("¿Eliminar este presupuesto?")) return;
     if (!await dbDeleteSolicitud(id)) return;
     setSolicitudes((prev) => prev.filter((b) => b.id !== id));
     if (screen === "view") setScreen("dashboard");

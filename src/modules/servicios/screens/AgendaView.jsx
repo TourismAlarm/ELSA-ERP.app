@@ -15,7 +15,6 @@ const primerVehiculo = (s) => vehiculosDe(s)[0] || null;
 // "08:30:00" -> "8:30", como lo escribe Google Calendar
 const hora = (h) => (h ? h.slice(0, 5).replace(/^0/, "") : "");
 
-const rangoHoras = (ini, fin) => (ini ? `${hora(ini)}${fin ? `–${hora(fin)}` : ""}` : "Todo el día");
 
 // Formatea una Date local a AAAA-MM-DD sin pasar por UTC (evita saltos de día)
 const toISO = (d) =>
@@ -85,10 +84,11 @@ const AgendaView = ({ servicios = [], eventos = [], coloresVehiculo = {}, servic
         className={`w-full min-h-[64px] rounded-xl px-4 py-3 text-left shadow-sm active:opacity-80 transition-opacity ${color ? "" : sinColor}`}
       >
         <p className="text-base font-bold leading-snug truncate">
+          {s.hora_inicio && <span className="font-black">{hora(s.hora_inicio)} </span>}
           {sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}{s.cliente || "Sin nombre"}
         </p>
         <p className="text-sm leading-snug truncate">
-          {rangoHoras(s.hora_inicio, s.hora_fin)} · {vehiculos.length > 0 ? vehiculos.map((v) => `🚛 ${v}`).join(" · ") : "🚛 Sin camión"}
+          {s.hora_inicio ? (s.hora_fin ? `hasta ${hora(s.hora_fin)}` : `desde ${hora(s.hora_inicio)}`) : "Todo el día"} · {vehiculos.length > 0 ? vehiculos.map((v) => `🚛 ${v}`).join(" · ") : "🚛 Sin camión"}
         </p>
         {s.origen && <p className="text-sm leading-snug truncate opacity-90">📍 {s.origen}</p>}
       </button>
@@ -104,9 +104,12 @@ const AgendaView = ({ servicios = [], eventos = [], coloresVehiculo = {}, servic
         style={{ backgroundColor: color, color: textoSobre(color) }}
         className="w-full min-h-[64px] rounded-xl px-4 py-3 text-left shadow-sm active:opacity-80 transition-opacity"
       >
-        <p className="text-base font-bold leading-snug truncate">{tipoDe(e).emoji} {e.titulo}</p>
+        <p className="text-base font-bold leading-snug truncate">
+          {!e.todo_el_dia && e.hora_inicio && <span className="font-black">{hora(e.hora_inicio)} </span>}
+          {tipoDe(e).emoji} {e.titulo}
+        </p>
         <p className="text-sm leading-snug">
-          {e.todo_el_dia ? "Todo el día" : rangoHoras(e.hora_inicio, e.hora_fin)}
+          {e.todo_el_dia || !e.hora_inicio ? "Todo el día" : e.hora_fin ? `hasta ${hora(e.hora_fin)}` : `desde ${hora(e.hora_inicio)}`}
         </p>
       </button>
     );

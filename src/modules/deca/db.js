@@ -33,7 +33,7 @@ export const dbEmitirDeca = async (servicio, cliente, config) => {
 
   const { error: errorSubida } = await supabase.storage
     .from(BUCKET_DECA)
-    .upload(pdfPath, blob, { contentType: "application/pdf", upsert: true });
+    .upload(pdfPath, blob, { contentType: "application/pdf", upsert: false });
   if (errorSubida) {
     console.error(errorSubida);
     return { deca: null, error: { message: "No se ha podido subir el PDF del DeCA: " + errorSubida.message } };

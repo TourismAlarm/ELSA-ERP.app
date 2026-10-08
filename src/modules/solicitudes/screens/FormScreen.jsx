@@ -75,7 +75,7 @@ const FormScreen = ({ initial, config, clientes = [], onSave, onSaveCliente, onC
         <button onClick={onCancel} className="text-zinc-400 hover:text-zinc-900 transition-colors text-2xl leading-none">←</button>
         <div>
           <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-0.5">{initial ? "Editando" : "Nueva"}</p>
-          <h1 className="text-3xl font-black text-zinc-900">{initial ? "Editar solicitud" : "Nueva solicitud"}</h1>
+          <h1 className="text-3xl font-black text-zinc-900">{initial ? "Editar presupuesto" : "Nuevo presupuesto"}</h1>
         </div>
       </div>
 
