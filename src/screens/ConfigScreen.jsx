@@ -5,7 +5,7 @@ import { Btn, Field, Input, Textarea, ColorPicker } from "../shared/components/u
 import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
 import { TEXTOS_PRESUPUESTO } from "../shared/lib/textos";
-import { urlCalendarioERP, dbRegenerarTokenCalendario } from "../modules/eventos/google";
+import { urlCalendarioERP, dbRegenerarTokenCalendario, dbConectarGoogle, dbDesconectarGoogle, dbSincronizarGoogle } from "../modules/eventos/google";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
 // solicitudes y el calendario). Cada uno es { nombre, color }.
@@ -239,7 +239,98 @@ const CalendariosGoogle = ({ lista, onChange, vehiculos }) => {
   );
 };
 
-const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos }) => {
+// Escribir en Google: conectar la cuenta una vez y, desde entonces, cada
+// servicio que se guarda en el ERP aparece al momento en el calendario de
+// Google de su vehículo. Para los que ya existían, «Enviar los servicios».
+const hoyISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const EscribirEnGoogle = ({ cuenta, esAdmin, servicios, vuelta, onCambio, hayCalendarios }) => {
+  const [ocupado, setOcupado] = useState(false);
+  const [msg, setMsg] = useState(() =>
+    vuelta ? (vuelta.ok ? { tipo: "ok", texto: "✅ Cuenta de Google conectada." } : { tipo: "error", texto: vuelta.detalle || "No se ha podido conectar con Google." }) : null
+  );
+  const pendientes = servicios.filter((s) => s.fecha_servicio && s.fecha_servicio >= hoyISO());
+
+  const conectar = async () => {
+    setOcupado(true);
+    const error = await dbConectarGoogle();
+    // Si va bien, el navegador ya se ha ido a Google
+    if (error) { setOcupado(false); setMsg({ tipo: "error", texto: error }); }
+  };
+
+  const desconectar = async () => {
+    if (!confirm("Los servicios dejarán de pasar a Google. Lo que ya está en Google se queda. ¿Desconectar?")) return;
+    setOcupado(true);
+    const error = await dbDesconectarGoogle();
+    setOcupado(false);
+    if (error) { setMsg({ tipo: "error", texto: error }); return; }
+    onCambio(null);
+    setMsg({ tipo: "ok", texto: "Cuenta de Google desconectada." });
+  };
+
+  // De 20 en 20, que es lo que acepta el servidor en cada petición
+  const enviarTodos = async () => {
+    if (!confirm(`Se pasarán a Google ${pendientes.length} servicios de hoy en adelante. Los que ya estuvieran se actualizan, no se duplican. ¿Seguir?`)) return;
+    setOcupado(true);
+    let fallos = 0;
+    let ultimoError = null;
+    for (let i = 0; i < pendientes.length; i += 20) {
+      setMsg({ tipo: "info", texto: `Enviando... ${Math.min(i + 20, pendientes.length)} de ${pendientes.length}` });
+      const error = await dbSincronizarGoogle(pendientes.slice(i, i + 20).map((s) => s.id));
+      if (error) { fallos++; ultimoError = error; }
+    }
+    setOcupado(false);
+    setMsg(fallos ? { tipo: "error", texto: `Algunos no se han podido enviar: ${ultimoError}` } : { tipo: "ok", texto: `✅ ${pendientes.length} servicios enviados a Google.` });
+  };
+
+  return (
+    <div>
+      <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Apuntar en Google desde el ERP</p>
+      {cuenta ? (
+        <>
+          <p className="text-sm text-zinc-700">Conectado con <b>{cuenta}</b>. Cada servicio que se guarda, se mueve o se borra en el ERP se cambia al momento en el calendario de Google de su vehículo.</p>
+          <p className="text-xs text-zinc-400 mt-1">
+            Va al calendario de la lista de abajo con el mismo nombre que el vehículo. Sin vehículo (o con uno sin calendario), al primero de la lista que no es de ningún vehículo.
+            Lo que ya estaba en Google no se toca.
+          </p>
+          {esAdmin && (
+            <div className="flex flex-wrap gap-3 mt-2">
+              <button type="button" onClick={enviarTodos} disabled={ocupado || pendientes.length === 0 || !hayCalendarios}
+                className="px-3 py-2 bg-zinc-900 text-white text-xs font-bold rounded-md disabled:opacity-50">
+                📤 Enviar los servicios de hoy en adelante ({pendientes.length})
+              </button>
+              <button type="button" onClick={desconectar} disabled={ocupado} className="text-xs font-bold text-red-600 hover:text-red-800 disabled:opacity-50">
+                Desconectar
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-zinc-500">
+            Conecta la cuenta de Google donde están los calendarios (una sola vez). Desde entonces, lo que se guarde en el ERP aparece al momento en Google.
+          </p>
+          {esAdmin ? (
+            <button type="button" onClick={conectar} disabled={ocupado}
+              className="mt-2 px-3 py-2 bg-white border-2 border-zinc-300 hover:border-zinc-900 text-zinc-900 text-sm font-bold rounded-md disabled:opacity-50">
+              {ocupado ? "Abriendo Google..." : "🔗 Conectar con Google"}
+            </button>
+          ) : (
+            <p className="text-xs text-zinc-400 mt-1">Lo conecta administración.</p>
+          )}
+        </>
+      )}
+      {!hayCalendarios && cuenta && <p className="text-xs font-semibold text-amber-700 mt-2">Añade abajo los calendarios de Google (uno por vehículo) para saber dónde apuntar cada servicio.</p>}
+      {msg && (
+        <p className={`text-xs font-semibold mt-2 ${msg.tipo === "error" ? "text-red-600" : msg.tipo === "ok" ? "text-emerald-700" : "text-zinc-500"}`}>{msg.texto}</p>
+      )}
+    </div>
+  );
+};
+
+const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos, escribir }) => {
   const [generando, setGenerando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const enlace = urlCalendarioERP(token);
@@ -271,8 +362,10 @@ const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos 
         </p>
       </div>
 
+      <EscribirEnGoogle {...escribir} hayCalendarios={calendarios.some((c) => (c.url || "").trim())} />
+
       <div>
-        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver el ERP en Google Calendar</p>
+        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver el ERP en Google Calendar (sin conectar la cuenta)</p>
         {enlace ? (
           <>
             <div className="flex gap-2">
@@ -320,7 +413,7 @@ const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos 
   );
 };
 
-const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClientes }) => {
+const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClientes, servicios = [], esAdmin = false, vueltaGoogle = null, onGoogleCambio }) => {
   const [form, setForm] = useState(() => ({
     nombre: "", tel: "", email: "", direccion: "", logo: "",
     ...initial,
@@ -355,7 +448,8 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     setSaving(true);
     // El token del enlace iCal solo lo escribe la base de datos al generarlo:
     // no se manda, para no pisar uno recién cambiado con el de la pantalla
-    const { ics_token: _token, ...datos } = form;
+    // Igual la cuenta de Google conectada: la escribe el servidor al conectar
+    const { ics_token: _token, google_cuenta: _cuenta, ...datos } = form;
     // Los que no tienen dirección no sirven; nombre y dirección sin espacios
     datos.google_calendarios = (datos.google_calendarios || [])
       .map((c) => ({ nombre: (c.nombre || "").trim(), url: (c.url || "").trim() }))
@@ -365,7 +459,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     datos.google_ics_url = null;
     const ok = await dbSaveConfig(datos);
     setSaving(false);
-    if (ok) onSave({ ...form, google_calendarios: datos.google_calendarios, google_ics_url: null });
+    if (ok) onSave({ ...form, google_calendarios: datos.google_calendarios, google_ics_url: null, google_cuenta: initial?.google_cuenta ?? null });
   };
 
   return (
@@ -489,6 +583,13 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         calendarios={form.google_calendarios}
         onCalendarios={(v) => setForm((f) => ({ ...f, google_calendarios: v }))}
         vehiculos={form.vehicles}
+        escribir={{
+          cuenta: initial?.google_cuenta || null,
+          esAdmin,
+          servicios,
+          vuelta: vueltaGoogle,
+          onCambio: (cuenta) => onGoogleCambio?.(cuenta),
+        }}
       />
 
       <CambiarPassword />

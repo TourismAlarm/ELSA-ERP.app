@@ -94,3 +94,15 @@ describe("urlGoogleValida", () => {
     expect(urlGoogleValida("no es una url")).toBe(false);
   });
 });
+
+describe("eventos escritos por el ERP", () => {
+  it("no se leen otra vez desde Google", () => {
+    const ics = [
+      "BEGIN:VCALENDAR", "VERSION:2.0",
+      "BEGIN:VEVENT", "UID:elsa0f8fad5bd9cb469fa16570867728950e@google.com", "DTSTART;VALUE=DATE:20261009", "SUMMARY:Del ERP", "END:VEVENT",
+      "BEGIN:VEVENT", "UID:otro@google.com", "DTSTART;VALUE=DATE:20261009", "SUMMARY:De Google", "END:VEVENT",
+      "END:VCALENDAR",
+    ].join("\r\n");
+    expect(leerGoogleICS(ics).map((e) => e.titulo)).toEqual(["De Google"]);
+  });
+});

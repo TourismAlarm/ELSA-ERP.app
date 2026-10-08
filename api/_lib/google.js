@@ -10,6 +10,12 @@ import ICAL from "ical.js";
 
 const ZONA = "Europe/Madrid";
 const MAX_REPETICIONES = 2000; // freno por si una regla no termina nunca
+const MAX_CALENDARIOS = 20;
+
+// Los eventos que escribe el propio ERP en Google (ver googleApi.js) llevan
+// el id «elsa» + uuid del servicio, y en el iCal salen con ese UID. Ya se
+// ven en el ERP como servicios: no se enseñan otra vez como evento de Google.
+export const esEventoDelERP = (uid) => /^elsa[0-9a-f]{32}@google\.com$/i.test(String(uid || ""));
 
 // Fecha y hora de Madrid de un instante: { fecha: "2026-10-08", hora: "09:30" }
 const enMadrid = (jsDate) => {
@@ -88,6 +94,7 @@ export const leerGoogleICS = (texto, { desde, hasta, prefijo } = {}) => {
   vevents.forEach((v) => {
     if (v.hasProperty("recurrence-id")) return; // se procesan con su serie
     if ((v.getFirstPropertyValue("status") || "").toUpperCase() === "CANCELLED") return;
+    if (esEventoDelERP(v.getFirstPropertyValue("uid"))) return;
     const ev = new ICAL.Event(v);
     (excepciones.get(ev.uid) || []).forEach((x) => ev.relateException(x));
 
@@ -121,4 +128,15 @@ export const urlGoogleValida = (url) => {
   } catch {
     return false;
   }
+};
+
+// Lista de calendarios de la configuración. google_ics_url es la de antes,
+// cuando solo había uno: si la lista está vacía se usa esa.
+export const calendariosDe = (cfg) => {
+  const lista = Array.isArray(cfg?.google_calendarios) ? cfg.google_calendarios : [];
+  const validos = lista
+    .map((c) => ({ nombre: String(c?.nombre || "").trim() || "Google", url: String(c?.url || "").trim() }))
+    .filter((c) => c.url);
+  if (validos.length === 0 && cfg?.google_ics_url) return [{ nombre: "Google", url: cfg.google_ics_url.trim() }];
+  return validos.slice(0, MAX_CALENDARIOS);
 };

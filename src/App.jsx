@@ -10,7 +10,7 @@ import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio,
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
-import { dbLoadEventosGoogle, conVehiculo } from "./modules/eventos/google";
+import { dbLoadEventosGoogle, conVehiculo, dbSincronizarGoogle } from "./modules/eventos/google";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
@@ -72,6 +72,27 @@ export default function App() {
     () => [...eventos, ...conVehiculo(eventosGoogle, mapaColoresVehiculo(vehiculosConfig))],
     [eventos, eventosGoogle, vehiculosConfig]
   );
+
+  // Con la cuenta de Google conectada, cada cambio en un servicio se lleva a
+  // los calendarios de Google de sus vehículos. Va sin esperar: guardar en el
+  // ERP no depende de Google. Si Google falla se avisa abajo, y el servicio
+  // se arregla en Google con solo volver a guardarlo.
+  const [avisoEscrituraGoogle, setAvisoEscrituraGoogle] = useState(null);
+  // Vuelta de Google tras conectar la cuenta (/?google=conectado|error):
+  // se lee una vez, se quita de la barra de direcciones y se enseña el
+  // resultado en Configuración
+  const [vueltaGoogle] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    const estado = p.get("google");
+    if (!estado) return null;
+    window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+    return { ok: estado === "conectado", detalle: p.get("detalle") };
+  });
+  const googleConectado = Boolean(config?.google_cuenta);
+  const avisarGoogle = useCallback((id) => {
+    if (!googleConectado || !id) return;
+    dbSincronizarGoogle([id]).then((error) => setAvisoEscrituraGoogle(error));
+  }, [googleConectado]);
 
   // Trae los calendarios de Google. Va aparte y sin esperar: si Google tarda
   // o falla, el resto de la app no se queda esperando, y si falla del todo se
@@ -157,12 +178,12 @@ export default function App() {
 
     if (inicial) {
       // Solo llevar a Configuración cuando sabemos con certeza que no hay ninguna
-      setScreen(cfgRes.config || cfgRes.error ? "dashboard" : "config");
+      setScreen(vueltaGoogle || !(cfgRes.config || cfgRes.error) ? "config" : "dashboard");
       setLoadingData(false);
     } else {
       setRefrescando(false);
     }
-  }, [cargarGoogle]);
+  }, [cargarGoogle, vueltaGoogle]);
 
   // Lo que se apunta en Google tiene que llegar sin tocar nada: cada 10
   // minutos con la app abierta, y al volver a ella (el móvil la deja en
@@ -299,6 +320,7 @@ export default function App() {
     setSolicitudes((prev) => prev.map((b) => b.id === sol.id ? { ...b, estado: "aceptado", fecha_ultimo_contacto: now } : b));
     setViewing((prev) => prev && prev.id === sol.id ? { ...prev, estado: "aceptado", fecha_ultimo_contacto: now } : prev);
     setServicios((prev) => prev.some((s) => s.id === saved.id) ? prev : [saved, ...prev]);
+    avisarGoogle(saved.id);
     handleServicioView(saved);
   };
 
@@ -393,6 +415,7 @@ export default function App() {
     const updated = { ...servicio, fecha_servicio, hora_inicio, hora_fin };
     if (!await dbUpdateServicio(updated)) return;
     setServicios((prev) => prev.map((s) => s.id === servicio.id ? updated : s));
+    avisarGoogle(servicio.id);
     setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, fecha_servicio, hora_inicio, hora_fin } : prev);
   };
 
@@ -400,6 +423,7 @@ export default function App() {
     if (!await dbCambiarEstadoServicio(id, nuevoEstado)) return false;
     setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
     setViewingServicio((prev) => prev && prev.id === id ? { ...prev, estado: nuevoEstado } : prev);
+    avisarGoogle(id);
 
     // Al marcar un servicio como realizado, si aún no tiene albarán, pedir que
     // se confirmen las horas y generarlo directamente: antes había que
@@ -439,6 +463,7 @@ export default function App() {
     const ok = await dbDeleteServicio(id);
     if (!ok) return; // si la BD rechaza el borrado, no lo quitamos de pantalla
     setServicios((prev) => prev.filter((s) => s.id !== id));
+    avisarGoogle(id);
     if (screen === "servicioView") setScreen("servicios");
   };
 
@@ -451,6 +476,7 @@ export default function App() {
       if (!ok) return;
       borrarFotosQuitadas(editingServicio.fotos, updated.fotos);
       setServicios((prev) => prev.map((s) => s.id === editingServicio.id ? updated : s));
+      avisarGoogle(updated.id);
       setEditingServicio(null);
       handleServicioView(updated);
     } else {
@@ -459,6 +485,7 @@ export default function App() {
       if (saved) {
         setEditingServicio(null);
         setServicios((prev) => [saved, ...prev]);
+        avisarGoogle(saved.id);
         handleServicioView(saved);
       }
       // Si falla, se queda en el formulario con lo escrito para reintentar
@@ -478,6 +505,7 @@ export default function App() {
     setViewingAlbaran((prev) => prev && prev.id === id ? { ...prev, ...firmado } : prev);
     if (firmado.servicio_id) {
       setServicios((prev) => prev.map((s) => s.id === firmado.servicio_id ? { ...s, estado: "realizado" } : s));
+      avisarGoogle(firmado.servicio_id);
       setViewingServicio((prev) => prev && prev.id === firmado.servicio_id ? { ...prev, estado: "realizado" } : prev);
     }
     return firmado;
@@ -523,6 +551,7 @@ export default function App() {
     if (!yaExistia) {
       const cambios = { estado: "realizado", ...(hora_inicio ? { hora_inicio } : {}), ...(hora_fin ? { hora_fin } : {}) };
       setServicios((prev) => prev.map((s) => s.id === servicio.id ? { ...s, ...cambios } : s));
+      avisarGoogle(servicio.id);
       setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, ...cambios } : prev);
     }
     setAlbaranes((prev) => prev.some((a) => a.id === alb.id) ? prev : [alb, ...prev]);
@@ -650,6 +679,15 @@ export default function App() {
 
       {!loadingData && <BotonRefrescar onRefrescar={() => cargarDatos()} refrescando={refrescando} />}
 
+      {avisoEscrituraGoogle && (
+        <div className="fixed bottom-24 left-3 right-3 z-50 mx-auto max-w-xl bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-3 shadow-lg flex items-start gap-3">
+          <p className="text-sm text-amber-900 flex-1">
+            📆 Guardado en el ERP, pero no se ha podido pasar a Google Calendar: {avisoEscrituraGoogle}
+          </p>
+          <button onClick={() => setAvisoEscrituraGoogle(null)} aria-label="Cerrar" className="text-amber-700 text-xl leading-none">×</button>
+        </div>
+      )}
+
       {verEventoGoogle && (
         <EventoGoogleModal evento={verEventoGoogle} onCerrar={() => setVerEventoGoogle(null)} />
       )}
@@ -710,7 +748,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} />}
+      {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} servicios={servicios} esAdmin={esAdmin} vueltaGoogle={vueltaGoogle} onGoogleCambio={(cuenta) => setConfig((c) => (c ? { ...c, google_cuenta: cuenta } : c))} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} onImportar={() => setScreen("importarClientes")} />}
       {screen === "importarClientes" && <ImportarClientesScreen clientes={clientes} onImportar={handleImportarClientes} onBack={() => setScreen("clientes")} />}
       {screen === "dashboard" && (

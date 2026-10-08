@@ -11,26 +11,16 @@
 // Cada evento lleva el nombre de su calendario, que la app cruza con los
 // vehículos para darle su color.
 import { rest } from "./_lib/supabase.js";
-import { leerGoogleICS, urlGoogleValida } from "./_lib/google.js";
+import { leerGoogleICS, urlGoogleValida, calendariosDe } from "./_lib/google.js";
+
+export { calendariosDe };
 
 // Ventana para los eventos que se repiten (los sueltos van todos)
 const ANOS_ATRAS = 3;
 const ANOS_ADELANTE = 2;
-const MAX_CALENDARIOS = 20;
 // Por debajo del límite de tiempo de las funciones de Vercel (10 s en el plan
 // básico): mejor perder un calendario lento que la respuesta entera
 const ESPERA_MAX_MS = 8000;
-
-// Lista de calendarios de la configuración. google_ics_url es la de antes,
-// cuando solo había uno: si la lista está vacía se usa esa.
-export const calendariosDe = (cfg) => {
-  const lista = Array.isArray(cfg?.google_calendarios) ? cfg.google_calendarios : [];
-  const validos = lista
-    .map((c) => ({ nombre: String(c?.nombre || "").trim() || "Google", url: String(c?.url || "").trim() }))
-    .filter((c) => c.url);
-  if (validos.length === 0 && cfg?.google_ics_url) return [{ nombre: "Google", url: cfg.google_ics_url.trim() }];
-  return validos.slice(0, MAX_CALENDARIOS);
-};
 
 const leerUno = async ({ nombre, url }, i, ventana) => {
   if (!urlGoogleValida(url)) {
