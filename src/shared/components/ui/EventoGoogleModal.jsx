@@ -12,7 +12,7 @@ const EventoGoogleModal = ({ evento, onCerrar }) => (
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <p className="text-xs font-bold tracking-widest uppercase mb-1" style={{ color: TIPO_GOOGLE.color }}>
-            {TIPO_GOOGLE.emoji} {TIPO_GOOGLE.etiqueta}
+            {TIPO_GOOGLE.emoji} {TIPO_GOOGLE.etiqueta}{evento.calendario ? ` · ${evento.calendario}` : ""}
           </p>
           <h2 className="text-lg font-black text-zinc-900 break-words">{evento.titulo}</h2>
         </div>

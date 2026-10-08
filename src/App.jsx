@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "./shared/lib/supabase";
 import { LoginScreen, ResetPasswordScreen, ConfigScreen, ClientesScreen, ImportarClientesScreen } from "./screens";
 import { DashboardScreen, FormScreen, ViewScreen } from "./modules/solicitudes/screens";
@@ -10,7 +10,7 @@ import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio,
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
-import { dbLoadEventosGoogle } from "./modules/eventos/google";
+import { dbLoadEventosGoogle, conVehiculo } from "./modules/eventos/google";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
@@ -64,8 +64,30 @@ export default function App() {
   const [eventosGoogle, setEventosGoogle] = useState([]);
   const [avisoGoogle, setAvisoGoogle] = useState(null);
   const [verEventoGoogle, setVerEventoGoogle] = useState(null);
-  // Lo que pintan los calendarios: los del ERP y los de Google juntos
-  const eventosCalendario = useMemo(() => [...eventos, ...eventosGoogle], [eventos, eventosGoogle]);
+  // Lo que pintan los calendarios: los del ERP y los de Google juntos. Los de
+  // un calendario de Google con nombre de vehículo llevan su color y lo marcan
+  // como ocupado.
+  const vehiculosConfig = config?.vehicles;
+  const eventosCalendario = useMemo(
+    () => [...eventos, ...conVehiculo(eventosGoogle, mapaColoresVehiculo(vehiculosConfig))],
+    [eventos, eventosGoogle, vehiculosConfig]
+  );
+
+  // Trae los calendarios de Google. Va aparte y sin esperar: si Google tarda
+  // o falla, el resto de la app no se queda esperando, y si falla del todo se
+  // conservan los eventos que ya había. Si se piden dos cargas seguidas, solo
+  // cuenta la última (la otra puede llegar después con datos viejos).
+  const cargaGoogleRef = useRef(0);
+  const ultimaGoogleRef = useRef(0); // cuándo se pidió por última vez
+  const cargarGoogle = useCallback(async ({ vaciar = false } = {}) => {
+    const n = ++cargaGoogleRef.current;
+    ultimaGoogleRef.current = Date.now();
+    if (vaciar) setEventosGoogle([]);
+    const { eventos: evsGoogle, error } = await dbLoadEventosGoogle();
+    if (n !== cargaGoogleRef.current) return;
+    if (evsGoogle) setEventosGoogle(evsGoogle);
+    setAvisoGoogle(error);
+  }, []);
   // Evento del calendario que se está creando o editando: { evento?, fecha }
   const [editandoEvento, setEditandoEvento] = useState(null);
   const [editingVehiculo, setEditingVehiculo] = useState(null);
@@ -107,12 +129,7 @@ export default function App() {
   const cargarDatos = useCallback(async ({ inicial = false } = {}) => {
     if (inicial) setLoadingData(true); else setRefrescando(true);
 
-    // Google va aparte y sin esperar: si tarda o falla, el resto de la app no
-    // se queda esperando. Si falla se conservan los que ya había.
-    dbLoadEventosGoogle().then(({ eventos: evsGoogle, error }) => {
-      if (evsGoogle) setEventosGoogle(evsGoogle);
-      setAvisoGoogle(error);
-    });
+    cargarGoogle();
 
     const [cfgRes, sols, srvs, albs, vhcs, clts, evts, decas, miRol] = await Promise.all([dbLoadConfig(), dbLoadSolicitudes(), dbLoadServicios(), dbLoadAlbaranes(), dbLoadVehiculos(), dbLoadClientes(), dbLoadEventos(), dbLoadServiciosConDeca(), dbMiRol()]);
     setRol(miRol);
@@ -145,7 +162,22 @@ export default function App() {
     } else {
       setRefrescando(false);
     }
-  }, []);
+  }, [cargarGoogle]);
+
+  // Lo que se apunta en Google tiene que llegar sin tocar nada: cada 10
+  // minutos con la app abierta, y al volver a ella (el móvil la deja en
+  // segundo plano y los temporizadores se paran)
+  useEffect(() => {
+    if (!sessionUserId) return;
+    const cada = setInterval(() => { if (document.visibilityState === "visible") cargarGoogle(); }, 10 * 60 * 1000);
+    // Al volver, solo si hace más de un minuto: cambiar de app y volver no
+    // debe pedir los calendarios cada vez
+    const alVolver = () => {
+      if (document.visibilityState === "visible" && Date.now() - ultimaGoogleRef.current > 60 * 1000) cargarGoogle();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => { clearInterval(cada); document.removeEventListener("visibilitychange", alVolver); };
+  }, [sessionUserId, cargarGoogle]);
 
   useEffect(() => {
     if (!sessionUserId) return;
@@ -228,13 +260,9 @@ export default function App() {
   };
 
   const handleConfigSave = (cfg) => {
-    // Si ha cambiado la dirección de Google, se vuelven a traer sus eventos
-    if ((cfg.google_ics_url || "") !== (config?.google_ics_url || "")) {
-      setEventosGoogle([]);
-      dbLoadEventosGoogle().then(({ eventos: evsGoogle, error }) => {
-        if (evsGoogle) setEventosGoogle(evsGoogle);
-        setAvisoGoogle(error);
-      });
+    // Si han cambiado los calendarios de Google, se vuelven a traer
+    if (JSON.stringify(cfg.google_calendarios || []) !== JSON.stringify(config?.google_calendarios || [])) {
+      cargarGoogle({ vaciar: true });
     }
     setConfig(cfg);
     setScreen("dashboard");

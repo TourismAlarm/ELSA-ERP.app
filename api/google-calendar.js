@@ -1,16 +1,49 @@
-// GET /api/google-calendar  →  eventos del calendario de Google, en JSON.
+// GET /api/google-calendar  →  eventos de los calendarios de Google, en JSON.
 //
 // El navegador no puede descargar el iCal de Google directamente (Google no
-// lo permite desde otra web), así que lo descarga este servidor. La
-// dirección no viaja en la petición: se lee de la configuración con la
+// lo permite desde otra web), así que lo descarga este servidor. Las
+// direcciones no viajan en la petición: se leen de la configuración con la
 // sesión de quien pregunta, así que solo un usuario activo de la app puede
 // usarlo y no sirve para pedir cualquier otra URL.
+//
+// Puede haber varios calendarios (en Google hay uno por vehículo). Se piden
+// todos a la vez; si uno falla, los demás salen igual y se dice cuál falló.
+// Cada evento lleva el nombre de su calendario, que la app cruza con los
+// vehículos para darle su color.
 import { rest } from "./_lib/supabase.js";
 import { leerGoogleICS, urlGoogleValida } from "./_lib/google.js";
 
 // Ventana para los eventos que se repiten (los sueltos van todos)
 const ANOS_ATRAS = 3;
 const ANOS_ADELANTE = 2;
+const MAX_CALENDARIOS = 20;
+// Por debajo del límite de tiempo de las funciones de Vercel (10 s en el plan
+// básico): mejor perder un calendario lento que la respuesta entera
+const ESPERA_MAX_MS = 8000;
+
+// Lista de calendarios de la configuración. google_ics_url es la de antes,
+// cuando solo había uno: si la lista está vacía se usa esa.
+export const calendariosDe = (cfg) => {
+  const lista = Array.isArray(cfg?.google_calendarios) ? cfg.google_calendarios : [];
+  const validos = lista
+    .map((c) => ({ nombre: String(c?.nombre || "").trim() || "Google", url: String(c?.url || "").trim() }))
+    .filter((c) => c.url);
+  if (validos.length === 0 && cfg?.google_ics_url) return [{ nombre: "Google", url: cfg.google_ics_url.trim() }];
+  return validos.slice(0, MAX_CALENDARIOS);
+};
+
+const leerUno = async ({ nombre, url }, i, ventana) => {
+  if (!urlGoogleValida(url)) {
+    return { error: "no es una dirección iCal de Google Calendar" };
+  }
+  const g = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(ESPERA_MAX_MS) });
+  if (!g.ok) {
+    return { error: g.status === 404 ? "Google no la encuentra (¿se ha restablecido la dirección secreta?)" : `Google ha respondido ${g.status}` };
+  }
+  const eventos = leerGoogleICS(await g.text(), { ...ventana, prefijo: String(i) })
+    .map((e) => ({ ...e, calendario: nombre }));
+  return { eventos };
+};
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
@@ -20,28 +53,33 @@ export default async function handler(req, res) {
     return;
   }
   try {
-    const r = await rest("config?select=google_ics_url&id=eq.1", { token: sesion });
+    const r = await rest("config?select=*&id=eq.1", { token: sesion });
     if (r.status === 401) { res.status(401).json({ error: "Sesión caducada" }); return; }
     if (!r.ok) { res.status(502).json({ error: "No se ha podido leer la configuración" }); return; }
-    const url = (await r.json())?.[0]?.google_ics_url;
-    if (!url) { res.status(200).json({ eventos: [], configurado: false }); return; }
-    if (!urlGoogleValida(url)) {
-      res.status(400).json({ error: "La dirección guardada no es una dirección iCal de Google Calendar" });
-      return;
-    }
+    const calendarios = calendariosDe((await r.json())?.[0]);
+    if (calendarios.length === 0) { res.status(200).json({ eventos: [], errores: [], configurado: false }); return; }
 
-    const g = await fetch(url, { redirect: "error" });
-    if (!g.ok) {
-      res.status(502).json({ error: `Google ha respondido ${g.status}. Revisa la dirección secreta en Configuración.` });
-      return;
-    }
     const ahora = new Date();
     const desde = new Date(ahora); desde.setFullYear(ahora.getFullYear() - ANOS_ATRAS);
     const hasta = new Date(ahora); hasta.setFullYear(ahora.getFullYear() + ANOS_ADELANTE);
-    const eventos = leerGoogleICS(await g.text(), { desde, hasta });
-    res.status(200).json({ eventos, configurado: true });
+
+    const resultados = await Promise.allSettled(calendarios.map((c, i) => leerUno(c, i, { desde, hasta })));
+    const eventos = [];
+    const errores = [];
+    resultados.forEach((x, i) => {
+      const nombre = calendarios[i].nombre;
+      if (x.status === "rejected") {
+        console.error(nombre, x.reason);
+        errores.push({ calendario: nombre, error: x.reason?.name === "TimeoutError" ? "Google tarda demasiado en contestar" : "no se ha podido leer" });
+      } else if (x.value.error) {
+        errores.push({ calendario: nombre, error: x.value.error });
+      } else {
+        eventos.push(...x.value.eventos);
+      }
+    });
+    res.status(200).json({ eventos, errores, configurado: true });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "No se ha podido leer el calendario de Google" });
+    res.status(500).json({ error: "No se han podido leer los calendarios de Google" });
   }
 }

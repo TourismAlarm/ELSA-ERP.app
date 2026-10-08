@@ -102,8 +102,12 @@ const MiniCalendario = ({ valor, servicios = [], eventos = [], vehiculos = [], o
   const detalle = ocupacion[valor];
   const delDia = detalle?.servicios || [];
 
-  // Qué camiones están cogidos el día elegido
-  const ocupados = new Set(delDia.flatMap(vehiculosDe));
+  // Qué camiones están cogidos el día elegido: por servicios del ERP y por
+  // eventos del calendario de Google de ese vehículo
+  const ocupados = new Set([
+    ...delDia.flatMap(vehiculosDe),
+    ...(detalle?.eventos || []).map((e) => e.vehiculo).filter(Boolean),
+  ]);
 
   // Días de la agenda: desde el elegido (o hoy) en adelante, solo los que
   // tienen algo o son el elegido

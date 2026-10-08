@@ -1,12 +1,14 @@
 import { supabase } from "../../shared/lib/supabase";
 
-// Eventos de Google Calendar para enseñarlos en el calendario del ERP, en
-// solo lectura. Los descarga el servidor de la app (/api/google-calendar)
-// porque el navegador no puede bajar el iCal de Google directamente.
+// Eventos de los calendarios de Google para enseñarlos en el calendario del
+// ERP, en solo lectura. Los descarga el servidor de la app
+// (/api/google-calendar) porque el navegador no puede bajar el iCal de
+// Google directamente.
 //
-// Devuelve { eventos, error }. Sin dirección configurada: lista vacía y sin
-// error. Si falla, error con el motivo y quien llama conserva lo anterior:
-// que Google no conteste no debe vaciar el calendario.
+// Devuelve { eventos, error }. Sin calendarios configurados: lista vacía y
+// sin error. Si falla del todo, eventos null y quien llama conserva lo
+// anterior: que Google no conteste no debe vaciar el calendario. Si fallan
+// solo algunos calendarios, llegan los demás y error dice cuáles.
 export const dbLoadEventosGoogle = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return { eventos: [], error: null };
@@ -16,7 +18,8 @@ export const dbLoadEventosGoogle = async () => {
     });
     const cuerpo = await r.json().catch(() => null);
     if (!r.ok) return { eventos: null, error: cuerpo?.error || `Error ${r.status}` };
-    return { eventos: cuerpo?.eventos || [], error: null };
+    const errores = (cuerpo?.errores || []).map((x) => `${x.calendario}: ${x.error}`);
+    return { eventos: cuerpo?.eventos || [], error: errores.length ? errores.join(" · ") : null };
   } catch (e) {
     console.error(e);
     return { eventos: null, error: "Sin conexión con el servidor" };
@@ -34,3 +37,5 @@ export const dbRegenerarTokenCalendario = async () => {
   if (error) { console.error(error); alert("No se ha podido generar el enlace: " + error.message); return null; }
   return data;
 };
+
+export { conVehiculo } from "./vehiculoGoogle";

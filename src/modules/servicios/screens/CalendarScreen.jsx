@@ -784,9 +784,11 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           {/* Qué camiones están cogidos este día: la pregunta que se hace
               todo el rato al mirar el calendario */}
           {Object.keys(coloresVehiculo).length > 0 && (() => {
-            const ocupados = new Set(
-              (porDia[fecha] || []).flatMap((s) => vehiculosDe(s))
-            );
+            // También los eventos de un calendario de Google de ese vehículo
+            const ocupados = new Set([
+              ...(porDia[fecha] || []).flatMap((s) => vehiculosDe(s)),
+              ...(eventosPorDia[fecha] || []).map((e) => e.vehiculo).filter(Boolean),
+            ]);
             const sinCamion = (porDia[fecha] || []).filter((s) => vehiculosDe(s).length === 0).length;
             return (
               <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-3">

@@ -32,9 +32,9 @@ const diaAnterior = (iso) => {
 };
 
 // Un intervalo [inicio, fin) de ICAL.Time a la forma del ERP
-const aEvento = (ev, inicio, fin, sufijo) => {
+const aEvento = (ev, inicio, fin, sufijo, prefijo) => {
   const base = {
-    id: `google-${ev.uid}${sufijo ? `-${sufijo}` : ""}`,
+    id: `google-${prefijo ? `${prefijo}-` : ""}${ev.uid}${sufijo ? `-${sufijo}` : ""}`,
     externo: "google",
     tipo: "google",
     titulo: ev.summary || "(sin título)",
@@ -63,7 +63,9 @@ const aEvento = (ev, inicio, fin, sufijo) => {
 };
 
 // desde / hasta: Date. Solo afectan a los eventos que se repiten.
-export const leerGoogleICS = (texto, { desde, hasta } = {}) => {
+// prefijo: distingue los id cuando se juntan varios calendarios (un mismo
+// evento al que se invita a dos calendarios trae el mismo UID en los dos).
+export const leerGoogleICS = (texto, { desde, hasta, prefijo } = {}) => {
   const comp = new ICAL.Component(ICAL.parse(texto));
   // Registra las zonas horarias que trae el fichero para convertir bien
   comp.getAllSubcomponents("vtimezone").forEach((tz) => ICAL.TimezoneService.register(tz));
@@ -90,7 +92,7 @@ export const leerGoogleICS = (texto, { desde, hasta } = {}) => {
     (excepciones.get(ev.uid) || []).forEach((x) => ev.relateException(x));
 
     if (!ev.isRecurring()) {
-      salida.push(aEvento(ev, ev.startDate, ev.endDate));
+      salida.push(aEvento(ev, ev.startDate, ev.endDate, null, prefijo));
       return;
     }
 
@@ -103,7 +105,7 @@ export const leerGoogleICS = (texto, { desde, hasta } = {}) => {
       if (tDesde && det.endDate.compare(tDesde) < 0) continue;
       const item = det.item; // la serie o su excepción
       if ((item.component.getFirstPropertyValue("status") || "").toUpperCase() === "CANCELLED") continue;
-      salida.push(aEvento(item, det.startDate, det.endDate, isoDeFecha(det.startDate) + (det.startDate.isDate ? "" : `T${det.startDate.hour}${det.startDate.minute}`)));
+      salida.push(aEvento(item, det.startDate, det.endDate, isoDeFecha(det.startDate) + (det.startDate.isDate ? "" : `T${det.startDate.hour}${det.startDate.minute}`), prefijo));
     }
   });
 

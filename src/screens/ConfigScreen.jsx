@@ -172,11 +172,77 @@ const CambiarPassword = () => {
 //     token secreto que se genera aquí; cambiarlo deja sin servicio el viejo.
 //   · Google → ERP: la «dirección secreta en formato iCal» del calendario de
 //     Google. Sus eventos salen en el calendario del ERP en solo lectura.
-const GoogleCalendar = ({ token, onToken, googleUrl, onGoogleUrl }) => {
+// Lo que puede salir mal al pegar una dirección de Google, dicho en claro.
+// La pública solo funciona si el calendario se hace público, y no se quiere.
+const problemaUrlGoogle = (url) => {
+  const u = (url || "").trim();
+  if (!u) return null;
+  if (!/^https:\/\/calendar\.google\.com\/calendar\/ical\//.test(u)) {
+    return "Tiene que ser la dirección iCal de Google (empieza por https://calendar.google.com/calendar/ical/).";
+  }
+  if (/\/public\/basic\.ics$/.test(u)) {
+    return "Esta es la dirección PÚBLICA y no funciona con el calendario privado. Copia la «Dirección secreta en formato iCal» (la de los puntos ••••).";
+  }
+  return null;
+};
+
+// Calendarios de Google (uno por vehículo y el general): nombre + dirección
+// secreta. Si el nombre coincide con un vehículo, sus eventos toman su color.
+const claveNombre = (t) => String(t || "").trim().toLowerCase().replace(/\s+/g, "");
+const CalendariosGoogle = ({ lista, onChange, vehiculos }) => {
+  const colorPorNombre = Object.fromEntries(vehiculos.map((v) => [claveNombre(v.nombre), v.color]));
+  const cambia = (i, campo, valor) => onChange(lista.map((c, idx) => (idx === i ? { ...c, [campo]: valor } : c)));
+  return (
+    <div className="flex flex-col gap-3">
+      {lista.length === 0 && <p className="text-xs text-zinc-400 italic">Ningún calendario de Google conectado.</p>}
+      {lista.map((c, i) => {
+        const problema = problemaUrlGoogle(c.url);
+        const color = colorPorNombre[claveNombre(c.nombre)];
+        const esVehiculo = Boolean(color);
+        return (
+          <div key={i} className="border-2 border-zinc-200 rounded-lg p-3 flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: color || "#4285f4" }} />
+              <input
+                value={c.nombre}
+                onChange={(e) => cambia(i, "nombre", e.target.value)}
+                list="vehiculos-google"
+                placeholder="Nombre (p. ej. 14, 24+JIB o General)"
+                className="w-full min-w-0 border-2 border-zinc-200 rounded-md px-3 py-1.5 text-sm font-bold text-zinc-900 focus:outline-none focus:border-zinc-900"
+              />
+              <button type="button" onClick={() => onChange(lista.filter((_, idx) => idx !== i))}
+                aria-label="Quitar calendario" className="text-zinc-400 hover:text-red-500 text-xl leading-none px-1">×</button>
+            </div>
+            <input
+              value={c.url}
+              onChange={(e) => cambia(i, "url", e.target.value)}
+              placeholder="Dirección secreta en formato iCal"
+              className="w-full border-2 border-zinc-200 rounded-md px-3 py-1.5 text-xs font-mono text-zinc-700 focus:outline-none focus:border-zinc-900"
+            />
+            {problema && <p className="text-xs font-semibold text-red-600">{problema}</p>}
+            {!problema && c.nombre && (
+              <p className="text-xs text-zinc-400">
+                {esVehiculo ? "Con el color del vehículo y lo marca como ocupado esos días." : "No coincide con ningún vehículo: sale en azul."}
+              </p>
+            )}
+          </div>
+        );
+      })}
+      <datalist id="vehiculos-google">
+        {vehiculos.map((v) => <option key={v.nombre} value={v.nombre} />)}
+      </datalist>
+      <button type="button" onClick={() => onChange([...lista, { nombre: "", url: "" }])}
+        className="self-start px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-md hover:bg-zinc-700 transition-colors">
+        + Añadir calendario de Google
+      </button>
+    </div>
+  );
+};
+
+const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos }) => {
   const [generando, setGenerando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const enlace = urlCalendarioERP(token);
-  const urlMala = googleUrl && !/^https:\/\/calendar\.google\.com\/calendar\/ical\//.test(googleUrl.trim());
 
   const generar = async () => {
     if (token && !confirm("Si cambias el enlace, el que ya está puesto en Google Calendar deja de funcionar y habrá que añadir el nuevo. ¿Seguir?")) return;
@@ -237,16 +303,17 @@ const GoogleCalendar = ({ token, onToken, googleUrl, onGoogleUrl }) => {
 
       <div>
         <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver Google Calendar en el ERP</p>
-        <Input value={googleUrl} onChange={(e) => onGoogleUrl(e.target.value)} placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
-        {urlMala && <p className="text-xs font-semibold text-red-600 mt-1">Tiene que ser la dirección iCal de Google (empieza por https://calendar.google.com/calendar/ical/).</p>}
-        <ol className="text-xs text-zinc-500 mt-2 list-decimal pl-4 space-y-0.5">
+        <ol className="text-xs text-zinc-500 mb-3 list-decimal pl-4 space-y-0.5">
           <li>En Google Calendar (ordenador), ⚙️ <b>Configuración</b>.</li>
-          <li>A la izquierda, en «Configuración de mis calendarios», elige el calendario.</li>
-          <li>Abajo del todo, copia la <b>Dirección secreta en formato iCal</b> y pégala aquí.</li>
-          <li>Pulsa <b>Guardar configuración</b>.</li>
+          <li>A la izquierda, en «Configuración de mis calendarios», elige un calendario (el general, el 14, el 19...).</li>
+          <li>En «Integrar el calendario», copia la <b>Dirección secreta en formato iCal</b> (la de los puntos ••••, con el botón de copiar). <b>No</b> la pública.</li>
+          <li>Aquí, «Añadir calendario de Google», ponle el mismo nombre que el vehículo y pega la dirección.</li>
+          <li>Repite con cada calendario y pulsa <b>Guardar configuración</b>.</li>
         </ol>
-        <p className="text-xs text-zinc-400 mt-2">
-          Sus eventos, también los antiguos, salen en el calendario del ERP en azul 📆 y solo se pueden mirar: se cambian en Google. Se actualizan al abrir la app y con el botón de refrescar.
+        <CalendariosGoogle lista={calendarios} onChange={onCalendarios} vehiculos={vehiculos} />
+        <p className="text-xs text-zinc-400 mt-3">
+          Sus eventos, también los antiguos, salen en el calendario del ERP con el color del vehículo (o en azul 📆) y solo se pueden mirar: se cambian en Google.
+          Se actualizan al abrir la app, al volver a ella, cada 10 minutos y con el botón de refrescar.
         </p>
       </div>
     </div>
@@ -266,7 +333,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
     adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
-    google_ics_url: initial?.google_ics_url ?? "",
+    google_calendarios: Array.isArray(initial?.google_calendarios) ? initial.google_calendarios : [],
   }));
   const [saving, setSaving] = useState(false);
   const [estadoBackup, setEstadoBackup] = useState(null);
@@ -289,10 +356,16 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     // El token del enlace iCal solo lo escribe la base de datos al generarlo:
     // no se manda, para no pisar uno recién cambiado con el de la pantalla
     const { ics_token: _token, ...datos } = form;
-    datos.google_ics_url = (datos.google_ics_url || "").trim() || null;
+    // Los que no tienen dirección no sirven; nombre y dirección sin espacios
+    datos.google_calendarios = (datos.google_calendarios || [])
+      .map((c) => ({ nombre: (c.nombre || "").trim(), url: (c.url || "").trim() }))
+      .filter((c) => c.url);
+    // La dirección única de antes ya está en la lista (migración del 08/10):
+    // se vacía para que quitar un calendario de la lista lo quite de verdad
+    datos.google_ics_url = null;
     const ok = await dbSaveConfig(datos);
     setSaving(false);
-    if (ok) onSave({ ...form, google_ics_url: datos.google_ics_url });
+    if (ok) onSave({ ...form, google_calendarios: datos.google_calendarios, google_ics_url: null });
   };
 
   return (
@@ -413,8 +486,9 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
       <GoogleCalendar
         token={form.ics_token}
         onToken={(t) => setForm((f) => ({ ...f, ics_token: t }))}
-        googleUrl={form.google_ics_url}
-        onGoogleUrl={(v) => setForm((f) => ({ ...f, google_ics_url: v }))}
+        calendarios={form.google_calendarios}
+        onCalendarios={(v) => setForm((f) => ({ ...f, google_calendarios: v }))}
+        vehiculos={form.vehicles}
       />
 
       <CambiarPassword />
