@@ -257,14 +257,14 @@ const ViewScreen = ({ servicio, config, cliente, solicitudOrigen, onVerSolicitud
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Origen</p>
                 <p className="text-sm font-bold text-blue-900">
-                  📋 Creado desde la solicitud {solicitudOrigen?.numero || "(eliminada)"}
+                  📋 Creado desde el presupuesto {solicitudOrigen?.numero || "(eliminada)"}
                 </p>
                 {solicitudOrigen?.fecha && (
-                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">Solicitud del {solicitudOrigen.fecha}</p>
+                  <p className="text-xs text-blue-700 mt-0.5 opacity-80">Presupuesto del {solicitudOrigen.fecha}</p>
                 )}
               </div>
               {solicitudOrigen && onVerSolicitud && (
-                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver solicitud</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudOrigen)}>👁 Ver presupuesto</Btn>
               )}
             </div>
           )}

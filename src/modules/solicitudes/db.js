@@ -60,7 +60,7 @@ export const dbSaveSolicitud = async (solicitud) => {
     avisos_activos: solicitud.avisos_activos !== undefined ? solicitud.avisos_activos : true,
   };
   const { data, error } = await supabase.from("solicitudes").insert([toInsert]).select().single();
-  if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return null; }
+  if (error) { console.error(error); alert("Error al guardar el presupuesto: " + error.message); return null; }
   // Deserializar como en la carga: si no, el vehículo se queda como texto con
   // comas y al editar la solicitud recién creada los vehículos se fusionan en uno
   return deserializeSolicitud({ ...data, fecha: solicitud.fecha });
@@ -96,7 +96,7 @@ export const dbAceptarSolicitud = async (id, { fecha, hora_inicio, hora_fin }) =
   });
   if (error) {
     console.error(error);
-    alert("No se ha podido aceptar la solicitud: " + (/row-level security/i.test(error.message) ? "no tienes permiso." : error.message));
+    alert("No se ha podido aceptar el presupuesto: " + (/row-level security/i.test(error.message) ? "no tienes permiso." : error.message));
     return null;
   }
   return data;
@@ -119,13 +119,13 @@ export const dbToggleAvisos = async (id, valor) => {
 
 export const dbUpdateSolicitud = async (solicitud) => {
   const { error } = await supabase.from("solicitudes").update(sanitize(solicitud)).eq("id", solicitud.id);
-  if (error) { console.error(error); alert("Error al guardar la solicitud: " + error.message); return false; }
+  if (error) { console.error(error); alert("Error al guardar el presupuesto: " + error.message); return false; }
   return true;
 };
 
 export const dbDeleteSolicitud = async (id) => {
   const { error } = await supabase.from("solicitudes").delete().eq("id", id);
-  if (error) { console.error(error); alert("Error al borrar la solicitud: " + error.message); return false; }
+  if (error) { console.error(error); alert("Error al borrar el presupuesto: " + error.message); return false; }
   return true;
 };
 

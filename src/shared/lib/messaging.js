@@ -11,7 +11,7 @@ export const buildMessage = (s, config) => {
   const vehiculos = Array.isArray(s.vehiculo) ? s.vehiculo : (s.vehiculo ? [s.vehiculo] : []);
 
   return [
-    `🔧 NUEVA SOLICITUD DE SERVICIO`,
+    `🔧 NUEVO PRESUPUESTO`,
     `Nº ${s.numero}  ·  Fecha: ${s.fecha}`,
     ``,
     `👤 Cliente: ${s.cliente || "—"}`,
@@ -42,7 +42,7 @@ export const sendWhatsApp = async (s, config) => {
 
 export const sendEmail = async (s, config) => {
   window.open(
-    `mailto:${emailAdmin(config)}?subject=${encodeURIComponent(`Solicitud ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildMessage(s, config))}`,
+    `mailto:${emailAdmin(config)}?subject=${encodeURIComponent(`Presupuesto ${s.numero} – ${s.cliente || "Sin nombre"}`)}&body=${encodeURIComponent(buildMessage(s, config))}`,
     "_blank"
   );
   if (s.id) {

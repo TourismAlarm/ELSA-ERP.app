@@ -49,7 +49,7 @@ const ViewScreen = ({ solicitud, config, cliente, servicioVinculado, onVerServic
       <div className="flex items-center gap-3 mb-8">
         <button onClick={onBack} className="text-zinc-400 hover:text-zinc-900 transition-colors text-2xl leading-none">←</button>
         <div>
-          <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-0.5">Solicitud</p>
+          <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-0.5">Presupuesto</p>
           <h1 className="text-3xl font-black text-zinc-900">{sol.numero}</h1>
         </div>
       </div>

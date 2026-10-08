@@ -55,12 +55,12 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
       <div className="flex items-start justify-between mb-8 gap-4">
         <div>
           <p className="text-xs font-bold tracking-widest text-zinc-400 uppercase mb-1">Panel principal</p>
-          <h1 className="text-3xl font-black text-zinc-900">Solicitudes</h1>
+          <h1 className="text-3xl font-black text-zinc-900">Presupuestos</h1>
         </div>
         <Btn variant="ghost" size="sm" onClick={onConfig}>⚙️ Config</Btn>
       </div>
 
-      <Btn size="lg" className="w-full mb-6" onClick={onNew}>➕ Nueva Solicitud</Btn>
+      <Btn size="lg" className="w-full mb-6" onClick={onNew}>➕ Nuevo Presupuesto</Btn>
 
       {/* Panel resumen */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -80,7 +80,7 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
       {alertas.length > 0 && (
         <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 mb-6">
           <p className="text-orange-800 font-black text-lg mb-3">
-            ⚠️ {alertas.length} {alertas.length === 1 ? "solicitud necesita" : "solicitudes necesitan"} atención
+            ⚠️ {alertas.length} {alertas.length === 1 ? "presupuesto necesita" : "presupuestos necesitan"} atención
           </p>
           <div className="flex flex-col gap-3">
             {alertas.map((s) => (
@@ -129,13 +129,13 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
       {loading ? (
         <div className="text-center py-16 text-zinc-400">
           <div className="text-4xl mb-3">⏳</div>
-          <p className="font-semibold">Cargando solicitudes...</p>
+          <p className="font-semibold">Cargando presupuestos...</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-zinc-400">
           <div className="text-5xl mb-3">📋</div>
-          <p className="font-semibold">{solicitudes.length === 0 ? "Aún no hay solicitudes" : "Sin resultados"}</p>
-          <p className="text-sm mt-1">{solicitudes.length === 0 ? "Crea la primera solicitud con el botón de arriba" : "Prueba con otra búsqueda"}</p>
+          <p className="font-semibold">{solicitudes.length === 0 ? "Aún no hay presupuestos" : "Sin resultados"}</p>
+          <p className="text-sm mt-1">{solicitudes.length === 0 ? "Crea el primer presupuesto con el botón de arriba" : "Prueba con otra búsqueda"}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -213,7 +213,7 @@ const DashboardScreen = ({ solicitudes, onNew, onView, onEdit, onDelete, onConfi
           <div className="absolute inset-0 bg-black/40" onClick={() => { setSearchOpen(false); setQ(""); }} />
           <div className="relative bg-white rounded-t-2xl p-5 pb-8 max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-zinc-900">Buscar solicitud</h2>
+              <h2 className="text-lg font-black text-zinc-900">Buscar presupuesto</h2>
               <button onClick={() => { setSearchOpen(false); setQ(""); }} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
             </div>
             <input

@@ -258,7 +258,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
 
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
         <p className="text-sm font-black text-zinc-900 mb-1">Vehículos / Equipos</p>
-        <p className="text-xs text-zinc-400 mb-4">Los que se asignan en servicios y solicitudes. Su color identifica el trabajo en el calendario.</p>
+        <p className="text-xs text-zinc-400 mb-4">Los que se asignan en servicios y presupuestos. Su color identifica el trabajo en el calendario.</p>
         <VehiculosManager items={form.vehicles} onChange={(v) => setForm((f) => ({ ...f, vehicles: v }))} />
       </div>
 
@@ -266,7 +266,7 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
         <div>
           <p className="text-sm font-black text-zinc-900 mb-1">Administración</p>
           <p className="text-xs text-zinc-400">
-            A dónde llegan los botones «Enviar a administración» de las solicitudes, los servicios y los albaranes.
+            A dónde llegan los botones «Enviar a administración» de los presupuestos, los servicios y los albaranes.
           </p>
         </div>
         <Field label="WhatsApp de administración">

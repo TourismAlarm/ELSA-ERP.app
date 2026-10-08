@@ -53,7 +53,7 @@ const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], vehiculos
           <button onClick={onCancelar} className="text-zinc-400 hover:text-zinc-900 text-2xl leading-none p-1">×</button>
         </div>
         <p className="text-sm text-zinc-500 mb-4">
-          Solicitud aceptada de <b className="text-zinc-700">{solicitud.cliente || "cliente sin nombre"}</b>. ¿Cuándo se hace el trabajo?
+          Presupuesto aceptado de <b className="text-zinc-700">{solicitud.cliente || "cliente sin nombre"}</b>. ¿Cuándo se hace el trabajo?
         </p>
 
         <div className="flex flex-col gap-4">
@@ -94,7 +94,7 @@ const FechaServicioModal = ({ solicitud, servicios = [], eventos = [], vehiculos
           <Btn size="lg" variant="secondary" onClick={onCancelar}>Ahora no</Btn>
         </div>
         <p className="text-xs text-zinc-400 mt-3 text-center">
-          Si lo dejas para luego, la solicitud queda aceptada igualmente y puedes crear el servicio a mano cuando quieras.
+          Si lo dejas para luego, el presupuesto queda aceptado igualmente y puedes crear el servicio a mano cuando quieras.
         </p>
 
         {verCalendario && (

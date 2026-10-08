@@ -168,10 +168,10 @@ const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio
             <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <p className="text-xs font-bold tracking-widest uppercase mb-1 text-blue-400">Vinculado</p>
-                <p className="text-sm font-bold text-blue-900">📋 Solicitud {solicitudVinculada?.numero || "(eliminada)"}</p>
+                <p className="text-sm font-bold text-blue-900">📋 Presupuesto {solicitudVinculada?.numero || "(eliminada)"}</p>
               </div>
               {solicitudVinculada && onVerSolicitud && (
-                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudVinculada)}>👁 Ver solicitud</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => onVerSolicitud(solicitudVinculada)}>👁 Ver presupuesto</Btn>
               )}
             </div>
           )}

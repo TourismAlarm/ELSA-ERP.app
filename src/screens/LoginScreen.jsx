@@ -69,7 +69,7 @@ const LoginScreen = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">🏗️</div>
           <h1 className="text-3xl font-black text-zinc-900">ELSA</h1>
-          <p className="text-zinc-500 text-sm mt-1">Solicitudes, servicios, albaranes y flota</p>
+          <p className="text-zinc-500 text-sm mt-1">Presupuestos, servicios, albaranes y flota</p>
         </div>
 
         <div className="flex gap-1.5 bg-white border-2 border-zinc-200 rounded-xl p-1.5 mb-4">
