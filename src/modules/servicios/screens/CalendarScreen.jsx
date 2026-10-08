@@ -679,12 +679,25 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 // Los eventos van primero: un día libre o una visita condicionan
                 // lo que se puede meter ese día. Si no cabe todo, la última línea
                 // es "+N más".
+                // Un servicio con descripción ocupa dos líneas (la segunda es la descripción).
+                const coste = (x) => (x.s?.descripcion ? 2 : 1);
+                const pendientes = [
+                  ...evs.map((e) => ({ tipo: "ev", e })),
+                  ...entradas.map((x) => ({ tipo: "sv", ...x })),
+                ];
+                const costeTotal = pendientes.reduce((n, x) => n + coste(x), 0);
                 let lineas = lineasPorCelda - (festivo ? 1 : 0);
-                const total = evs.length + entradas.length;
-                if (total > lineas) lineas -= 1;
-                const evsVisibles = evs.slice(0, Math.max(0, lineas));
-                const visibles = entradas.slice(0, Math.max(0, lineas - evsVisibles.length));
-                const extra = total - evsVisibles.length - visibles.length;
+                if (costeTotal > lineas) lineas -= 1; // hueco para "+N más"
+                const evsVisibles = [];
+                const visibles = [];
+                let usadas = 0;
+                for (const x of pendientes) {
+                  const c = coste(x);
+                  if (usadas + c > lineas) break;
+                  usadas += c;
+                  (x.tipo === "ev" ? evsVisibles : visibles).push(x.tipo === "ev" ? x.e : x);
+                }
+                const extra = pendientes.length - evsVisibles.length - visibles.length;
                 return (
                   <button
                     key={iso}
@@ -728,6 +741,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         >
                           {/* En móvil la celda es estrecha: el color ya dice el camión, así que va el cliente */}
                           {s.hora_inicio && <span className="font-black">{horaDelante(s.hora_inicio)}</span>}{sinDeca(s) ? "🔴 " : ""}{hecho ? "✓ " : ""}<span className="hidden sm:inline">{vehiculo || "Sin camión"} · </span>{s.cliente || "Sin nombre"}
+                          {s.descripcion && <span className="block truncate font-normal opacity-80">{s.descripcion}</span>}
                         </span>
                       );
                     })}
