@@ -91,6 +91,7 @@ const AgendaView = ({ servicios = [], eventos = [], coloresVehiculo = {}, servic
           {s.hora_inicio ? (s.hora_fin ? `hasta ${hora(s.hora_fin)}` : `desde ${hora(s.hora_inicio)}`) : "Todo el día"} · {vehiculos.length > 0 ? vehiculos.map((v) => `🚛 ${v}`).join(" · ") : "🚛 Sin camión"}
         </p>
         {s.origen && <p className="text-sm leading-snug truncate opacity-90">📍 {s.origen}</p>}
+        {s.descripcion && <p className="text-sm leading-snug line-clamp-2 opacity-90">{s.descripcion}</p>}
       </button>
     );
   };

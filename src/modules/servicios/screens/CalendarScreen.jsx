@@ -512,7 +512,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
   // Franja de servicios sin hora en la vista de semana (misma altura en todas
   // las columnas para que la rejilla horaria quede alineada)
-  const ALTO_SIN_HORA = 18; // px por fila de servicio sin hora
+  const ALTO_SIN_HORA = 64; // px por fila sin hora: camión, cliente y descripción
   const maxSinHoraSemana = Math.max(0, ...diasRejilla.map((iso) =>
     expandir((porDia[iso] || []).filter((s) => !s.hora_inicio)).length +
     (eventosPorDia[iso] || []).filter((e) => e.todo_el_dia || !e.hora_inicio).length
@@ -856,6 +856,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       className={`text-xs font-bold px-3 py-2 rounded-full ${ev.className}`}
                     >
                       {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{etiquetaVehiculo(vehiculo)} · {s.cliente || "Sin nombre"}{albaran ? " 📝" : ""}
+                      {s.descripcion && <span className="block font-normal opacity-80 text-left line-clamp-2">{s.descripcion}</span>}
                     </button>
                   );
                 })}
@@ -1064,11 +1065,15 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             <button
                               key={`${s.id}-${vehiculo || vi}`}
                               onClick={() => setServicioSeleccionado(s)}
-                              title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}`}
+                              title={`${vehiculo || "Sin camión"} · ${s.cliente || "Sin nombre"}${s.descripcion ? ` · ${s.descripcion}` : ""}`}
                               style={{ height: ALTO_SIN_HORA - 2, ...ev.style }}
-                              className={`block w-full truncate text-left text-xs font-black rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
+                              className={`block w-full overflow-hidden text-left text-xs rounded px-1 mt-px leading-tight ${ev.className} ${vehiculo ? "" : "ring-1 ring-inset ring-zinc-400"}`}
                             >
-                              {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
+                              <span className="block truncate font-black">
+                                {sinDeca(s) ? "🔴 " : ""}{(s.estado || "abierto") === "realizado" ? "✓ " : ""}{vehiculo || "Sin camión"}
+                              </span>
+                              <span className="block truncate font-bold">{s.cliente || "Sin nombre"}</span>
+                              {s.descripcion && <span className="block opacity-80 line-clamp-2 break-words">{s.descripcion}</span>}
                             </button>
                           );
                         })}
@@ -1126,6 +1131,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             <p className="text-xs font-black leading-tight truncate">{horaCorta(s.hora_inicio)}</p>
                             <p className={`text-xs font-bold leading-tight truncate ${vehiculo ? "" : "opacity-70 italic"}`}>{etiquetaVehiculo(vehiculo)}</p>
                             <p className="text-xs leading-tight truncate">{sinDeca(s) ? "🔴 " : ""}{s.cliente || "Sin nombre"}</p>
+                            {s.descripcion && (
+                              <p className="text-xs leading-tight opacity-80 line-clamp-3 break-words">{s.descripcion}</p>
+                            )}
                           </button>
                         );
                       })}
