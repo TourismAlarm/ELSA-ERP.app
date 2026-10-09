@@ -208,10 +208,21 @@ function api(token, metodo, ruta, cuerpo) {
   });
 }
 
+// El error de Google dicho en claro. Los 403 de Google son muy distintos
+// entre sí: la API sin activar en Google Cloud, un permiso que no se marcó al
+// conectar o un calendario ajeno, y cada uno se arregla en un sitio.
 const errorDe = async (r) => {
   const c = await r.json().catch(() => ({}));
   const m = c?.error?.message || `Google ha respondido ${r.status}`;
-  if (r.status === 403 || r.status === 404) return `${m} (¿el calendario es de otra cuenta o no tiene permiso de escritura?)`;
+  const motivo = c?.error?.errors?.[0]?.reason || c?.error?.details?.[0]?.reason || "";
+  if (/accessNotConfigured|SERVICE_DISABLED/i.test(motivo) || /has not been used in project|is disabled/i.test(m)) {
+    return "Falta activar «Google Calendar API» en Google Cloud (APIs y servicios → Biblioteca → Habilitar). Después espera unos minutos.";
+  }
+  if (/insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(motivo) || /insufficient authentication scopes/i.test(m)) {
+    return "Al conectar no se marcaron todos los permisos. Desconecta y vuelve a conectar con Google marcando todas las casillas.";
+  }
+  if (r.status === 404) return `${m} (¿el calendario se ha borrado o es de otra cuenta?)`;
+  if (r.status === 403) return `${m} (¿el calendario es de otra cuenta o no tiene permiso de escritura?)`;
   return m;
 };
 

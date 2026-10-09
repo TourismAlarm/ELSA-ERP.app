@@ -78,3 +78,22 @@ describe("escribirEvento", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("errores de Google en claro", () => {
+  const con = async (status, error) => {
+    const { escribirEvento } = await cargar();
+    vi.stubGlobal("fetch", async () => ({ ok: false, status, json: async () => ({ error }) }));
+    const p = escribirEvento("t", "c@x", { id: "elsa1" });
+    await p.catch(() => {});
+    vi.unstubAllGlobals();
+    return p;
+  };
+  it("API sin activar", async () => {
+    await expect(con(403, { message: "Google Calendar API has not been used in project 1 before or it is disabled.", errors: [{ reason: "accessNotConfigured" }] }))
+      .rejects.toThrow(/Falta activar «Google Calendar API»/);
+  });
+  it("permisos sin marcar", async () => {
+    await expect(con(403, { message: "Request had insufficient authentication scopes.", errors: [{ reason: "insufficientPermissions" }] }))
+      .rejects.toThrow(/no se marcaron todos los permisos/);
+  });
+});
