@@ -86,3 +86,24 @@ export const dbDesconectarGoogle = async () => {
   const { error } = await conSesion("/api/google/desconectar");
   return error || null;
 };
+
+// ---- Cambiar desde el ERP eventos creados en Google ----
+// Devuelven { evento } (el evento ya cambiado, con la forma del ERP) o
+// { error }.
+
+const sobreEvento = (e) => ({ calendarioId: e.googleCalendarioId, eventoId: e.googleEventoId });
+
+export const dbMoverEventoGoogle = async (e, fecha, hora_inicio) => {
+  const { datos, error } = await conSesion("/api/google/evento", { accion: "mover", ...sobreEvento(e), fecha, hora_inicio });
+  return error ? { error } : { evento: datos.evento };
+};
+
+export const dbEditarEventoGoogle = async (e, cambios) => {
+  const { datos, error } = await conSesion("/api/google/evento", { accion: "editar", ...sobreEvento(e), ...cambios });
+  return error ? { error } : { evento: datos.evento };
+};
+
+export const dbBorrarEventoGoogle = async (e) => {
+  const { error } = await conSesion("/api/google/evento", { accion: "borrar", ...sobreEvento(e) });
+  return error ? { error } : {};
+};

@@ -97,3 +97,25 @@ describe("errores de Google en claro", () => {
       .rejects.toThrow(/no se marcaron todos los permisos/);
   });
 });
+
+describe("mover y editar eventos de Google", () => {
+  it("mover uno con hora mantiene lo que dura", async () => {
+    const { tiemposAlMover } = await cargar();
+    const ev = { start: { dateTime: "2026-10-09T09:00:00+02:00" }, end: { dateTime: "2026-10-09T11:30:00+02:00" } };
+    expect(tiemposAlMover(ev, { fecha: "2026-10-12", hora_inicio: "22:45" })).toEqual({
+      start: { dateTime: "2026-10-12T22:45:00", timeZone: "Europe/Madrid" },
+      end: { dateTime: "2026-10-13T01:15:00", timeZone: "Europe/Madrid" },
+    });
+  });
+  it("mover uno de todo el día mantiene los días", async () => {
+    const { tiemposAlMover } = await cargar();
+    expect(tiemposAlMover({ start: { date: "2026-08-03" }, end: { date: "2026-08-06" } }, { fecha: "2026-08-31" }))
+      .toEqual({ start: { date: "2026-08-31" }, end: { date: "2026-09-03" } });
+  });
+  it("editar: con hora, sin fin (1 h) y de todo el día", async () => {
+    const { tiemposAlEditar } = await cargar();
+    expect(tiemposAlEditar({ fecha: "2026-10-09", hora_inicio: "09:00", hora_fin: "10:30" }).end).toEqual({ dateTime: "2026-10-09T10:30:00", timeZone: "Europe/Madrid" });
+    expect(tiemposAlEditar({ fecha: "2026-10-09", hora_inicio: "23:30" }).end).toEqual({ dateTime: "2026-10-10T00:30:00", timeZone: "Europe/Madrid" });
+    expect(tiemposAlEditar({ fecha: "2026-10-09", fecha_fin: "2026-10-10", todo_el_dia: true })).toEqual({ start: { date: "2026-10-09" }, end: { date: "2026-10-11" } });
+  });
+});
