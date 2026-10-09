@@ -40,6 +40,9 @@ export const eventoDeGoogle = (ev, calendario) => {
     // calendario lo distingue
     id: `google-${calendario.id}-${ev.id}`,
     externo: "google",
+    // Para poder cambiarlo o borrarlo en Google desde el ERP
+    googleCalendarioId: calendario.id,
+    googleEventoId: ev.id,
     tipo: "google",
     calendario: calendario.nombre,
     titulo: ev.summary || "(sin título)",

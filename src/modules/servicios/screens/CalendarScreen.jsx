@@ -171,7 +171,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], serviciosConDeca = new Set(), onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig, avisoGoogle = null }) => {
+const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], serviciosConDeca = new Set(), onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onMoverEventoGoogle, onAddNota, onConfig, avisoGoogle = null }) => {
   // Marca roja en los servicios que necesitan DeCA y no lo tienen: no pueden salir
   const sinDeca = (x) => servicioSinDeca(x, serviciosConDeca);
   // Estilo de la etiqueta de un servicio: color del vehículo/equipo indicado
@@ -354,7 +354,9 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
       setTimeout(() => { justDraggedRef.current = false; }, 300);
       const { dia, min } = p.target;
       if (dia !== p.origenDia || min !== p.ini) {
-        onMoverServicio(p.s, dia, minAbsAHora(min), p.durReal ? minAbsAHora(min + p.dur) : null);
+        // Un evento de Google se mueve en Google (mismo largo que tenía)
+        if (p.s.externo === "google") onMoverEventoGoogle?.(p.s, dia, minAbsAHora(min));
+        else onMoverServicio(p.s, dia, minAbsAHora(min), p.durReal ? minAbsAHora(min + p.dur) : null);
       }
     }
     limpiarArrastre();
@@ -906,17 +908,21 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                   const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
                   const color = colorDe(e);
+                  // Los de Google se pueden arrastrar (se mueven en Google)
+                  const arrastrable = e.externo === "google" && onMoverEventoGoogle;
                   return (
                     <button
                       key={`ev-${e.id}`}
-                      onClick={() => onEditarEvento && onEditarEvento(e)}
+                      onClick={() => { if (justDraggedRef.current) return; onEditarEvento && onEditarEvento(e); }}
+                      {...(arrastrable ? propsArrastre({ s: e, ini, fin }, fecha) : {})}
                       style={{
                         top: top * PX_POR_MINUTO,
                         height: alto * PX_POR_MINUTO,
                         left: "2%", width: "96%",
                         backgroundColor: color, color: textoSobre(color),
+                        WebkitTouchCallout: "none",
                       }}
-                      className="absolute rounded-lg px-2 py-1 text-left overflow-hidden border-2 border-white/40"
+                      className={`absolute rounded-lg px-2 py-1 text-left overflow-hidden border-2 border-white/40 ${arrastrable ? "select-none" : ""} ${drag && drag.s.id === e.id ? "opacity-40" : ""}`}
                     >
                       <p className="text-xs font-black leading-tight truncate">
                         {tipoDe(e).emoji} {e.titulo}
@@ -1091,14 +1097,17 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(20, Math.min(fin, TOTAL_MINUTOS) - top);
                         const color = colorDe(e);
+                        const arrastrable = e.externo === "google" && onMoverEventoGoogle;
                         return (
                           <button
                             key={`ev-${e.id}`}
-                            onClick={() => onEditarEvento && onEditarEvento(e)}
+                            onClick={() => { if (justDraggedRef.current) return; onEditarEvento && onEditarEvento(e); }}
+                            {...(arrastrable ? propsArrastre({ s: e, ini, fin }, iso) : {})}
                             title={`${e.titulo} · ${horaCorta(e.hora_inicio)}`}
                             style={{ top: top * PX_POR_MINUTO, height: alto * PX_POR_MINUTO,
-                                     left: "3%", width: "94%", backgroundColor: color, color: textoSobre(color) }}
-                            className="absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1]"
+                                     left: "3%", width: "94%", backgroundColor: color, color: textoSobre(color),
+                                     WebkitTouchCallout: "none" }}
+                            className={`absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1] ${arrastrable ? "select-none" : ""} ${drag && drag.s.id === e.id ? "opacity-40" : ""}`}
                           >
                             <p className="text-xs font-black leading-tight truncate">{tipoDe(e).emoji} {e.titulo}</p>
                           </button>
