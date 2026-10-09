@@ -13,3 +13,4 @@ export { default as EventoModal } from './EventoModal';
 export { default as MiniCalendario } from './MiniCalendario';
 export { default as ClienteBloque } from './ClienteBloque';
 export { NotasInternasCampo, NotasInternasBloque } from './NotasInternas';
+export { default as EventoGoogleModal } from './EventoGoogleModal';

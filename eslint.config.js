@@ -28,4 +28,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', ignoreRestSiblings: true }],
     },
   },
+  {
+    // Funciones de servidor de Vercel: corren en Node
+    files: ['api/**/*.js'],
+    languageOptions: { globals: globals.node },
+  },
 ])

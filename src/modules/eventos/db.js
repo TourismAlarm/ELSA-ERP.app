@@ -10,7 +10,11 @@ export const TIPOS_EVENTO = {
   otro:     { etiqueta: "Otro",        emoji: "📅", color: "#a855f7" },
 };
 
-export const tipoDe = (e) => TIPOS_EVENTO[e?.tipo] || TIPOS_EVENTO.otro;
+// Los eventos que vienen de Google Calendar (solo lectura). Va aparte de
+// TIPOS_EVENTO para que no salga como opción al crear un evento en el ERP.
+export const TIPO_GOOGLE = { etiqueta: "Google Calendar", emoji: "📆", color: "#4285f4" };
+
+export const tipoDe = (e) => (e?.tipo === "google" ? TIPO_GOOGLE : TIPOS_EVENTO[e?.tipo] || TIPOS_EVENTO.otro);
 export const colorDe = (e) => e?.color || tipoDe(e).color;
 
 // Un evento de un día tiene fecha_fin vacía; uno de varios, la de cierre

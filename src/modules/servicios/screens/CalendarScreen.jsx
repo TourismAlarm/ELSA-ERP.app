@@ -171,7 +171,7 @@ const lunesDe = (iso) => {
   return d;
 };
 
-const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], serviciosConDeca = new Set(), onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig }) => {
+const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = {}, flota = [], serviciosConDeca = new Set(), onVerVehiculo, onViewServicio, onViewAlbaran, onCrearAlbaran, onNuevoServicioEnHora, onNuevoEvento, onEditarEvento, onMoverServicio, onAddNota, onConfig, avisoGoogle = null }) => {
   // Marca roja en los servicios que necesitan DeCA y no lo tienen: no pueden salir
   const sinDeca = (x) => servicioSinDeca(x, serviciosConDeca);
   // Estilo de la etiqueta de un servicio: color del vehículo/equipo indicado
@@ -584,6 +584,14 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
         </div>
       </div>
 
+      {/* Si Google Calendar no ha contestado, se dice: si no, parecería que
+          ese día no hay nada apuntado allí */}
+      {avisoGoogle && (
+        <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mb-2">
+          📆 No se han podido traer los eventos de Google Calendar: {avisoGoogle}
+        </p>
+      )}
+
       {/* Menú de vistas, como el lateral de Google Calendar */}
       {menuVistas && (
         <div className="fixed inset-0 z-50">
@@ -776,9 +784,11 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
           {/* Qué camiones están cogidos este día: la pregunta que se hace
               todo el rato al mirar el calendario */}
           {Object.keys(coloresVehiculo).length > 0 && (() => {
-            const ocupados = new Set(
-              (porDia[fecha] || []).flatMap((s) => vehiculosDe(s))
-            );
+            // También los eventos de un calendario de Google de ese vehículo
+            const ocupados = new Set([
+              ...(porDia[fecha] || []).flatMap((s) => vehiculosDe(s)),
+              ...(eventosPorDia[fecha] || []).map((e) => e.vehiculo).filter(Boolean),
+            ]);
             const sinCamion = (porDia[fecha] || []).filter((s) => vehiculosDe(s).length === 0).length;
             return (
               <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-3">
