@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase, cargarTodas } from "../shared/lib/supabase";
 import { dbSaveConfig } from "../modules/solicitudes/db";
 import { Btn, Field, Input, Textarea, ColorPicker } from "../shared/components/ui";
 import { DEFAULT_VEHICLES, ADMIN_WHATSAPP, ADMIN_EMAIL } from "../shared/lib/constants";
 import { normalizeVehiculos, textoSobre, PALETA } from "../shared/lib/color";
 import { TEXTOS_PRESUPUESTO } from "../shared/lib/textos";
-import { urlCalendarioERP, dbRegenerarTokenCalendario, dbConectarGoogle, dbDesconectarGoogle, dbSincronizarGoogle } from "../modules/eventos/google";
+import { dbConectarGoogle, dbDesconectarGoogle, dbSincronizarGoogle, dbLoadCalendariosGoogle } from "../modules/eventos/google";
 
 // Gestor de vehículos / equipos con color (los que se usan en servicios,
 // solicitudes y el calendario). Cada uno es { nombre, color }.
@@ -166,87 +166,62 @@ const CambiarPassword = () => {
   );
 };
 
-// Conexión con Google Calendar, en los dos sentidos y sin iniciar sesión
-// con Google:
-//   · ERP → Google: un enlace iCal que se añade en Google Calendar. Lleva un
-//     token secreto que se genera aquí; cambiarlo deja sin servicio el viejo.
-//   · Google → ERP: la «dirección secreta en formato iCal» del calendario de
-//     Google. Sus eventos salen en el calendario del ERP en solo lectura.
-// Lo que puede salir mal al pegar una dirección de Google, dicho en claro.
-// La pública solo funciona si el calendario se hace público, y no se quiere.
-const problemaUrlGoogle = (url) => {
-  const u = (url || "").trim();
-  if (!u) return null;
-  if (!/^https:\/\/calendar\.google\.com\/calendar\/ical\//.test(u)) {
-    return "Tiene que ser la dirección iCal de Google (empieza por https://calendar.google.com/calendar/ical/).";
-  }
-  if (/\/public\/basic\.ics$/.test(u)) {
-    return "Esta es la dirección PÚBLICA y no funciona con el calendario privado. Copia la «Dirección secreta en formato iCal» (la de los puntos ••••).";
-  }
-  return null;
-};
-
-// Calendarios de Google (uno por vehículo y el general): nombre + dirección
-// secreta. Si el nombre coincide con un vehículo, sus eventos toman su color.
-const claveNombre = (t) => String(t || "").trim().toLowerCase().replace(/\s+/g, "");
-const CalendariosGoogle = ({ lista, onChange, vehiculos }) => {
-  const colorPorNombre = Object.fromEntries(vehiculos.map((v) => [claveNombre(v.nombre), v.color]));
-  const cambia = (i, campo, valor) => onChange(lista.map((c, idx) => (idx === i ? { ...c, [campo]: valor } : c)));
-  return (
-    <div className="flex flex-col gap-3">
-      {lista.length === 0 && <p className="text-xs text-zinc-400 italic">Ningún calendario de Google conectado.</p>}
-      {lista.map((c, i) => {
-        const problema = problemaUrlGoogle(c.url);
-        const color = colorPorNombre[claveNombre(c.nombre)];
-        const esVehiculo = Boolean(color);
-        return (
-          <div key={i} className="border-2 border-zinc-200 rounded-lg p-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded shrink-0" style={{ backgroundColor: color || "#4285f4" }} />
-              <input
-                value={c.nombre}
-                onChange={(e) => cambia(i, "nombre", e.target.value)}
-                list="vehiculos-google"
-                placeholder="Nombre (p. ej. 14, 24+JIB o General)"
-                className="w-full min-w-0 border-2 border-zinc-200 rounded-md px-3 py-1.5 text-sm font-bold text-zinc-900 focus:outline-none focus:border-zinc-900"
-              />
-              <button type="button" onClick={() => onChange(lista.filter((_, idx) => idx !== i))}
-                aria-label="Quitar calendario" className="text-zinc-400 hover:text-red-500 text-xl leading-none px-1">×</button>
-            </div>
-            <input
-              value={c.url}
-              onChange={(e) => cambia(i, "url", e.target.value)}
-              placeholder="Dirección secreta en formato iCal"
-              className="w-full border-2 border-zinc-200 rounded-md px-3 py-1.5 text-xs font-mono text-zinc-700 focus:outline-none focus:border-zinc-900"
-            />
-            {problema && <p className="text-xs font-semibold text-red-600">{problema}</p>}
-            {!problema && c.nombre && (
-              <p className="text-xs text-zinc-400">
-                {esVehiculo ? "Con el color del vehículo y lo marca como ocupado esos días." : "No coincide con ningún vehículo: sale en azul."}
-              </p>
-            )}
-          </div>
-        );
-      })}
-      <datalist id="vehiculos-google">
-        {vehiculos.map((v) => <option key={v.nombre} value={v.nombre} />)}
-      </datalist>
-      <button type="button" onClick={() => onChange([...lista, { nombre: "", url: "" }])}
-        className="self-start px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-md hover:bg-zinc-700 transition-colors">
-        + Añadir calendario de Google
-      </button>
-    </div>
-  );
-};
-
-// Escribir en Google: conectar la cuenta una vez y, desde entonces, cada
-// servicio que se guarda en el ERP aparece al momento en el calendario de
-// Google de su vehículo. Para los que ya existían, «Enviar los servicios».
+// Google Calendar: se conecta la cuenta una vez y desde entonces
+//   · cada servicio que se guarda en el ERP aparece al momento en el
+//     calendario de Google de su vehículo (el que se llama como él; sin
+//     vehículo, en el principal), y
+//   · lo que hay en los calendarios de Google se ve en el ERP, con el
+//     historial, en solo lectura.
+// Los calendarios los encuentra la app sola en la cuenta: no hay que pegar
+// direcciones.
 const hoyISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const EscribirEnGoogle = ({ cuenta, esAdmin, servicios, vuelta, onCambio, hayCalendarios }) => {
+const claveNombre = (t) => String(t || "").trim().toLowerCase().replace(/\s+/g, "");
+
+// Qué calendarios hay en la cuenta y a qué vehículo corresponde cada uno
+const CalendariosEncontrados = ({ vehiculos }) => {
+  const [estado, setEstado] = useState({ cargando: true });
+  useEffect(() => {
+    let vivo = true;
+    dbLoadCalendariosGoogle().then((r) => { if (vivo) setEstado(r); });
+    return () => { vivo = false; };
+  }, []);
+  if (estado.cargando) return <p className="text-xs text-zinc-400 mt-3">Buscando los calendarios de la cuenta...</p>;
+  if (estado.error) return <p className="text-xs font-semibold text-red-600 mt-3">No se han podido ver los calendarios: {estado.error}</p>;
+
+  const porNombre = Object.fromEntries(vehiculos.map((v) => [claveNombre(v.nombre), v]));
+  const conCalendario = new Set(estado.calendarios.map((c) => claveNombre(c.nombre)));
+  const sinCalendario = vehiculos.filter((v) => !conCalendario.has(claveNombre(v.nombre)));
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-black text-zinc-700 mb-1">Calendarios de la cuenta</p>
+      <ul className="flex flex-col gap-1">
+        {estado.calendarios.map((c) => {
+          const v = porNombre[claveNombre(c.nombre)];
+          return (
+            <li key={c.id} className="flex items-center gap-2 text-xs">
+              <span className="w-3 h-3 rounded shrink-0" style={{ backgroundColor: v?.color || c.color || "#4285f4" }} />
+              <span className="font-bold text-zinc-800">{c.nombre}</span>
+              <span className="text-zinc-400">
+                {v ? `→ vehículo ${v.nombre}` : c.primario ? "→ general (servicios sin vehículo con calendario)" : "→ solo se ve en el ERP"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {sinCalendario.length > 0 && (
+        <p className="text-xs text-amber-700 mt-2">
+          Sin calendario propio en Google: {sinCalendario.map((v) => v.nombre).join(", ")}. Sus servicios van al principal.
+          Para que tengan el suyo, crea en Google un calendario con el mismo nombre.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const GoogleCalendar = ({ cuenta, esAdmin, servicios, vuelta, onCambio, vehiculos }) => {
   const [ocupado, setOcupado] = useState(false);
   const [msg, setMsg] = useState(() =>
     vuelta ? (vuelta.ok ? { tipo: "ok", texto: "✅ Cuenta de Google conectada." } : { tipo: "error", texto: vuelta.detalle || "No se ha podido conectar con Google." }) : null
@@ -261,7 +236,7 @@ const EscribirEnGoogle = ({ cuenta, esAdmin, servicios, vuelta, onCambio, hayCal
   };
 
   const desconectar = async () => {
-    if (!confirm("Los servicios dejarán de pasar a Google. Lo que ya está en Google se queda. ¿Desconectar?")) return;
+    if (!confirm("Los servicios dejarán de pasar a Google y los calendarios de Google dejarán de verse aquí. Lo que ya está en Google se queda. ¿Desconectar?")) return;
     setOcupado(true);
     const error = await dbDesconectarGoogle();
     setOcupado(false);
@@ -286,18 +261,21 @@ const EscribirEnGoogle = ({ cuenta, esAdmin, servicios, vuelta, onCambio, hayCal
   };
 
   return (
-    <div>
-      <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Apuntar en Google desde el ERP</p>
+    <div className="flex flex-col gap-2 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
+      <p className="text-sm font-black text-zinc-900">📆 Google Calendar</p>
       {cuenta ? (
         <>
-          <p className="text-sm text-zinc-700">Conectado con <b>{cuenta}</b>. Cada servicio que se guarda, se mueve o se borra en el ERP se cambia al momento en el calendario de Google de su vehículo.</p>
-          <p className="text-xs text-zinc-400 mt-1">
-            Va al calendario de la lista de abajo con el mismo nombre que el vehículo. Sin vehículo (o con uno sin calendario), al primero de la lista que no es de ningún vehículo.
-            Lo que ya estaba en Google no se toca.
+          <p className="text-sm text-zinc-700">
+            Conectado con <b>{cuenta}</b>. Cada servicio que se guarda, se mueve o se borra en el ERP se cambia al momento en el calendario de Google de su vehículo,
+            y lo que hay en Google (también lo antiguo) se ve en el calendario del ERP.
           </p>
+          <p className="text-xs text-zinc-400">
+            Lo que ya estaba en Google no se cambia desde aquí: se mira en el ERP y se edita en Google. Se actualiza al abrir la app, al volver a ella, cada 10 minutos y con el botón de refrescar.
+          </p>
+          <CalendariosEncontrados vehiculos={vehiculos} />
           {esAdmin && (
-            <div className="flex flex-wrap gap-3 mt-2">
-              <button type="button" onClick={enviarTodos} disabled={ocupado || pendientes.length === 0 || !hayCalendarios}
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <button type="button" onClick={enviarTodos} disabled={ocupado || pendientes.length === 0}
                 className="px-3 py-2 bg-zinc-900 text-white text-xs font-bold rounded-md disabled:opacity-50">
                 📤 Enviar los servicios de hoy en adelante ({pendientes.length})
               </button>
@@ -310,105 +288,22 @@ const EscribirEnGoogle = ({ cuenta, esAdmin, servicios, vuelta, onCambio, hayCal
       ) : (
         <>
           <p className="text-xs text-zinc-500">
-            Conecta la cuenta de Google donde están los calendarios (una sola vez). Desde entonces, lo que se guarde en el ERP aparece al momento en Google.
+            Conecta la cuenta de Google donde están los calendarios (una sola vez). Desde entonces, lo que se guarde en el ERP aparece al momento en Google,
+            y lo de Google se ve aquí.
           </p>
           {esAdmin ? (
             <button type="button" onClick={conectar} disabled={ocupado}
-              className="mt-2 px-3 py-2 bg-white border-2 border-zinc-300 hover:border-zinc-900 text-zinc-900 text-sm font-bold rounded-md disabled:opacity-50">
+              className="self-start mt-1 px-3 py-2 bg-white border-2 border-zinc-300 hover:border-zinc-900 text-zinc-900 text-sm font-bold rounded-md disabled:opacity-50">
               {ocupado ? "Abriendo Google..." : "🔗 Conectar con Google"}
             </button>
           ) : (
-            <p className="text-xs text-zinc-400 mt-1">Lo conecta administración.</p>
+            <p className="text-xs text-zinc-400">Lo conecta administración.</p>
           )}
         </>
       )}
-      {!hayCalendarios && cuenta && <p className="text-xs font-semibold text-amber-700 mt-2">Añade abajo los calendarios de Google (uno por vehículo) para saber dónde apuntar cada servicio.</p>}
       {msg && (
-        <p className={`text-xs font-semibold mt-2 ${msg.tipo === "error" ? "text-red-600" : msg.tipo === "ok" ? "text-emerald-700" : "text-zinc-500"}`}>{msg.texto}</p>
+        <p className={`text-xs font-semibold mt-1 ${msg.tipo === "error" ? "text-red-600" : msg.tipo === "ok" ? "text-emerald-700" : "text-zinc-500"}`}>{msg.texto}</p>
       )}
-    </div>
-  );
-};
-
-const GoogleCalendar = ({ token, onToken, calendarios, onCalendarios, vehiculos, escribir }) => {
-  const [generando, setGenerando] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-  const enlace = urlCalendarioERP(token);
-
-  const generar = async () => {
-    if (token && !confirm("Si cambias el enlace, el que ya está puesto en Google Calendar deja de funcionar y habrá que añadir el nuevo. ¿Seguir?")) return;
-    setGenerando(true);
-    const nuevo = await dbRegenerarTokenCalendario();
-    setGenerando(false);
-    if (nuevo) onToken(nuevo);
-  };
-
-  const copiar = async () => {
-    try {
-      await navigator.clipboard.writeText(enlace);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    } catch {
-      prompt("Copia el enlace:", enlace);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm mb-5">
-      <div>
-        <p className="text-sm font-black text-zinc-900 mb-1">📆 Google Calendar</p>
-        <p className="text-xs text-zinc-400">
-          Para poder mirar lo mismo desde los dos sitios. No hace falta usar los dos: es para que lo que está en uno se vea también en el otro.
-        </p>
-      </div>
-
-      <EscribirEnGoogle {...escribir} hayCalendarios={calendarios.some((c) => (c.url || "").trim())} />
-
-      <div>
-        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver el ERP en Google Calendar (sin conectar la cuenta)</p>
-        {enlace ? (
-          <>
-            <div className="flex gap-2">
-              <input readOnly value={enlace} onFocus={(e) => e.target.select()}
-                className="w-full min-w-0 border-2 border-zinc-200 rounded-md px-3 py-2 text-xs text-zinc-700 bg-zinc-50 font-mono" />
-              <button type="button" onClick={copiar} className="px-3 py-2 bg-zinc-900 text-white text-xs font-bold rounded-md shrink-0">
-                {copiado ? "✓ Copiado" : "Copiar"}
-              </button>
-            </div>
-            <ol className="text-xs text-zinc-500 mt-2 list-decimal pl-4 space-y-0.5">
-              <li>En el ordenador, abre Google Calendar.</li>
-              <li>A la izquierda, junto a «Otros calendarios», pulsa <b>+</b> y luego <b>Desde URL</b>.</li>
-              <li>Pega este enlace y pulsa <b>Añadir calendario</b>.</li>
-            </ol>
-            <p className="text-xs text-amber-700 mt-2">
-              Google lo actualiza solo cada pocas horas (a veces hasta un día): lo que cambies en el ERP tarda en verse allí.
-              Quien tenga este enlace ve los servicios, así que no lo compartas fuera de la empresa.
-            </p>
-          </>
-        ) : (
-          <p className="text-xs text-zinc-500 mb-1">Todavía no hay enlace. Genera uno para añadirlo en Google Calendar.</p>
-        )}
-        <button type="button" onClick={generar} disabled={generando}
-          className="mt-2 text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-50">
-          {generando ? "Generando..." : enlace ? "🔄 Cambiar enlace (el anterior deja de funcionar)" : "🔗 Generar enlace"}
-        </button>
-      </div>
-
-      <div>
-        <p className="text-xs font-black text-zinc-700 uppercase tracking-widest mb-1">Ver Google Calendar en el ERP</p>
-        <ol className="text-xs text-zinc-500 mb-3 list-decimal pl-4 space-y-0.5">
-          <li>En Google Calendar (ordenador), ⚙️ <b>Configuración</b>.</li>
-          <li>A la izquierda, en «Configuración de mis calendarios», elige un calendario (el general, el 14, el 19...).</li>
-          <li>En «Integrar el calendario», copia la <b>Dirección secreta en formato iCal</b> (la de los puntos ••••, con el botón de copiar). <b>No</b> la pública.</li>
-          <li>Aquí, «Añadir calendario de Google», ponle el mismo nombre que el vehículo y pega la dirección.</li>
-          <li>Repite con cada calendario y pulsa <b>Guardar configuración</b>.</li>
-        </ol>
-        <CalendariosGoogle lista={calendarios} onChange={onCalendarios} vehiculos={vehiculos} />
-        <p className="text-xs text-zinc-400 mt-3">
-          Sus eventos, también los antiguos, salen en el calendario del ERP con el color del vehículo (o en azul 📆) y solo se pueden mirar: se cambian en Google.
-          Se actualizan al abrir la app, al volver a ella, cada 10 minutos y con el botón de refrescar.
-        </p>
-      </div>
     </div>
   );
 };
@@ -426,7 +321,6 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
     vehicles: normalizeVehiculos(initial?.vehicles ?? DEFAULT_VEHICLES),
     adminWhatsapp: initial?.adminWhatsapp ?? ADMIN_WHATSAPP,
     adminEmail:    initial?.adminEmail    ?? ADMIN_EMAIL,
-    google_calendarios: Array.isArray(initial?.google_calendarios) ? initial.google_calendarios : [],
   }));
   const [saving, setSaving] = useState(false);
   const [estadoBackup, setEstadoBackup] = useState(null);
@@ -446,20 +340,12 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
   const handleSave = async () => {
     if (cargaFallida) return;
     setSaving(true);
-    // El token del enlace iCal solo lo escribe la base de datos al generarlo:
-    // no se manda, para no pisar uno recién cambiado con el de la pantalla
-    // Igual la cuenta de Google conectada: la escribe el servidor al conectar
-    const { ics_token: _token, google_cuenta: _cuenta, ...datos } = form;
-    // Los que no tienen dirección no sirven; nombre y dirección sin espacios
-    datos.google_calendarios = (datos.google_calendarios || [])
-      .map((c) => ({ nombre: (c.nombre || "").trim(), url: (c.url || "").trim() }))
-      .filter((c) => c.url);
-    // La dirección única de antes ya está en la lista (migración del 08/10):
-    // se vacía para que quitar un calendario de la lista lo quite de verdad
-    datos.google_ics_url = null;
+    // La cuenta de Google conectada la escribe el servidor al conectar: no se
+    // manda, para no pisarla con la que había al abrir esta pantalla
+    const { google_cuenta: _cuenta, ...datos } = form;
     const ok = await dbSaveConfig(datos);
     setSaving(false);
-    if (ok) onSave({ ...form, google_calendarios: datos.google_calendarios, google_ics_url: null, google_cuenta: initial?.google_cuenta ?? null });
+    if (ok) onSave({ ...form, google_cuenta: initial?.google_cuenta ?? null });
   };
 
   return (
@@ -578,18 +464,12 @@ const ConfigScreen = ({ onSave, initial, cargaFallida = false, onLogout, onClien
       </div>
 
       <GoogleCalendar
-        token={form.ics_token}
-        onToken={(t) => setForm((f) => ({ ...f, ics_token: t }))}
-        calendarios={form.google_calendarios}
-        onCalendarios={(v) => setForm((f) => ({ ...f, google_calendarios: v }))}
+        cuenta={initial?.google_cuenta || null}
+        esAdmin={esAdmin}
+        servicios={servicios}
+        vuelta={vueltaGoogle}
+        onCambio={(cuenta) => onGoogleCambio?.(cuenta)}
         vehiculos={form.vehicles}
-        escribir={{
-          cuenta: initial?.google_cuenta || null,
-          esAdmin,
-          servicios,
-          vuelta: vueltaGoogle,
-          onCambio: (cuenta) => onGoogleCambio?.(cuenta),
-        }}
       />
 
       <CambiarPassword />

@@ -1,12 +1,11 @@
 import { supabase } from "../../shared/lib/supabase";
 
-// Eventos de los calendarios de Google para enseñarlos en el calendario del
-// ERP, en solo lectura. Los descarga el servidor de la app
-// (/api/google-calendar) porque el navegador no puede bajar el iCal de
-// Google directamente.
+// Eventos de los calendarios de Google de la cuenta conectada, para
+// enseñarlos en el calendario del ERP en solo lectura. Los lee el servidor
+// de la app (/api/google-calendar), que es quien tiene la conexión.
 //
-// Devuelve { eventos, error }. Sin calendarios configurados: lista vacía y
-// sin error. Si falla del todo, eventos null y quien llama conserva lo
+// Devuelve { eventos, error }. Sin cuenta conectada: lista vacía y sin
+// error. Si falla del todo, eventos null y quien llama conserva lo
 // anterior: que Google no conteste no debe vaciar el calendario. Si fallan
 // solo algunos calendarios, llegan los demás y error dice cuáles.
 export const dbLoadEventosGoogle = async () => {
@@ -26,16 +25,21 @@ export const dbLoadEventosGoogle = async () => {
   }
 };
 
-// El enlace iCal del ERP para suscribirse desde Google Calendar
-export const urlCalendarioERP = (token) =>
-  token ? `${window.location.origin}/api/calendario?token=${token}` : null;
-
-// Genera (o cambia) el token del enlace. Solo admin. Cambiarlo deja sin
-// servicio el enlace anterior. Devuelve el token nuevo o null.
-export const dbRegenerarTokenCalendario = async () => {
-  const { data, error } = await supabase.rpc("regenerar_token_calendario");
-  if (error) { console.error(error); alert("No se ha podido generar el enlace: " + error.message); return null; }
-  return data;
+// Los calendarios de la cuenta de Google conectada, para enseñar en
+// Configuración a qué vehículo va cada uno.
+// Devuelve { calendarios } o { error }.
+export const dbLoadCalendariosGoogle = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { error: "Sin sesión" };
+  try {
+    const r = await fetch("/api/google/calendarios", { headers: { Authorization: `Bearer ${session.access_token}` } });
+    const cuerpo = await r.json().catch(() => null);
+    if (!r.ok) return { error: cuerpo?.error || `Error ${r.status}` };
+    return { calendarios: cuerpo?.calendarios || [] };
+  } catch (e) {
+    console.error(e);
+    return { error: "Sin conexión con el servidor" };
+  }
 };
 
 export { conVehiculo } from "./vehiculoGoogle";

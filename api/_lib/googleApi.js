@@ -19,7 +19,14 @@ const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const ZONA = "Europe/Madrid";
 
-export const SCOPES = ["openid", "email", "https://www.googleapis.com/auth/calendar.events"];
+// Escribir y leer eventos, y ver qué calendarios tiene la cuenta (para
+// encontrar solo el de cada vehículo, sin tener que pegar direcciones)
+export const SCOPES = [
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+];
 
 export const googleConfigurado = () => Boolean(CLIENT_ID && CLIENT_SECRET);
 
@@ -126,27 +133,16 @@ export const tokenAcceso = async (refreshToken) => {
 export const idEventoServicio = (servicioId) => "elsa" + String(servicioId).toLowerCase().replace(/-/g, "");
 
 
-// El id del calendario va dentro de su dirección iCal:
-// https://calendar.google.com/calendar/ical/<id>/private-xxxx/basic.ics
-export const calendarioIdDeUrl = (url) => {
-  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//.exec(String(url || "").trim());
-  return m ? decodeURIComponent(m[1]) : null;
-};
-
 const clave = (t) => String(t || "").trim().toLowerCase().replace(/\s+/g, "");
 const vehiculosDe = (v) => (Array.isArray(v) ? v : String(v || "").split(",")).map((x) => x.trim()).filter(Boolean);
 
-// A qué calendarios va un servicio: el de cada uno de sus vehículos (por el
-// nombre del calendario). Sin vehículo, o con uno que no tiene calendario,
-// al primer calendario que no es de ningún vehículo (el general), si lo hay.
-export const calendariosDestino = (servicio, calendarios, nombresVehiculo) => {
-  const conId = calendarios
-    .map((c) => ({ nombre: c.nombre, id: calendarioIdDeUrl(c.url) }))
-    .filter((c) => c.id);
-  const porNombre = Object.fromEntries(conId.map((c) => [clave(c.nombre), c]));
-  const deVehiculo = new Set((nombresVehiculo || []).map(clave));
-  const general = conId.find((c) => !deVehiculo.has(clave(c.nombre)));
-
+// A qué calendarios va un servicio: el de cada uno de sus vehículos (el que
+// se llama como el vehículo). Sin vehículo, o con uno que no tiene
+// calendario, al calendario principal de la cuenta (el general).
+// calendarios: los de listarCalendarios().
+export const calendariosDestino = (servicio, calendarios) => {
+  const porNombre = Object.fromEntries(calendarios.map((c) => [clave(c.nombre), c]));
+  const general = calendarios.find((c) => c.primario);
   const destino = new Map();
   const vs = vehiculosDe(servicio.vehiculo);
   vs.forEach((v) => {
@@ -154,7 +150,7 @@ export const calendariosDestino = (servicio, calendarios, nombresVehiculo) => {
     if (c) destino.set(c.id, c);
   });
   if (vs.length === 0 && general) destino.set(general.id, general);
-  return { destino: [...destino.values()], todos: conId };
+  return [...destino.values()];
 };
 
 const sumarUnaHora = (h) => {
@@ -203,13 +199,14 @@ export const eventoDeServicio = (s, { urlApp } = {}) => {
 };
 
 // Llamada a la API de Calendar. Devuelve la respuesta tal cual.
-const api = (token, metodo, ruta, cuerpo) =>
-  fetch(`https://www.googleapis.com/calendar/v3/${ruta}`, {
+function api(token, metodo, ruta, cuerpo) {
+  return fetch(`https://www.googleapis.com/calendar/v3/${ruta}`, {
     method: metodo,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
     signal: AbortSignal.timeout(8000),
   });
+}
 
 const errorDe = async (r) => {
   const c = await r.json().catch(() => ({}));
@@ -235,4 +232,52 @@ export const escribirEvento = async (token, calendarioId, evento) => {
 export const borrarEvento = async (token, calendarioId, eventoId) => {
   const r = await api(token, "DELETE", `calendars/${encodeURIComponent(calendarioId)}/events/${eventoId}`);
   if (!r.ok && r.status !== 404 && r.status !== 410) throw new Error(await errorDe(r));
+};
+
+// ------------------------------------------------------------- lectura
+
+// Calendarios de la cuenta en los que se puede escribir (los propios: el
+// principal y los de cada vehículo). Los de solo lectura, como el de
+// festivos o los cumpleaños, no cuentan.
+export const listarCalendarios = async (token) => {
+  const lista = [];
+  let pagina = "";
+  for (let i = 0; i < 10; i++) {
+    const r = await api(token, "GET", `users/me/calendarList?minAccessRole=writer&maxResults=250${pagina ? `&pageToken=${pagina}` : ""}`);
+    if (!r.ok) throw new Error(await errorDe(r));
+    const c = await r.json();
+    (c.items || []).forEach((x) => lista.push({
+      id: x.id,
+      nombre: x.summaryOverride || x.summary || x.id,
+      primario: Boolean(x.primary),
+      color: x.backgroundColor || null,
+    }));
+    if (!c.nextPageToken) break;
+    pagina = encodeURIComponent(c.nextPageToken);
+  }
+  return lista;
+};
+
+// Eventos de un calendario entre dos fechas, con las repeticiones ya
+// desplegadas. Va por páginas (Google da 2.500 como mucho por página).
+export const leerEventos = async (token, calendarioId, desde, hasta) => {
+  const eventos = [];
+  let pagina = "";
+  for (let i = 0; i < 20; i++) {
+    const p = new URLSearchParams({
+      singleEvents: "true",
+      maxResults: "2500",
+      timeMin: desde.toISOString(),
+      timeMax: hasta.toISOString(),
+      fields: "nextPageToken,items(id,status,summary,description,location,htmlLink,start,end)",
+      ...(pagina ? { pageToken: pagina } : {}),
+    });
+    const r = await api(token, "GET", `calendars/${encodeURIComponent(calendarioId)}/events?${p}`);
+    if (!r.ok) throw new Error(await errorDe(r));
+    const c = await r.json();
+    eventos.push(...(c.items || []));
+    if (!c.nextPageToken) break;
+    pagina = c.nextPageToken;
+  }
+  return eventos;
 };

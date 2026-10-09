@@ -24,26 +24,20 @@ describe("state firmado", () => {
 });
 
 describe("calendarios y eventos", () => {
-  const cal = (id) => `https://calendar.google.com/calendar/ical/${encodeURIComponent(id)}/private-abc/basic.ics`;
   const calendarios = [
-    { nombre: "General", url: cal("gruaselsa@gmail.com") },
-    { nombre: "24", url: cal("c24@group.calendar.google.com") },
-    { nombre: "14", url: cal("c14@group.calendar.google.com") },
+    { id: "gruaselsa@gmail.com", nombre: "Grues Elsa", primario: true },
+    { id: "c24@group", nombre: "24" },
+    { id: "c24jib@group", nombre: "24 + JIB" },
+    { id: "c14@group", nombre: "14" },
   ];
-  const vehiculos = ["24", "14", "19"];
 
-  it("saca el id del calendario de su dirección iCal", async () => {
-    const { calendarioIdDeUrl } = await cargar();
-    expect(calendarioIdDeUrl(cal("gruaselsa@gmail.com"))).toBe("gruaselsa@gmail.com");
-    expect(calendarioIdDeUrl("https://otra.com/x")).toBeNull();
-  });
-
-  it("cada vehículo a su calendario; sin calendario propio o sin vehículo, al general", async () => {
+  it("cada vehículo a su calendario; sin calendario propio o sin vehículo, al principal", async () => {
     const { calendariosDestino } = await cargar();
-    expect(calendariosDestino({ vehiculo: "24, 14" }, calendarios, vehiculos).destino.map((c) => c.nombre)).toEqual(["24", "14"]);
-    expect(calendariosDestino({ vehiculo: "19" }, calendarios, vehiculos).destino.map((c) => c.nombre)).toEqual(["General"]);
-    expect(calendariosDestino({ vehiculo: "" }, calendarios, vehiculos).destino.map((c) => c.nombre)).toEqual(["General"]);
-    expect(calendariosDestino({ vehiculo: "24" }, calendarios, vehiculos).todos).toHaveLength(3);
+    const nombres = (s) => calendariosDestino(s, calendarios).map((c) => c.nombre);
+    expect(nombres({ vehiculo: "24, 14" })).toEqual(["24", "14"]);
+    expect(nombres({ vehiculo: "24+JIB" })).toEqual(["24 + JIB"]);
+    expect(nombres({ vehiculo: "19" })).toEqual(["Grues Elsa"]);
+    expect(nombres({ vehiculo: "" })).toEqual(["Grues Elsa"]);
   });
 
   it("id de evento fijo por servicio, válido para Google", async () => {

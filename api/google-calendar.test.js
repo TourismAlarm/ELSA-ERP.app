@@ -1,48 +1,48 @@
-import { describe, it, expect, vi } from "vitest";
-import handler, { calendariosDe } from "./google-calendar.js";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 
-describe("calendariosDe", () => {
-  it("usa la lista y descarta los que no tienen dirección", () => {
-    expect(calendariosDe({ google_calendarios: [{ nombre: " 14 ", url: " https://a " }, { nombre: "19", url: "" }] }))
-      .toEqual([{ nombre: "14", url: "https://a" }]);
-  });
-  it("sin lista, la dirección única de antes", () => {
-    expect(calendariosDe({ google_calendarios: [], google_ics_url: "https://b" })).toEqual([{ nombre: "Google", url: "https://b" }]);
-  });
-  it("sin nada, ninguno", () => {
-    expect(calendariosDe({})).toEqual([]);
-  });
+beforeAll(() => {
+  process.env.VITE_SUPABASE_URL = "https://db.test";
+  process.env.VITE_SUPABASE_ANON_KEY = "anon";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "servicio";
+  process.env.GOOGLE_CLIENT_ID = "cid";
+  process.env.GOOGLE_CLIENT_SECRET = "secreto";
 });
 
-const ics = (uid, titulo) =>
-  `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART;VALUE=DATE:20250101\r\nDTEND;VALUE=DATE:20250102\r\nSUMMARY:${titulo}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
-const url = (n) => `https://calendar.google.com/calendar/ical/${n}%40group.calendar.google.com/private-x/basic.ics`;
 const res = () => {
   const r = { setHeader() {}, status(c) { r.code = c; return r; }, json(b) { r.body = b; return r; } };
   return r;
 };
 
-describe("handler con varios calendarios", () => {
-  it("junta todos, marca su calendario y dice cuál falla sin perder los demás", async () => {
-    vi.stubGlobal("fetch", async (u) => {
-      if (u.includes("/rest/v1/config")) {
-        return { ok: true, status: 200, json: async () => [{ google_calendarios: [
-          { nombre: "14", url: url("c14") },
-          { nombre: "19", url: url("c19") },
-          { nombre: "Roto", url: url("roto") },
-          { nombre: "Pública", url: "https://evil.com/calendar/ical/x" },
-        ] }] };
+describe("GET /api/google-calendar", () => {
+  it("lee todos los calendarios de la cuenta y dice cuál falla sin perder los demás", async () => {
+    const { default: handler } = await import("./google-calendar.js");
+    vi.stubGlobal("fetch", async (url, o = {}) => {
+      const u = String(url);
+      const ok = (d) => ({ ok: true, status: 200, json: async () => d });
+      if (u.endsWith("/auth/v1/user")) return ok({ id: "u1" });
+      if (u.includes("/rpc/es_usuario_activo")) return ok(true);
+      if (u.includes("/rpc/es_admin")) return ok(false);
+      if (u.includes("/rest/v1/google_conexion")) return ok([{ refresh_token: "rt" }]);
+      if (u.startsWith("https://oauth2.googleapis.com/token")) return ok({ access_token: "at", expires_in: 3600 });
+      if (u.includes("/users/me/calendarList")) {
+        expect(u).toContain("minAccessRole=writer");
+        return ok({ items: [{ id: "c24", summary: "24" }, { id: "roto", summary: "Roto" }] });
       }
-      if (u.includes("roto")) return { ok: false, status: 404 };
-      // El mismo evento invitado a dos calendarios trae el mismo UID
-      return { ok: true, status: 200, text: async () => ics("mismo@google.com", u.includes("c14") ? "Obra A" : "Obra B") };
+      if (u.includes("/calendars/c24/events")) {
+        expect(u).toContain("singleEvents=true");
+        return ok({ items: [
+          { id: "x", summary: "Obra", start: { date: "2025-01-01" }, end: { date: "2025-01-02" } },
+          { id: "elsa0f8fad5bd9cb469fa16570867728950e", summary: "Del ERP", start: { date: "2025-01-01" } },
+        ] });
+      }
+      if (u.includes("/calendars/roto/events")) return { ok: false, status: 500, json: async () => ({ error: { message: "Boom" } }) };
+      throw new Error("fetch inesperado " + u + o.method);
     });
     const r = res();
     await handler({ headers: { authorization: "Bearer s" } }, r);
     vi.unstubAllGlobals();
     expect(r.code).toBe(200);
-    expect(r.body.eventos.map((e) => `${e.calendario}:${e.titulo}`).sort()).toEqual(["14:Obra A", "19:Obra B"]);
-    expect(new Set(r.body.eventos.map((e) => e.id)).size).toBe(2);
-    expect(r.body.errores.map((e) => e.calendario)).toEqual(["Roto", "Pública"]);
+    expect(r.body.eventos.map((e) => `${e.calendario}:${e.titulo}`)).toEqual(["24:Obra"]);
+    expect(r.body.errores).toEqual([{ calendario: "Roto", error: "Boom" }]);
   });
 });

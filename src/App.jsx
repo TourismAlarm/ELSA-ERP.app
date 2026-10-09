@@ -281,10 +281,6 @@ export default function App() {
   };
 
   const handleConfigSave = (cfg) => {
-    // Si han cambiado los calendarios de Google, se vuelven a traer
-    if (JSON.stringify(cfg.google_calendarios || []) !== JSON.stringify(config?.google_calendarios || [])) {
-      cargarGoogle({ vaciar: true });
-    }
     setConfig(cfg);
     setScreen("dashboard");
   };
@@ -748,7 +744,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} servicios={servicios} esAdmin={esAdmin} vueltaGoogle={vueltaGoogle} onGoogleCambio={(cuenta) => setConfig((c) => (c ? { ...c, google_cuenta: cuenta } : c))} />}
+      {screen === "config" && <ConfigScreen initial={config} cargaFallida={configError} onSave={handleConfigSave} onLogout={handleLogout} onClientes={() => setScreen("clientes")} servicios={servicios} esAdmin={esAdmin} vueltaGoogle={vueltaGoogle} onGoogleCambio={(cuenta) => { setConfig((c) => (c ? { ...c, google_cuenta: cuenta } : c)); cargarGoogle({ vaciar: true }); }} />}
       {screen === "clientes" && <ClientesScreen clientes={clientes} onBack={() => setScreen("config")} onNew={handleSaveCliente} onEdit={handleEditCliente} onDelete={handleDeleteCliente} onImportar={() => setScreen("importarClientes")} />}
       {screen === "importarClientes" && <ImportarClientesScreen clientes={clientes} onImportar={handleImportarClientes} onBack={() => setScreen("clientes")} />}
       {screen === "dashboard" && (

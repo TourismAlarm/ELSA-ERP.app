@@ -1,21 +1,17 @@
-// Lee el iCal de un calendario de Google y lo convierte en eventos con la
-// misma forma que la tabla `eventos` del ERP (fecha, fecha_fin, hora_inicio,
-// hora_fin, todo_el_dia, titulo...), para que el calendario los pinte igual.
+// Convierte los eventos de la API de Google Calendar a la misma forma que la
+// tabla `eventos` del ERP (fecha, fecha_fin, hora_inicio, hora_fin,
+// todo_el_dia, titulo...), para que el calendario los pinte igual.
 //
 // Las horas se pasan a la hora de Madrid, que es la que usa toda la app. Los
-// eventos que se repiten se despliegan en cada repetición dentro de una
-// ventana de fechas; los sueltos se devuelven todos, con el historial entero.
-
-import ICAL from "ical.js";
+// eventos que se repiten llegan ya desplegados (singleEvents), uno por
+// repetición.
 
 const ZONA = "Europe/Madrid";
-const MAX_REPETICIONES = 2000; // freno por si una regla no termina nunca
-const MAX_CALENDARIOS = 20;
 
 // Los eventos que escribe el propio ERP en Google (ver googleApi.js) llevan
-// el id «elsa» + uuid del servicio, y en el iCal salen con ese UID. Ya se
-// ven en el ERP como servicios: no se enseñan otra vez como evento de Google.
-export const esEventoDelERP = (uid) => /^elsa[0-9a-f]{32}@google\.com$/i.test(String(uid || ""));
+// el id «elsa» + uuid del servicio. Ya se ven en el ERP como servicios: no
+// se enseñan otra vez como evento de Google.
+export const esEventoDelERP = (id) => /^elsa[0-9a-f]{32}$/i.test(String(id || ""));
 
 // Fecha y hora de Madrid de un instante: { fecha: "2026-10-08", hora: "09:30" }
 const enMadrid = (jsDate) => {
@@ -28,33 +24,38 @@ const enMadrid = (jsDate) => {
   return { fecha: `${partes.year}-${partes.month}-${partes.day}`, hora: `${partes.hour}:${partes.minute}` };
 };
 
-const isoDeFecha = (t) =>
-  `${t.year}-${String(t.month).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`;
-
 const diaAnterior = (iso) => {
   const d = new Date(iso + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 };
 
-// Un intervalo [inicio, fin) de ICAL.Time a la forma del ERP
-const aEvento = (ev, inicio, fin, sufijo, prefijo) => {
+// Un evento de la API (events.list) a la forma del ERP. null si no se enseña
+// (cancelado, o escrito por el propio ERP). calendario: { id, nombre }.
+export const eventoDeGoogle = (ev, calendario) => {
+  if (!ev || ev.status === "cancelled") return null;
+  if (esEventoDelERP(ev.id)) return null;
   const base = {
-    id: `google-${prefijo ? `${prefijo}-` : ""}${ev.uid}${sufijo ? `-${sufijo}` : ""}`,
+    // Un mismo evento puede estar en dos calendarios (invitados): el id del
+    // calendario lo distingue
+    id: `google-${calendario.id}-${ev.id}`,
     externo: "google",
     tipo: "google",
+    calendario: calendario.nombre,
     titulo: ev.summary || "(sin título)",
     notas: ev.description || null,
     ubicacion: ev.location || null,
+    enlace: ev.htmlLink || null,
   };
-  if (inicio.isDate) {
-    // Todo el día: en iCal el último día es exclusivo
-    const fecha = isoDeFecha(inicio);
-    const finIncl = fin ? diaAnterior(isoDeFecha(fin)) : fecha;
+  if (ev.start?.date) {
+    // Todo el día: en Google el último día es exclusivo
+    const fecha = ev.start.date;
+    const finIncl = ev.end?.date ? diaAnterior(ev.end.date) : fecha;
     return { ...base, fecha, fecha_fin: finIncl > fecha ? finIncl : null, hora_inicio: null, hora_fin: null, todo_el_dia: true };
   }
-  const a = enMadrid(inicio.toJSDate());
-  const b = fin ? enMadrid(fin.toJSDate()) : null;
+  if (!ev.start?.dateTime) return null;
+  const a = enMadrid(new Date(ev.start.dateTime));
+  const b = ev.end?.dateTime ? enMadrid(new Date(ev.end.dateTime)) : null;
   // Si acaba otro día, en la rejilla se pinta hasta el final del primero
   // y se marca como de varios días
   const mismoDia = !b || b.fecha === a.fecha;
@@ -66,77 +67,4 @@ const aEvento = (ev, inicio, fin, sufijo, prefijo) => {
     hora_fin: mismoDia ? (b ? b.hora : null) : "23:59",
     todo_el_dia: false,
   };
-};
-
-// desde / hasta: Date. Solo afectan a los eventos que se repiten.
-// prefijo: distingue los id cuando se juntan varios calendarios (un mismo
-// evento al que se invita a dos calendarios trae el mismo UID en los dos).
-export const leerGoogleICS = (texto, { desde, hasta, prefijo } = {}) => {
-  const comp = new ICAL.Component(ICAL.parse(texto));
-  // Registra las zonas horarias que trae el fichero para convertir bien
-  comp.getAllSubcomponents("vtimezone").forEach((tz) => ICAL.TimezoneService.register(tz));
-
-  const vevents = comp.getAllSubcomponents("vevent");
-  // Las repeticiones modificadas (RECURRENCE-ID) se aplican a su serie
-  const excepciones = new Map();
-  vevents.forEach((v) => {
-    if (v.hasProperty("recurrence-id")) {
-      const uid = v.getFirstPropertyValue("uid");
-      if (!excepciones.has(uid)) excepciones.set(uid, []);
-      excepciones.get(uid).push(v);
-    }
-  });
-
-  const tDesde = desde ? ICAL.Time.fromJSDate(desde, true) : null;
-  const tHasta = hasta ? ICAL.Time.fromJSDate(hasta, true) : null;
-  const salida = [];
-
-  vevents.forEach((v) => {
-    if (v.hasProperty("recurrence-id")) return; // se procesan con su serie
-    if ((v.getFirstPropertyValue("status") || "").toUpperCase() === "CANCELLED") return;
-    if (esEventoDelERP(v.getFirstPropertyValue("uid"))) return;
-    const ev = new ICAL.Event(v);
-    (excepciones.get(ev.uid) || []).forEach((x) => ev.relateException(x));
-
-    if (!ev.isRecurring()) {
-      salida.push(aEvento(ev, ev.startDate, ev.endDate, null, prefijo));
-      return;
-    }
-
-    const it = ev.iterator();
-    let n = 0;
-    for (let t = it.next(); t && n < MAX_REPETICIONES; t = it.next()) {
-      if (tHasta && t.compare(tHasta) > 0) break;
-      n++;
-      const det = ev.getOccurrenceDetails(t);
-      if (tDesde && det.endDate.compare(tDesde) < 0) continue;
-      const item = det.item; // la serie o su excepción
-      if ((item.component.getFirstPropertyValue("status") || "").toUpperCase() === "CANCELLED") continue;
-      salida.push(aEvento(item, det.startDate, det.endDate, isoDeFecha(det.startDate) + (det.startDate.isDate ? "" : `T${det.startDate.hour}${det.startDate.minute}`), prefijo));
-    }
-  });
-
-  return salida.sort((a, b) => a.fecha.localeCompare(b.fecha) || (a.hora_inicio || "").localeCompare(b.hora_inicio || ""));
-};
-
-// Solo se descargan direcciones iCal de Google: el servidor no debe servir
-// para pedir cualquier URL en nombre de quien la escriba
-export const urlGoogleValida = (url) => {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" && u.hostname === "calendar.google.com" && u.pathname.startsWith("/calendar/ical/");
-  } catch {
-    return false;
-  }
-};
-
-// Lista de calendarios de la configuración. google_ics_url es la de antes,
-// cuando solo había uno: si la lista está vacía se usa esa.
-export const calendariosDe = (cfg) => {
-  const lista = Array.isArray(cfg?.google_calendarios) ? cfg.google_calendarios : [];
-  const validos = lista
-    .map((c) => ({ nombre: String(c?.nombre || "").trim() || "Google", url: String(c?.url || "").trim() }))
-    .filter((c) => c.url);
-  if (validos.length === 0 && cfg?.google_ics_url) return [{ nombre: "Google", url: cfg.google_ics_url.trim() }];
-  return validos.slice(0, MAX_CALENDARIOS);
 };

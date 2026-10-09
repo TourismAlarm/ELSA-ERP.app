@@ -8,10 +8,9 @@
 // Cualquier usuario activo puede pedirlo (es lo que pasa al guardar).
 import { quienEs, admin } from "../_lib/supabase.js";
 import {
-  leerConexion, tokenAcceso, calendariosDestino, eventoDeServicio,
-  escribirEvento, borrarEvento, idEventoServicio,
+  leerConexion, tokenAcceso, listarCalendarios, calendariosDestino,
+  eventoDeServicio, escribirEvento, borrarEvento, idEventoServicio,
 } from "../_lib/googleApi.js";
-import { calendariosDe } from "../_lib/google.js";
 
 const MAX_POR_PETICION = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,16 +28,11 @@ export default async function handler(req, res) {
     const conexion = await leerConexion();
     if (!conexion) { res.status(200).json({ conectado: false, resultados: [] }); return; }
 
-    const [rCfg, rSrv] = await Promise.all([
-      admin("config?select=google_calendarios,google_ics_url,vehicles&id=eq.1"),
-      admin(`servicios?select=id,numero,cliente,vehiculo,origen,destino,descripcion,fecha_servicio,hora_inicio,hora_fin,estado&id=in.(${ids.join(",")})`),
-    ]);
-    if (!rCfg.ok || !rSrv.ok) throw new Error("No se han podido leer los datos");
-    const cfg = (await rCfg.json())[0] || {};
+    const rSrv = await admin(`servicios?select=id,numero,cliente,vehiculo,origen,destino,descripcion,fecha_servicio,hora_inicio,hora_fin,estado&id=in.(${ids.join(",")})`);
+    if (!rSrv.ok) throw new Error("No se han podido leer los servicios");
     const servicios = Object.fromEntries((await rSrv.json()).map((s) => [s.id, s]));
-    const calendarios = calendariosDe(cfg);
-    const nombresVehiculo = (cfg.vehicles || []).map((v) => (typeof v === "string" ? v : v?.nombre)).filter(Boolean);
     const token = await tokenAcceso(conexion.refresh_token);
+    const calendarios = await listarCalendarios(token);
     const urlApp = `https://${req.headers["x-forwarded-host"] || req.headers.host}`;
 
     const resultados = [];
@@ -46,13 +40,14 @@ export default async function handler(req, res) {
       const s = servicios[id];
       const eventoId = idEventoServicio(id);
       try {
-        const { destino, todos } = calendariosDestino(s || {}, calendarios, nombresVehiculo);
-        const ids_destino = new Set(s && s.fecha_servicio ? destino.map((c) => c.id) : []);
-        const evento = s && s.fecha_servicio ? eventoDeServicio(s, { urlApp }) : null;
-        await Promise.all(todos.map((c) =>
-          ids_destino.has(c.id) ? escribirEvento(token, c.id, evento) : borrarEvento(token, c.id, eventoId)
+        // Sin fecha o borrado: a ningún calendario (se quita de todos)
+        const destino = s && s.fecha_servicio ? calendariosDestino(s, calendarios) : [];
+        const enDestino = new Set(destino.map((c) => c.id));
+        const evento = destino.length ? eventoDeServicio(s, { urlApp }) : null;
+        await Promise.all(calendarios.map((c) =>
+          enDestino.has(c.id) ? escribirEvento(token, c.id, evento) : borrarEvento(token, c.id, eventoId)
         ));
-        resultados.push({ id, ok: true, calendarios: destino.filter((c) => ids_destino.has(c.id)).map((c) => c.nombre) });
+        resultados.push({ id, ok: true, calendarios: destino.map((c) => c.nombre) });
       } catch (e) {
         resultados.push({ id, ok: false, error: e.message });
       }
