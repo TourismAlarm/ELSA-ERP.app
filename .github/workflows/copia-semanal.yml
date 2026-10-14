@@ -1,0 +1,102 @@
+# Copia de seguridad semanal de ELSA ERP: base de datos + ficheros.
+#
+# El proyecto de Supabase está en el plan gratuito, que NO hace copias. Esta
+# es la única copia de recuperación que existe hasta que se pase a Pro.
+#
+# La copia se cifra con age ANTES de salir del runner, con una clave PÚBLICA.
+# El repositorio es público y los artefactos de Actions los puede descargar
+# cualquiera con cuenta de GitHub: sin la clave privada (que no está aquí) el
+# fichero no sirve de nada. Cómo restaurar: scripts/copias/restaurar.md
+#
+# Secretos necesarios (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL            cadena del «Session pooler» (puerto 5432), con la contraseña
+#   SUPABASE_URL               https://sessuuknaxfrgqkeypcg.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY  para descargar los ficheros de Storage
+#   AGE_RECIPIENT              clave pública de age (empieza por age1...)
+name: Copia semanal
+
+on:
+  schedule:
+    - cron: "17 2 * * 0"   # domingos, 02:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copia-semanal
+  cancel-in-progress: false
+
+jobs:
+  copia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AGE_RECIPIENT: ${{ secrets.AGE_RECIPIENT }}
+    steps:
+      - name: Comprobar secretos
+        run: |
+          falta=0
+          for v in SUPABASE_DB_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY AGE_RECIPIENT; do
+            if [ -z "${!v}" ]; then echo "::error::Falta el secreto $v"; falta=1; fi
+          done
+          exit $falta
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Volcar la base (pg_dump 17, misma versión que Supabase)
+        run: |
+          mkdir -p copia
+          docker run --rm -e DB="$SUPABASE_DB_URL" -v "$PWD/copia:/out" postgres:17 \
+            sh -c 'pg_dump "$DB" -Fc --no-owner --no-privileges \
+                     --schema=public --schema=auth --schema=storage --schema=supabase_migrations \
+                     -f /out/base.dump'
+          ls -lh copia/base.dump
+
+      - name: Descargar ficheros de Storage
+        run: node scripts/copias/descargar_storage.mjs copia/storage
+
+      - name: Recuento para comprobar la restauración
+        run: |
+          docker run --rm -e DB="$SUPABASE_DB_URL" postgres:17 psql "$DB" -At -F ' ' -c "
+            select 'tabla ' || relname, n_live_tup from pg_stat_user_tables where schemaname = 'public'
+            union all select 'exacto clientes', count(*) from public.clientes
+            union all select 'exacto albaranes', count(*) from public.albaranes
+            union all select 'exacto albaranes_firmados', count(*) from public.albaranes where estado = 'firmado'
+            union all select 'exacto servicios', count(*) from public.servicios
+            union all select 'exacto deca', count(*) from public.deca
+            union all select 'exacto usuarios', count(*) from auth.users
+            order by 1" > copia/recuento.txt
+          echo "ficheros $(find copia/storage -type f | wc -l)" >> copia/recuento.txt
+          date -u +"fecha %Y-%m-%dT%H:%M:%SZ" >> copia/recuento.txt
+          cat copia/recuento.txt
+
+      - name: Comprobar que la copia no está vacía
+        run: |
+          n=$(awk '$1=="exacto" && $2=="clientes" {print $3}' copia/recuento.txt)
+          if [ -z "$n" ] || [ "$n" -lt 1 ]; then echo "::error::La copia no tiene clientes"; exit 1; fi
+          docker run --rm -v "$PWD/copia:/c" postgres:17 pg_restore -l /c/base.dump > /dev/null
+
+      - name: Cifrar
+        run: |
+          nombre="elsa-copia-$(date -u +%Y-%m-%d)"
+          tar czf - -C copia . | age -r "$AGE_RECIPIENT" -o "$nombre.tar.gz.age"
+          rm -rf copia
+          echo "NOMBRE=$nombre" >> "$GITHUB_ENV"
+          ls -lh "$nombre.tar.gz.age"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NOMBRE }}
+          path: ${{ env.NOMBRE }}.tar.gz.age
+          retention-days: 90
+          if-no-files-found: error

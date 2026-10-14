@@ -10,6 +10,18 @@
 --
 -- Idempotente: se puede volver a ejecutar sin romper nada.
 
+-- BLINDAJE 14/10/2026: esta migración ya no hace nada si la base tiene los
+-- roles de 20260929190000_consolidacion_permisos_integridad. Alguien la volvió
+-- a ejecutar a mano en producción (seguramente al depurar un error de RLS del
+-- DeCA el 08/10) y recreó las políticas «con sesión, todo». Como las
+-- políticas se suman con OR, eso anulaba todos los permisos por rol.
+DO $guard$
+BEGIN
+  IF to_regprocedure('public.es_admin()') IS NOT NULL THEN
+    RAISE NOTICE 'rls_todas_las_tablas: la base ya tiene roles; no se toca nada.';
+    RETURN;
+  END IF;
+  EXECUTE $q$
 -- ---------------------------------------------------------------- datos
 ALTER TABLE public.solicitudes  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.servicios    ENABLE ROW LEVEL SECURITY;
@@ -75,3 +87,5 @@ CREATE POLICY perfiles_autenticados ON public.perfiles
 -- Comprobación: esta consulta no debe devolver ninguna fila.
 --   select tablename from pg_tables
 --   where schemaname = 'public' and rowsecurity = false;
+  $q$;
+END $guard$;
