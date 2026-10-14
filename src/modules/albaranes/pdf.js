@@ -217,13 +217,28 @@ export const generateAlbaranPDF = (a, config, servicio = null, cliente = null) =
   buildAlbaranDoc(a, config, servicio, cliente).save(`Albaran_${a.numero}.pdf`);
 };
 
+// El PDF como Blob, para guardarlo como documento emitido al firmar
+export const albaranPDFBlob = (a, config, servicio = null, cliente = null) =>
+  buildAlbaranDoc(a, config, servicio, cliente).output("blob");
+
+// Descarga un PDF ya hecho (el emitido guardado)
+export const descargarBlob = (blob, nombre) => {
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  enlace.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+};
+
 // Envía el albarán por email con el PDF adjunto usando la hoja de compartir
 // del sistema (iOS/Android). Si el navegador no soporta compartir archivos,
 // descarga el PDF y abre el correo para adjuntarlo a mano.
-export const shareAlbaranPDF = async (a, config, servicio = null, cliente = null) => {
-  const doc = buildAlbaranDoc(a, config, servicio, cliente);
+// blobEmitido: si el albarán tiene PDF emitido guardado, se envía ese y no
+// uno regenerado.
+export const shareAlbaranPDF = async (a, config, servicio = null, cliente = null, blobEmitido = null) => {
   const nombreArchivo = `Albaran_${a.numero}.pdf`;
-  const blob = doc.output("blob");
+  const blob = blobEmitido || buildAlbaranDoc(a, config, servicio, cliente).output("blob");
   const file = new File([blob], nombreArchivo, { type: "application/pdf" });
 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -240,7 +255,7 @@ export const shareAlbaranPDF = async (a, config, servicio = null, cliente = null
     }
   }
 
-  doc.save(nombreArchivo);
+  descargarBlob(blob, nombreArchivo);
   const body = [
     `Adjunto el albarán ${a.numero}${a.cliente ? ` de ${a.cliente}` : ""}.`,
     ``,

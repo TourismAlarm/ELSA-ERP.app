@@ -88,6 +88,18 @@ borrar: se anula (función `anular_albaran`, solo admin, con motivo) y se hace
 uno nuevo. Los que ya estaban firmados antes de esta migración se congelaron
 con los datos del día de la migración y llevan `"retroactivo": true`.
 
+### PDF emitido
+
+Desde `20261014130000_albaran_pdf_emitido.sql`, al firmar la app genera el PDF
+y lo guarda en el bucket privado `albaranes-firmados` con su huella SHA-256
+(`pdf_path`, `pdf_sha256`, `pdf_guardado_en`). Se sube una sola vez y nadie
+puede sobrescribirlo ni borrarlo desde la app. «PDF emitido» en la ficha
+descarga ese fichero y comprueba la huella; «Regenerar desde los datos» crea
+uno nuevo desde lo congelado. Si al firmar falla la subida, la ficha muestra
+«PDF pendiente» y deja reintentarlo. Los firmados anteriores al 14/10/2026 no
+tienen PDF emitido: se puede guardar desde la ficha (se genera desde lo
+congelado).
+
 ## Pruebas
 
 `supabase/tests/` reconstruye la base en un Postgres vacío y comprueba

@@ -53,3 +53,4 @@ jobs:
       - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/permisos_e_integridad.sql
       - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/deca_anular.sql
       - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/sin_politicas_abiertas.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/albaran_pdf.sql
