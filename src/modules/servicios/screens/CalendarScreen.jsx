@@ -21,6 +21,9 @@ const primerVehiculo = (s) => vehiculosDe(s)[0] || null;
 // qué camiones estaban ocupados. Un servicio sin vehículo lo dice, para poder
 // detectarlo de un vistazo y asignárselo.
 const etiquetaVehiculo = (vehiculo) => (vehiculo ? `🚛 ${vehiculo}` : "🚛 Sin camión");
+// Un evento de Google cuyo calendario es un camión lo lleva en e.vehiculo
+// (aunque aún no sea servicio): se enseña igual que en los servicios.
+const camionDeEvento = (e) => (e.externo === "google" && e.vehiculo ? `🚛 ${e.vehiculo}` : "");
 
 // Expande un servicio en una entrada por cada vehículo/equipo, para pintar cada
 // camión con su color en el calendario (como se hace a mano en Google Calendar).
@@ -756,7 +759,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                         style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
                         className="block w-full truncate rounded px-1 py-0.5 text-xs font-bold leading-tight shrink-0"
                       >
-                        {e.todo_el_dia ? "" : horaDelante(e.hora_inicio)}{tipoDe(e).emoji} {e.titulo}
+                        {e.todo_el_dia ? "" : horaDelante(e.hora_inicio)}{camionDeEvento(e) ? `${camionDeEvento(e)} · ` : ""}{tipoDe(e).emoji} {e.titulo}
                       </span>
                     ))}
                     {visibles.map(({ s, vehiculo }, vi) => {
@@ -860,7 +863,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                     style={{ backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
                     className="text-xs font-bold px-3 py-2 rounded-full"
                   >
-                    {tipoDe(e).emoji} {e.titulo}
+                    {camionDeEvento(e) ? `${camionDeEvento(e)} · ` : ""}{tipoDe(e).emoji} {e.titulo}
                   </button>
                 ))}
               </div>
@@ -964,6 +967,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       <p className="text-xs opacity-80 leading-tight">
                         {horaCorta(e.hora_inicio)}{e.hora_fin ? ` – ${horaCorta(e.hora_fin)}` : ""}
                       </p>
+                      {camionDeEvento(e) && <p className="text-xs font-bold leading-tight truncate">{camionDeEvento(e)}</p>}
                     </button>
                   );
                 })}
@@ -1108,7 +1112,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             style={{ height: ALTO_SIN_HORA - 2, backgroundColor: colorDe(e), color: textoSobre(colorDe(e)) }}
                             className="block w-full truncate text-left text-xs font-black rounded px-1 mt-px leading-tight"
                           >
-                            {tipoDe(e).emoji} {e.titulo}
+                            {camionDeEvento(e) ? `${camionDeEvento(e)} · ` : ""}{tipoDe(e).emoji} {e.titulo}
                           </button>
                         ))}
                         {sinHoraDia.map(({ s, vehiculo }, vi) => {
@@ -1147,6 +1151,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                                      WebkitTouchCallout: "none" }}
                             className={`absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1] ${arrastrable ? "select-none" : ""} ${drag && drag.s.id === e.id ? "opacity-40" : ""}`}
                           >
+                            {camionDeEvento(e) && <p className="text-xs font-bold leading-tight truncate">{camionDeEvento(e)}</p>}
                             <p className="text-xs font-black leading-tight truncate">{tipoDe(e).emoji} {e.titulo}</p>
                           </button>
                         );
