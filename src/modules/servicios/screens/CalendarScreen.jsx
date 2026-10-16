@@ -171,6 +171,19 @@ const bloquesDe = (lista) =>
       })
   );
 
+// Servicios y eventos de un mismo día comparten columnas: si se solapan, se
+// reparten el ancho en vez de taparse. Devuelve las dos listas con col/cols.
+const repartirColumnas = (bloques, eventos) => {
+  const todos = asignarColumnas([
+    ...bloques.map((b) => ({ ...b, esEvento: false })),
+    ...eventos.map((x) => ({ ...x, fin: x.fin > x.ini ? x.fin : x.ini + 30, esEvento: true })),
+  ]);
+  return {
+    bloques: todos.filter((x) => !x.esEvento),
+    eventos: todos.filter((x) => x.esEvento),
+  };
+};
+
 // Formatea una Date local a AAAA-MM-DD sin pasar por UTC (evita saltos de día)
 const toISO = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -443,7 +456,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
   // Rejilla horaria: servicios con hora (bloques posicionados) y sin hora (chips)
   const sinHora = delDia.filter((s) => !s.hora_inicio);
-  const conHora = bloquesDe(delDia);
+  const conHoraSuelta = bloquesDe(delDia);
   const franjas = Array.from({ length: TOTAL_MINUTOS / 30 }, (_, i) => i * 30);
 
   // Columnas de la rejilla por días: la semana (lunes a domingo) que contiene
@@ -519,13 +532,14 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   // Los de todo el día van a la franja de arriba; los que tienen hora, a la rejilla
   const eventosDelDia = eventosPorDia[fecha] || [];
   const eventosSinHora = eventosDelDia.filter((e) => e.todo_el_dia || !e.hora_inicio);
-  const eventosConHora = eventosDelDia
+  const eventosConHoraSueltos = eventosDelDia
     .filter((e) => !e.todo_el_dia && e.hora_inicio)
     .map((e) => ({
       e,
       ini: aMinutosDesdeInicio(e.hora_inicio),
       fin: e.hora_fin ? aMinutosDesdeInicio(e.hora_fin) : aMinutosDesdeInicio(e.hora_inicio) + 60,
     }));
+  const { bloques: conHora, eventos: eventosConHora } = repartirColumnas(conHoraSuelta, eventosConHoraSueltos);
 
   const ALTO_AVISO = 18; // px por fila de aviso en la vista de semana
   const maxAvisosSemana = Math.max(0, ...diasRejilla.map((iso) => (avisosPorDia[iso] || []).length));
@@ -923,7 +937,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
                 {/* Eventos con hora: no se arrastran, tocarlos abre su ficha.
                     Van al fondo para que un servicio encima siga siendo visible. */}
-                {eventosConHora.map(({ e, ini, fin }) => {
+                {eventosConHora.map(({ e, ini, fin, col, cols }) => {
                   const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                   const alto = Math.max(24, Math.min(fin, TOTAL_MINUTOS) - top);
                   const color = colorDe(e);
@@ -937,7 +951,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                       style={{
                         top: top * PX_POR_MINUTO,
                         height: alto * PX_POR_MINUTO,
-                        left: "2%", width: "96%",
+                        left: `calc(${(col / cols) * 100}% + 2px)`,
+                        width: `calc(${100 / cols}% - 4px)`,
                         backgroundColor: color, color: textoSobre(color),
                         WebkitTouchCallout: "none",
                       }}
@@ -1038,15 +1053,16 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                 const d = new Date(iso + "T00:00:00");
                 const svsDia = porDia[iso] || [];
                 const sinHoraDia = expandir(svsDia.filter((s) => !s.hora_inicio));
-                const bloques = bloquesDe(svsDia);
+                const bloquesSueltos = bloquesDe(svsDia);
                 const esHoy = iso === hoy();
                 const seleccionado = iso === fecha;
                 const festivoDia = festivoDe(iso);
                 const evsDia = eventosPorDia[iso] || [];
                 const evsSinHoraDia = evsDia.filter((e) => e.todo_el_dia || !e.hora_inicio);
-                const evsConHoraDia = evsDia
+                const evsConHoraSueltos = evsDia
                   .filter((e) => !e.todo_el_dia && e.hora_inicio)
                   .map((e) => ({ e, ini: aMinutosDesdeInicio(e.hora_inicio), fin: e.hora_fin ? aMinutosDesdeInicio(e.hora_fin) : aMinutosDesdeInicio(e.hora_inicio) + 60 }));
+                const { bloques, eventos: evsConHoraDia } = repartirColumnas(bloquesSueltos, evsConHoraSueltos);
                 return (
                   <div key={iso} className="flex-1 min-w-[72px] border-l border-zinc-100">
                     {/* Cabecera del día: se queda arriba al bajar; tocarla abre el día */}
@@ -1114,7 +1130,7 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
 
                     {/* Área horaria del día */}
                     <div ref={idx === 0 ? inicioSemanaRef : undefined} className="relative">
-                      {evsConHoraDia.map(({ e, ini, fin }) => {
+                      {evsConHoraDia.map(({ e, ini, fin, col, cols }) => {
                         const top = Math.max(0, Math.min(ini, TOTAL_MINUTOS - 24));
                         const alto = Math.max(20, Math.min(fin, TOTAL_MINUTOS) - top);
                         const color = colorDe(e);
@@ -1126,7 +1142,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                             {...(arrastrable ? propsArrastre({ s: e, ini, fin }, iso) : {})}
                             title={`${e.titulo} · ${horaCorta(e.hora_inicio)}`}
                             style={{ top: top * PX_POR_MINUTO, height: alto * PX_POR_MINUTO,
-                                     left: "3%", width: "94%", backgroundColor: color, color: textoSobre(color),
+                                     left: `calc(${(col / cols) * 100}% + 1px)`, width: `calc(${100 / cols}% - 2px)`,
+                                     backgroundColor: color, color: textoSobre(color),
                                      WebkitTouchCallout: "none" }}
                             className={`absolute rounded px-1 text-left overflow-hidden border border-white/40 z-[1] ${arrastrable ? "select-none" : ""} ${drag && drag.s.id === e.id ? "opacity-40" : ""}`}
                           >
