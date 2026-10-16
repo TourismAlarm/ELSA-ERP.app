@@ -10,6 +10,7 @@ import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio,
 import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbGuardarPdfEmitido, dbDescargarPdfEmitido, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
+import { repartirTituloGoogle } from "./modules/eventos/repartirGoogle";
 import { dbLoadEventosGoogle, conVehiculo, dbSincronizarGoogle, dbMoverEventoGoogle, dbEditarEventoGoogle, dbBorrarEventoGoogle } from "./modules/eventos/google";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
@@ -484,14 +485,25 @@ export default function App() {
   const handleConvertirEventoGoogle = (evento) => {
     setVerEventoGoogle(null);
     setEditingServicio(null);
+    // En Google todo va en el título (cliente, contacto, teléfono, qué hacer):
+    // se reparte cada cosa a su campo, reconociendo al cliente de la lista
+    const r = repartirTituloGoogle(evento.titulo, evento.notas, clientes);
     setPrefillServicio({
       fecha_servicio: evento.fecha,
       hora_inicio: evento.todo_el_dia ? null : evento.hora_inicio,
       hora_fin: evento.todo_el_dia ? null : evento.hora_fin,
       vehiculo: evento.vehiculo ? [evento.vehiculo] : [],
-      cliente: evento.titulo && evento.titulo !== "(sin título)" ? evento.titulo : "",
+      cliente: r.cliente,
+      cliente_id: r.cliente_id,
+      nifCif: r.ficha?.nifCif || "",
+      dirFact: r.ficha?.dirFact || "",
+      // El teléfono del título es el del contacto de ese trabajo: manda
+      // sobre el de la ficha
+      telCliente: r.telCliente || r.ficha?.tel || r.ficha?.movil || "",
+      emailCliente: r.emailCliente || r.ficha?.email || "",
       origen: evento.ubicacion || "",
-      descripcion: evento.notas || "",
+      descripcion: r.descripcion,
+      clienteReconocido: Boolean(r.ficha),
       desdeGoogle: evento,
     });
     setScreen("servicioForm");
