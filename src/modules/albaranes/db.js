@@ -5,6 +5,7 @@ import { supabase, cargarTodas } from "../../shared/lib/supabase";
 const SOLO_SERVIDOR = [
   "contenido_firmado", "huella_sha256", "firmado_por_usuario", "firmado_en",
   "anulado", "anulado_en", "anulado_por", "motivo_anulacion",
+  "pdf_path", "pdf_sha256", "pdf_guardado_en",
 ];
 
 const sanitize = (a) => {
@@ -100,4 +101,49 @@ export const dbAnularAlbaran = async (id, motivo) => {
   const { data, error } = await supabase.rpc("anular_albaran", { p_id: id, p_motivo: motivo });
   if (error) { console.error(error); alert("No se ha podido anular el albarán: " + mensaje(error)); return null; }
   return data;
+};
+
+// ---- PDF emitido -----------------------------------------------------------
+// Al firmar se guarda el PDF exacto que se entrega, en un bucket privado. La
+// base de datos solo deja subirlo una vez y solo para un albarán firmado, y
+// nadie puede sobrescribirlo ni borrarlo desde la app.
+const BUCKET_PDF = "albaranes-firmados";
+
+const sha256Hex = async (blob) => {
+  const hash = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+// Sube el PDF y lo registra en el albarán. Devuelve { pdf_path, pdf_sha256,
+// pdf_guardado_en } o null. Sin alert: si falla, el albarán sigue firmado y
+// la ficha muestra «PDF pendiente» con un botón para reintentar.
+export const dbGuardarPdfEmitido = async (albaran, blob) => {
+  // Nombre con marca de tiempo: si un intento anterior subió el fichero pero
+  // no llegó a registrarlo, el reintento no choca con él
+  const path = `${albaran.id}/${albaran.numero || "albaran"}-${Date.now()}.pdf`;
+  const pdf_sha256 = await sha256Hex(blob);
+
+  const { error: errorSubida } = await supabase.storage.from(BUCKET_PDF)
+    .upload(path, blob, { contentType: "application/pdf", upsert: false });
+  if (errorSubida) { console.error("Subida del PDF emitido:", errorSubida); return null; }
+
+  const { data, error } = await supabase.from("albaranes")
+    .update({ pdf_path: path, pdf_sha256 })
+    .eq("id", albaran.id)
+    .select("pdf_path, pdf_sha256, pdf_guardado_en")
+    .single();
+  if (error) { console.error("Registro del PDF emitido:", error); return null; }
+  return data;
+};
+
+// Descarga el PDF emitido tal cual se guardó y comprueba que su huella sigue
+// siendo la registrada. Devuelve el Blob, o null si no se puede.
+export const dbDescargarPdfEmitido = async (albaran) => {
+  const { data, error } = await supabase.storage.from(BUCKET_PDF).download(albaran.pdf_path);
+  if (error) { console.error(error); alert("No se ha podido descargar el PDF emitido: " + error.message); return null; }
+  const blob = data.type === "application/pdf" ? data : new Blob([data], { type: "application/pdf" });
+  if (albaran.pdf_sha256 && await sha256Hex(blob) !== albaran.pdf_sha256) {
+    alert("Atención: el PDF guardado no coincide con la huella registrada al firmar. Avisa a administración.");
+  }
+  return blob;
 };

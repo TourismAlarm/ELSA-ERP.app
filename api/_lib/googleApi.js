@@ -208,10 +208,21 @@ function api(token, metodo, ruta, cuerpo) {
   });
 }
 
+// El error de Google dicho en claro. Los 403 de Google son muy distintos
+// entre sí: la API sin activar en Google Cloud, un permiso que no se marcó al
+// conectar o un calendario ajeno, y cada uno se arregla en un sitio.
 const errorDe = async (r) => {
   const c = await r.json().catch(() => ({}));
   const m = c?.error?.message || `Google ha respondido ${r.status}`;
-  if (r.status === 403 || r.status === 404) return `${m} (¿el calendario es de otra cuenta o no tiene permiso de escritura?)`;
+  const motivo = c?.error?.errors?.[0]?.reason || c?.error?.details?.[0]?.reason || "";
+  if (/accessNotConfigured|SERVICE_DISABLED/i.test(motivo) || /has not been used in project|is disabled/i.test(m)) {
+    return "Falta activar «Google Calendar API» en Google Cloud (APIs y servicios → Biblioteca → Habilitar). Después espera unos minutos.";
+  }
+  if (/insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(motivo) || /insufficient authentication scopes/i.test(m)) {
+    return "Al conectar no se marcaron todos los permisos. Desconecta y vuelve a conectar con Google marcando todas las casillas.";
+  }
+  if (r.status === 404) return `${m} (¿el calendario se ha borrado o es de otra cuenta?)`;
+  if (r.status === 403) return `${m} (¿el calendario es de otra cuenta o no tiene permiso de escritura?)`;
   return m;
 };
 
@@ -280,4 +291,75 @@ export const leerEventos = async (token, calendarioId, desde, hasta) => {
     pagina = c.nextPageToken;
   }
   return eventos;
+};
+
+// ------------------------------------------------ eventos de Google desde el ERP
+
+// Suma minutos a una fecha y hora locales ("2026-10-09", "09:30") sin pasar
+// por zonas: es la hora de Madrid tal cual, que es como la escribe Google
+// con timeZone.
+export const sumarMinutosLocal = (fecha, hora, minutos) => {
+  const [a, m, d] = fecha.split("-").map(Number);
+  const [hh, mm] = hora.split(":").map(Number);
+  const t = new Date(Date.UTC(a, m - 1, d, hh, mm) + minutos * 60000);
+  return { fecha: t.toISOString().slice(0, 10), hora: t.toISOString().slice(11, 16) };
+};
+
+const diasEntre = (a, b) => Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86400000);
+const sumarDias = (iso, n) => {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+// Inicio y fin nuevos al MOVER un evento: mismo largo que tenía. Con hora:
+// a la fecha y hora nuevas (Madrid). De todo el día: a la fecha nueva,
+// mismos días de largo.
+export const tiemposAlMover = (ev, { fecha, hora_inicio }) => {
+  if (ev.start?.date) {
+    const largo = Math.max(1, diasEntre(ev.start.date, ev.end?.date || sumarDias(ev.start.date, 1)));
+    return { start: { date: fecha }, end: { date: sumarDias(fecha, largo) } };
+  }
+  const durMin = Math.max(15, Math.round((Date.parse(ev.end?.dateTime) - Date.parse(ev.start?.dateTime)) / 60000) || 60);
+  const hora = hora_inicio || "08:00";
+  const fin = sumarMinutosLocal(fecha, hora, durMin);
+  return {
+    start: { dateTime: `${fecha}T${hora}:00`, timeZone: ZONA },
+    end: { dateTime: `${fin.fecha}T${fin.hora}:00`, timeZone: ZONA },
+  };
+};
+
+// Inicio y fin al EDITAR desde la ficha: lo que se ha escrito
+export const tiemposAlEditar = ({ fecha, fecha_fin, hora_inicio, hora_fin, todo_el_dia }) => {
+  if (todo_el_dia || !hora_inicio) {
+    const ultimo = fecha_fin && fecha_fin > fecha ? fecha_fin : fecha;
+    return { start: { date: fecha }, end: { date: sumarDias(ultimo, 1) } };
+  }
+  const fin = hora_fin && hora_fin > hora_inicio ? { fecha, hora: hora_fin } : sumarMinutosLocal(fecha, hora_inicio, 60);
+  return {
+    start: { dateTime: `${fecha}T${hora_inicio}:00`, timeZone: ZONA },
+    end: { dateTime: `${fin.fecha}T${fin.hora}:00`, timeZone: ZONA },
+  };
+};
+
+const rutaEvento = (calendarioId, eventoId) =>
+  `calendars/${encodeURIComponent(calendarioId)}/events/${encodeURIComponent(eventoId)}`;
+
+export const leerEvento = async (token, calendarioId, eventoId) => {
+  const r = await api(token, "GET", rutaEvento(calendarioId, eventoId));
+  if (!r.ok) throw new Error(await errorDe(r));
+  return r.json();
+};
+
+// PATCH: solo cambia los campos que se mandan; el resto del evento de Google
+// (invitados, avisos, color...) se queda como estaba
+export const cambiarEvento = async (token, calendarioId, eventoId, cambios) => {
+  const r = await api(token, "PATCH", rutaEvento(calendarioId, eventoId), cambios);
+  if (!r.ok) throw new Error(await errorDe(r));
+  return r.json();
+};
+
+export const borrarEventoGoogle = async (token, calendarioId, eventoId) => {
+  const r = await api(token, "DELETE", rutaEvento(calendarioId, eventoId));
+  if (!r.ok && r.status !== 404 && r.status !== 410) throw new Error(await errorDe(r));
 };

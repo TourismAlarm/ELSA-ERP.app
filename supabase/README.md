@@ -88,6 +88,18 @@ borrar: se anula (función `anular_albaran`, solo admin, con motivo) y se hace
 uno nuevo. Los que ya estaban firmados antes de esta migración se congelaron
 con los datos del día de la migración y llevan `"retroactivo": true`.
 
+### PDF emitido
+
+Desde `20261014130000_albaran_pdf_emitido.sql`, al firmar la app genera el PDF
+y lo guarda en el bucket privado `albaranes-firmados` con su huella SHA-256
+(`pdf_path`, `pdf_sha256`, `pdf_guardado_en`). Se sube una sola vez y nadie
+puede sobrescribirlo ni borrarlo desde la app. «PDF emitido» en la ficha
+descarga ese fichero y comprueba la huella; «Regenerar desde los datos» crea
+uno nuevo desde lo congelado. Si al firmar falla la subida, la ficha muestra
+«PDF pendiente» y deja reintentarlo. Los firmados anteriores al 14/10/2026 no
+tienen PDF emitido: se puede guardar desde la ficha (se genera desde lo
+congelado).
+
 ## Pruebas
 
 `supabase/tests/` reconstruye la base en un Postgres vacío y comprueba
@@ -107,14 +119,25 @@ psql -f supabase/tests/permisos_e_integridad.sql
 El botón «Exportar datos» de Configuración descarga las tablas en JSON. **No es
 una copia de recuperación**: no incluye fotos, PDF de DeCA ni cuentas.
 
-La recuperación depende de las copias de Supabase (plan Pro: copia diaria con
-7 días de retención; PITR opcional). Pendiente de decidir y documentar aquí:
+**Situación a 14/10/2026: el proyecto está en el plan gratuito de Supabase,
+que no hace ninguna copia.** La única copia de recuperación es la semanal de
+GitHub Actions (`.github/workflows/copia-semanal.yml`):
 
-- Cuánto dato se puede perder como máximo (RPO) y cuánto tiempo puede estar
-  parada la empresa (RTO).
-- Una copia fuera de Supabase (volcado `pg_dump` + ficheros de Storage) en un
-  sitio privado. **No** en artefactos de GitHub: el repositorio es público.
-- Una restauración de prueba en un proyecto aparte, al menos una vez.
+- Domingos de madrugada: volcado completo de la base (datos, cuentas y
+  migraciones) y todos los ficheros de Storage (fotos y PDF de DeCA).
+- Se cifra con `age` antes de salir del runner. El repositorio es público: sin
+  la clave privada, que no está en GitHub, el fichero no se puede leer.
+- Se guarda 90 días como artefacto de la ejecución.
+- Se puede lanzar a mano en Actions → «Copia semanal» → Run workflow.
+
+Objetivo propuesto: perder como máximo **una semana** de datos (RPO) y volver
+a funcionar en **medio día** (RTO). Para bajar a un día como máximo, hay que
+pasar a Supabase Pro (copia diaria automática con 7 días de retención).
+
+Cómo restaurar y registro de pruebas de restauración: `scripts/copias/restaurar.md`.
+
+**Mientras no se migre a Pro**: no ejecutar a mano en producción migraciones
+antiguas ni SQL que borre datos sin haber lanzado antes la copia a mano.
 
 ## Versiones de las migraciones
 

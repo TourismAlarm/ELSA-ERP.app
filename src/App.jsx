@@ -7,10 +7,10 @@ import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, Vie
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbAceptarSolicitud, dbMiRol, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
-import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
+import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbGuardarPdfEmitido, dbDescargarPdfEmitido, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
-import { dbLoadEventosGoogle, conVehiculo, dbSincronizarGoogle } from "./modules/eventos/google";
+import { dbLoadEventosGoogle, conVehiculo, dbSincronizarGoogle, dbMoverEventoGoogle, dbEditarEventoGoogle, dbBorrarEventoGoogle } from "./modules/eventos/google";
 import { dbLoadServiciosConDeca } from "./modules/deca/db";
 import { sendServicioEmail } from "./modules/servicios/messaging";
 import { sendWhatsApp, sendEmail } from "./shared/lib/messaging";
@@ -91,7 +91,9 @@ export default function App() {
   const googleConectado = Boolean(config?.google_cuenta);
   const avisarGoogle = useCallback((id) => {
     if (!googleConectado || !id) return;
-    dbSincronizarGoogle([id]).then((error) => setAvisoEscrituraGoogle(error));
+    dbSincronizarGoogle([id]).then((error) =>
+      setAvisoEscrituraGoogle(error ? `Guardado en el ERP, pero no se ha podido pasar a Google Calendar: ${error}` : null)
+    );
   }, [googleConectado]);
 
   // Trae los calendarios de Google. Va aparte y sin esperar: si Google tarda
@@ -270,14 +272,40 @@ export default function App() {
   // parecido, buscar por nombre podía coger la ficha equivocada)
   const clienteDeAlbaran = (a) => fichaDelCliente(a, clientes);
 
+  // Si el albarán tiene PDF emitido guardado, se descarga ESE (el que se
+  // entregó al firmar). Si no, se genera.
   const pdfAlbaran = async (a) => {
+    const pdf = await import("./modules/albaranes/pdf");
+    if (a.pdf_path) {
+      const blob = await dbDescargarPdfEmitido(a);
+      if (blob) pdf.descargarBlob(blob, `Albaran_${a.numero}.pdf`);
+      return;
+    }
+    pdf.generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+  };
+
+  // Regenerar desde los datos (en un firmado, desde lo congelado al firmar)
+  const regenerarPdfAlbaran = async (a) => {
     const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
     generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
   };
 
   const compartirAlbaran = async (a) => {
     const { shareAlbaranPDF } = await import("./modules/albaranes/pdf");
-    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+    const emitido = a.pdf_path ? await dbDescargarPdfEmitido(a) : null;
+    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a), emitido);
+  };
+
+  // Genera el PDF de un albarán firmado y lo guarda como documento emitido.
+  // Se llama al firmar y, si aquello falló, desde el botón de la ficha.
+  const guardarPdfEmitido = async (a) => {
+    const { albaranPDFBlob } = await import("./modules/albaranes/pdf");
+    const blob = albaranPDFBlob(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+    const guardado = await dbGuardarPdfEmitido(a, blob);
+    if (!guardado) return null;
+    setAlbaranes((prev) => prev.map((x) => x.id === a.id ? { ...x, ...guardado } : x));
+    setViewingAlbaran((prev) => prev && prev.id === a.id ? { ...prev, ...guardado } : prev);
+    return guardado;
   };
 
   const handleConfigSave = (cfg) => {
@@ -415,6 +443,60 @@ export default function App() {
     setViewingServicio((prev) => prev && prev.id === servicio.id ? { ...prev, fecha_servicio, hora_inicio, hora_fin } : prev);
   };
 
+  // ---- Eventos creados en Google: se cambian en Google desde aquí ----
+  const reemplazarEventoGoogle = (id, nuevo) =>
+    setEventosGoogle((prev) => (nuevo ? prev.map((x) => (x.id === id ? nuevo : x)) : prev.filter((x) => x.id !== id)));
+
+  // Arrastrado en el calendario. Se pinta ya en su sitio nuevo y, si Google
+  // no lo acepta, vuelve a donde estaba.
+  const handleMoverEventoGoogle = async (evento, fecha, hora_inicio) => {
+    const antes = evento;
+    reemplazarEventoGoogle(evento.id, { ...evento, fecha, hora_inicio: evento.todo_el_dia ? null : hora_inicio });
+    const { evento: nuevo, error } = await dbMoverEventoGoogle(evento, fecha, evento.todo_el_dia ? null : hora_inicio);
+    if (error) {
+      reemplazarEventoGoogle(evento.id, antes);
+      setAvisoEscrituraGoogle(`No se ha podido mover en Google Calendar: ${error}`);
+      return;
+    }
+    if (nuevo) reemplazarEventoGoogle(evento.id, nuevo);
+  };
+
+  // Devuelven el texto del error, o null si ha ido bien (la ficha lo enseña)
+  const handleGuardarEventoGoogle = async (evento, cambios) => {
+    const { evento: nuevo, error } = await dbEditarEventoGoogle(evento, cambios);
+    if (error) return error;
+    if (nuevo) reemplazarEventoGoogle(evento.id, nuevo);
+    setVerEventoGoogle(null);
+    return null;
+  };
+  const handleBorrarEventoGoogle = async (evento) => {
+    const { error } = await dbBorrarEventoGoogle(evento);
+    if (error) return error;
+    reemplazarEventoGoogle(evento.id, null);
+    setVerEventoGoogle(null);
+    return null;
+  };
+
+  // Convertir un evento de Google en servicio: se abre el formulario con lo
+  // que se sabe del evento. El evento se quita de Google solo cuando el
+  // servicio se ha guardado (ver handleServicioFormSave): si se cancela, no
+  // se pierde nada.
+  const handleConvertirEventoGoogle = (evento) => {
+    setVerEventoGoogle(null);
+    setEditingServicio(null);
+    setPrefillServicio({
+      fecha_servicio: evento.fecha,
+      hora_inicio: evento.todo_el_dia ? null : evento.hora_inicio,
+      hora_fin: evento.todo_el_dia ? null : evento.hora_fin,
+      vehiculo: evento.vehiculo ? [evento.vehiculo] : [],
+      cliente: evento.titulo && evento.titulo !== "(sin título)" ? evento.titulo : "",
+      origen: evento.ubicacion || "",
+      descripcion: evento.notas || "",
+      desdeGoogle: evento,
+    });
+    setScreen("servicioForm");
+  };
+
   const handleServicioCambiarEstado = async (id, nuevoEstado) => {
     if (!await dbCambiarEstadoServicio(id, nuevoEstado)) return false;
     setServicios((prev) => prev.map((s) => s.id === id ? { ...s, estado: nuevoEstado } : s));
@@ -482,6 +564,15 @@ export default function App() {
         setEditingServicio(null);
         setServicios((prev) => [saved, ...prev]);
         avisarGoogle(saved.id);
+        // Venía de un evento de Google: ya es un servicio, el evento sobra
+        const evGoogle = prefillServicio?.desdeGoogle;
+        if (evGoogle) {
+          setPrefillServicio(null);
+          dbBorrarEventoGoogle(evGoogle).then(({ error }) => {
+            if (error) setAvisoEscrituraGoogle(`Servicio creado, pero el evento original sigue en Google (bórralo a mano): ${error}`);
+            else reemplazarEventoGoogle(evGoogle.id, null);
+          });
+        }
         handleServicioView(saved);
       }
       // Si falla, se queda en el formulario con lo escrito para reintentar
@@ -504,7 +595,10 @@ export default function App() {
       avisarGoogle(firmado.servicio_id);
       setViewingServicio((prev) => prev && prev.id === firmado.servicio_id ? { ...prev, estado: "realizado" } : prev);
     }
-    return firmado;
+    // Guardar el PDF tal cual se entrega. Si falla, la firma ya vale y la
+    // ficha ofrece reintentarlo («PDF pendiente»).
+    const pdf = await guardarPdfEmitido(firmado);
+    return pdf ? { ...firmado, ...pdf } : firmado;
   };
 
   const handleAlbaranAnular = async (id) => {
@@ -678,14 +772,20 @@ export default function App() {
       {avisoEscrituraGoogle && (
         <div className="fixed bottom-24 left-3 right-3 z-50 mx-auto max-w-xl bg-amber-50 border-2 border-amber-300 rounded-xl px-4 py-3 shadow-lg flex items-start gap-3">
           <p className="text-sm text-amber-900 flex-1">
-            📆 Guardado en el ERP, pero no se ha podido pasar a Google Calendar: {avisoEscrituraGoogle}
+            📆 {avisoEscrituraGoogle}
           </p>
           <button onClick={() => setAvisoEscrituraGoogle(null)} aria-label="Cerrar" className="text-amber-700 text-xl leading-none">×</button>
         </div>
       )}
 
       {verEventoGoogle && (
-        <EventoGoogleModal evento={verEventoGoogle} onCerrar={() => setVerEventoGoogle(null)} />
+        <EventoGoogleModal
+          evento={verEventoGoogle}
+          onGuardar={handleGuardarEventoGoogle}
+          onBorrar={handleBorrarEventoGoogle}
+          onConvertir={handleConvertirEventoGoogle}
+          onCerrar={() => setVerEventoGoogle(null)}
+        />
       )}
 
       {editandoEvento && (
@@ -841,6 +941,7 @@ export default function App() {
           onCrearAlbaran={handleCrearAlbaranDesdeServicio}
           onNuevoServicioEnHora={handleNuevoServicioEnHora}
           onMoverServicio={handleMoverServicio}
+          onMoverEventoGoogle={handleMoverEventoGoogle}
           onAddNota={handleServicioAddNota}
           onConfig={() => setScreen("config")}
         />
@@ -897,6 +998,8 @@ export default function App() {
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
           onGeneratePDF={pdfAlbaran}
+          onRegenerarPDF={regenerarPdfAlbaran}
+          onGuardarPdfEmitido={guardarPdfEmitido}
           onEnviarEmail={compartirAlbaran}
         />
       )}

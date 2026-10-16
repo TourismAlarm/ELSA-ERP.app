@@ -54,6 +54,7 @@ with esperadas(tabla, columna) as (values
   -- Firma congelada y anulación (las escribe la base de datos)
   ('albaranes','contenido_firmado'), ('albaranes','huella_sha256'), ('albaranes','anulado'),
   ('albaranes','anulado_en'), ('albaranes','motivo_anulacion'),
+  ('albaranes','pdf_path'), ('albaranes','pdf_sha256'), ('albaranes','pdf_guardado_en'),
 
   ('vehiculos','nombre'), ('vehiculos','matricula'), ('vehiculos','tipo'),
   ('vehiculos','itv_vencimiento'), ('vehiculos','seguro_vencimiento'),
