@@ -7,7 +7,7 @@ import { ListScreen as AlbaranesListScreen, FormScreen as AlbaranFormScreen, Vie
 import { ListScreen as FlotaListScreen, FormScreen as VehiculoFormScreen, ViewScreen as VehiculoViewScreen } from "./modules/flota/screens";
 import { dbLoadSolicitudes, dbSaveSolicitud, dbUpdateSolicitud, dbDeleteSolicitud, dbLoadConfig, dbCambiarEstado, dbAceptarSolicitud, dbMiRol, dbToggleAvisos, dbAddNota, dbLoadClientes, dbSaveCliente, dbUpdateCliente, dbDeleteCliente, dbImportarClientes } from "./modules/solicitudes/db";
 import { dbLoadServicios, deserializeServicio, dbSaveServicio, dbUpdateServicio, dbDeleteServicio, dbCambiarEstadoServicio, dbAddNotaServicio } from "./modules/servicios/db";
-import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
+import { dbLoadAlbaranes, dbSaveAlbaran, dbUpdateAlbaran, dbDeleteAlbaran, dbFirmarAlbaran, dbEmitirAlbaranDeServicio, dbAnularAlbaran, dbGuardarPdfEmitido, dbDescargarPdfEmitido, dbDesvincularAlbaranesDeServicio } from "./modules/albaranes/db";
 import { dbLoadVehiculos, dbSaveVehiculo, dbUpdateVehiculo, dbDeleteVehiculo } from "./modules/flota/db";
 import { dbLoadEventos, dbSaveEvento, dbUpdateEvento, dbDeleteEvento } from "./modules/eventos/db";
 import { dbLoadEventosGoogle, conVehiculo, dbSincronizarGoogle, dbMoverEventoGoogle, dbEditarEventoGoogle, dbBorrarEventoGoogle } from "./modules/eventos/google";
@@ -272,14 +272,40 @@ export default function App() {
   // parecido, buscar por nombre podía coger la ficha equivocada)
   const clienteDeAlbaran = (a) => fichaDelCliente(a, clientes);
 
+  // Si el albarán tiene PDF emitido guardado, se descarga ESE (el que se
+  // entregó al firmar). Si no, se genera.
   const pdfAlbaran = async (a) => {
+    const pdf = await import("./modules/albaranes/pdf");
+    if (a.pdf_path) {
+      const blob = await dbDescargarPdfEmitido(a);
+      if (blob) pdf.descargarBlob(blob, `Albaran_${a.numero}.pdf`);
+      return;
+    }
+    pdf.generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+  };
+
+  // Regenerar desde los datos (en un firmado, desde lo congelado al firmar)
+  const regenerarPdfAlbaran = async (a) => {
     const { generateAlbaranPDF } = await import("./modules/albaranes/pdf");
     generateAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
   };
 
   const compartirAlbaran = async (a) => {
     const { shareAlbaranPDF } = await import("./modules/albaranes/pdf");
-    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+    const emitido = a.pdf_path ? await dbDescargarPdfEmitido(a) : null;
+    await shareAlbaranPDF(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a), emitido);
+  };
+
+  // Genera el PDF de un albarán firmado y lo guarda como documento emitido.
+  // Se llama al firmar y, si aquello falló, desde el botón de la ficha.
+  const guardarPdfEmitido = async (a) => {
+    const { albaranPDFBlob } = await import("./modules/albaranes/pdf");
+    const blob = albaranPDFBlob(a, config || {}, servicioDeAlbaran(a), clienteDeAlbaran(a));
+    const guardado = await dbGuardarPdfEmitido(a, blob);
+    if (!guardado) return null;
+    setAlbaranes((prev) => prev.map((x) => x.id === a.id ? { ...x, ...guardado } : x));
+    setViewingAlbaran((prev) => prev && prev.id === a.id ? { ...prev, ...guardado } : prev);
+    return guardado;
   };
 
   const handleConfigSave = (cfg) => {
@@ -569,7 +595,10 @@ export default function App() {
       avisarGoogle(firmado.servicio_id);
       setViewingServicio((prev) => prev && prev.id === firmado.servicio_id ? { ...prev, estado: "realizado" } : prev);
     }
-    return firmado;
+    // Guardar el PDF tal cual se entrega. Si falla, la firma ya vale y la
+    // ficha ofrece reintentarlo («PDF pendiente»).
+    const pdf = await guardarPdfEmitido(firmado);
+    return pdf ? { ...firmado, ...pdf } : firmado;
   };
 
   const handleAlbaranAnular = async (id) => {
@@ -969,6 +998,8 @@ export default function App() {
           onBack={() => setScreen("albaranesList")}
           onFirmar={handleAlbaranFirmar}
           onGeneratePDF={pdfAlbaran}
+          onRegenerarPDF={regenerarPdfAlbaran}
+          onGuardarPdfEmitido={guardarPdfEmitido}
           onEnviarEmail={compartirAlbaran}
         />
       )}

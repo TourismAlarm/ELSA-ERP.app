@@ -12,14 +12,15 @@ const formatFechaDia = (fecha) =>
 const formatFechaHora = (fechaISO) =>
   fechaISO ? new Date(fechaISO).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onAnular, onBack, onFirmar, onGeneratePDF, onEnviarEmail }) => {
+const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio, solicitudVinculada, onVerSolicitud, onEdit, onDelete, onAnular, onBack, onFirmar, onGeneratePDF, onRegenerarPDF, onGuardarPdfEmitido, onEnviarEmail }) => {
   const [alb, setAlb] = useState(albaran);
+  const [guardandoPdf, setGuardandoPdf] = useState(false);
   // Si el albarán cambia desde fuera (refrescar, anular) la ficha se
   // actualiza; antes se quedaba con la copia del momento de abrirla
   // (App crea el objeto de nuevo en cada render: se compara por lo que cambia)
   useEffect(() => { setAlb(albaran); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [albaran.id, albaran.estado, albaran.anulado, albaran.updated_at]);
+    [albaran.id, albaran.estado, albaran.anulado, albaran.pdf_path, albaran.updated_at]);
   const [firmante, setFirmante] = useState("");
   const [firmando, setFirmando] = useState(false);
   const [hasStroke, setHasStroke] = useState(false);
@@ -268,9 +269,33 @@ const ViewScreen = ({ albaran, config, cliente, servicioVinculado, onVerServicio
       <div className="bg-white border-2 border-zinc-200 rounded-xl p-5 mb-4">
         <p className="text-xs font-bold text-zinc-400 tracking-widest uppercase mb-3">Documento</p>
         <div className="flex gap-3 flex-wrap">
-          <Btn size="lg" className="flex-1" onClick={() => onGeneratePDF(alb)}>📄 Generar PDF</Btn>
+          <Btn size="lg" className="flex-1" onClick={() => onGeneratePDF(alb)}>
+            {alb.pdf_path ? "📄 PDF emitido" : "📄 Generar PDF"}
+          </Btn>
           <Btn size="lg" variant="email" className="flex-1" onClick={() => onEnviarEmail(alb)}>✉️ Enviar por email</Btn>
         </div>
+        {estado === "firmado" && alb.pdf_path && (
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-500">
+            <span>🔒 Guardado al firmar{alb.pdf_guardado_en ? ` · ${formatFechaHora(alb.pdf_guardado_en)}` : ""}</span>
+            {onRegenerarPDF && (
+              <button type="button" className="underline hover:text-zinc-900" onClick={() => onRegenerarPDF(alb)}>
+                Regenerar desde los datos
+              </button>
+            )}
+          </div>
+        )}
+        {estado === "firmado" && !alb.pdf_path && onGuardarPdfEmitido && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-800">⚠️ PDF emitido pendiente de guardar</p>
+            <Btn size="sm" variant="secondary" disabled={guardandoPdf} onClick={async () => {
+              setGuardandoPdf(true);
+              const r = await onGuardarPdfEmitido(alb);
+              setGuardandoPdf(false);
+              if (r) setAlb((prev) => ({ ...prev, ...r }));
+              else alert("No se ha podido guardar el PDF. Comprueba la conexión y vuelve a intentarlo.");
+            }}>{guardandoPdf ? "Guardando..." : "Guardar ahora"}</Btn>
+          </div>
+        )}
       </div>
 
       {estado === "firmado" ? (
