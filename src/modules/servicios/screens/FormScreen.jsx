@@ -13,7 +13,7 @@ const hoy = () => new Date().toISOString().slice(0, 10);
 // Un servicio nuevo ya trae hora: la que venga del calendario si se ha creado
 // tocando una franja, o las 08:00. El fin, una hora después.
 const horasIniciales = (prefill) =>
-  conHorasValidas({ hora_inicio: prefill?.hora_inicio || HORA_INICIO_POR_DEFECTO, hora_fin: "" });
+  conHorasValidas({ hora_inicio: prefill?.hora_inicio || HORA_INICIO_POR_DEFECTO, hora_fin: prefill?.hora_fin || "" });
 
 // Lo que el DeCA pide del servicio y que no va en ningún otro sitio. Los
 // textos a "" y no a null, que un null en un <input> lo vuelve no controlado.
@@ -37,8 +37,10 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
   const [form, setForm] = useState(
     initial
       ? conHorasValidas({ ...initial, vehiculo: normalizeVehiculo(initial.vehiculo), fotos: initial.fotos || [], fecha_servicio: initial.fecha_servicio || hoy(), notas_internas: initial.notas_internas || "", ...decaDe(initial) })
-      // Alta nueva: prefill (desde el calendario) solo aporta fecha/hora por defecto
-      : { cliente: "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: [], origen: "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: "", precio: "", notas_internas: "", ...DECA_VACIO, fotos: [] }
+      // Alta nueva: prefill viene del calendario (fecha/hora) o de un evento
+      // de Google que se convierte en servicio (además vehículo, cliente
+      // escrito, origen y descripción, para revisarlos)
+      : { cliente: prefill?.cliente || "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: prefill?.vehiculo || [], origen: prefill?.origen || "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: prefill?.descripcion || "", precio: "", notas_internas: "", ...DECA_VACIO, fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -124,6 +126,16 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
           <h1 className="text-3xl font-black text-zinc-900">{initial ? "Editar servicio" : "Nuevo servicio"}</h1>
         </div>
       </div>
+
+      {!initial && prefill?.desdeGoogle && (
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-5">
+          <p className="text-sm font-black text-blue-900">📆 Convirtiendo un evento de Google Calendar</p>
+          <p className="text-xs text-blue-800 mt-1">
+            Revisa el cliente (elígelo de la lista para que tenga su ficha), el vehículo y las horas. Al guardar, el evento
+            «{prefill.desdeGoogle.titulo}» se quita de Google y en su lugar queda este servicio, que también sale en Google.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-5 bg-white border-2 border-zinc-200 rounded-xl p-6 shadow-sm">
 
