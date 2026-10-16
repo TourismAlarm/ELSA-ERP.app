@@ -40,7 +40,7 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
       // Alta nueva: prefill viene del calendario (fecha/hora) o de un evento
       // de Google que se convierte en servicio (además vehículo, cliente
       // escrito, origen y descripción, para revisarlos)
-      : { cliente: prefill?.cliente || "", cliente_id: null, nifCif: "", dirFact: "", telCliente: "", emailCliente: "", vehiculo: prefill?.vehiculo || [], origen: prefill?.origen || "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: prefill?.descripcion || "", precio: "", notas_internas: "", ...DECA_VACIO, fotos: [] }
+      : { cliente: prefill?.cliente || "", cliente_id: prefill?.cliente_id ?? null, nifCif: prefill?.nifCif || "", dirFact: prefill?.dirFact || "", telCliente: prefill?.telCliente || "", emailCliente: prefill?.emailCliente || "", vehiculo: prefill?.vehiculo || [], origen: prefill?.origen || "", destino: "", fecha_servicio: prefill?.fecha_servicio || hoy(), ...horasIniciales(prefill), descripcion: prefill?.descripcion || "", precio: "", notas_internas: "", ...DECA_VACIO, fotos: [] }
   );
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [savingCliente, setSavingCliente] = useState(false);
@@ -131,8 +131,13 @@ const FormScreen = ({ initial, prefill, config, clientes = [], servicios = [], e
         <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-5">
           <p className="text-sm font-black text-blue-900">📆 Convirtiendo un evento de Google Calendar</p>
           <p className="text-xs text-blue-800 mt-1">
-            Revisa el cliente (elígelo de la lista para que tenga su ficha), el vehículo y las horas. Al guardar, el evento
-            «{prefill.desdeGoogle.titulo}» se quita de Google y en su lugar queda este servicio, que también sale en Google.
+            Del título «{prefill.desdeGoogle.titulo}» se ha sacado el cliente, el teléfono y el email; lo demás va a la descripción.
+            {prefill.clienteReconocido
+              ? " El cliente es uno de tu lista, con su ficha."
+              : " El cliente no está en tu lista: revísalo o elígelo de las sugerencias para que tenga su ficha."}
+          </p>
+          <p className="text-xs text-blue-800 mt-1">
+            Revisa también el vehículo y las horas. Al guardar, el evento se quita de Google y en su lugar queda este servicio, que también sale en Google.
           </p>
         </div>
       )}
