@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect, useMemo } from "react";
+import { useState, useRef, useLayoutEffect, useEffect, useMemo } from "react";
 import { Btn, MapasModal } from "../../../shared/components/ui";
 import { textoSobre } from "../../../shared/lib/color";
 import { servicioSinDeca } from "../../deca/db";
@@ -71,6 +71,19 @@ const HORA_MAX = 24;
 const PX_POR_MINUTO = 1; // 60px por hora
 const TOTAL_MINUTOS = (HORA_MAX - HORA_MIN) * 60;
 const HORA_SCROLL_INICIAL = 7;
+
+// Línea roja de "ahora" (estilo Google Calendar): solo en la columna de hoy.
+// Por encima de los bloques (z-[12]) pero por debajo de la cabecera pegajosa
+// (z-[15]) y sin capturar toques ni arrastres.
+function LineaAhora({ ahora }) {
+  const top = (ahora.getHours() * 60 + ahora.getMinutes() - HORA_MIN * 60) * PX_POR_MINUTO;
+  return (
+    <div className="absolute left-0 right-0 z-[12] pointer-events-none" style={{ top, height: 0 }}>
+      <div className="absolute left-0 right-0 bg-red-500" style={{ height: 2, top: -1 }} />
+      <div className="absolute left-0 rounded-full bg-red-500" style={{ width: 10, height: 10, top: -5 }} />
+    </div>
+  );
+}
 
 // Última hora que se guarda como fin: "24:00" no cabe en los campos de hora
 // de los formularios, y el resto de la app ya cierra el día en 23:59
@@ -190,6 +203,12 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
   };
 
   const [fecha, setFecha] = useState(hoy());
+  // Hora actual para la línea de "ahora": se refresca cada minuto
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
   const [mes, setMes] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -967,6 +986,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                   );
                 })}
 
+                {fecha === hoy() && <LineaAhora ahora={ahora} />}
+
                 {/* Bloque fantasma durante el arrastre */}
                 {drag && drag.dia === fecha && (
                   <div
@@ -1139,6 +1160,8 @@ const CalendarScreen = ({ servicios, albaranes, eventos = [], coloresVehiculo = 
                           </button>
                         );
                       })}
+
+                      {esHoy && <LineaAhora ahora={ahora} />}
 
                       {/* Bloque fantasma durante el arrastre */}
                       {drag && drag.dia === iso && (
